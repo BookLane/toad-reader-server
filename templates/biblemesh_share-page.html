@@ -1,0 +1,289 @@
+<html>
+<head>
+    <title>{{page_title}}</title>
+
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <link href="/images/readium_favicon.png" rel="shortcut icon">
+    <link href="/images/readium-touch-icon.png" rel="apple-touch-icon">
+
+    <meta property="og:url" content="{{url_noquotes}}" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="{{page_title}}" />
+    <meta property="og:description" content="{{quote_noquotes}}" />
+    <meta property="og:image" content="{{book_image_url}}" />
+
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+    <style>
+        body {
+            font-family: 'Open Sans', sans-serif;
+            text-align: center;
+            color: #333;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .book-image {
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: contain;
+            height: 190px;
+            width: 142px;
+            display: table-cell;
+            vertical-align: middle;
+            background-image: url('/epub_content/book_6/OEBPS/images/cover.jpg');
+        }
+
+        .book-info {
+            font-family: 'Montserrat', sans-serif;
+            display: table-cell;
+            vertical-align: middle;
+            padding-left: 20px;
+        }
+
+        .quote::before {
+            content: "“";
+            font-size: 60px;
+            color: #1C60AB;
+            opacity: .4;
+            vertical-align: middle;
+        }
+
+        .quote::after {
+            content: "”";
+            font-size: 60px;
+            color: #1C60AB;
+            opacity: .4;
+            top: -13px;
+            left: 10px;
+            vertical-align: middle;
+        }
+
+        .quote {
+            font-family: 'Montserrat', sans-serif;
+            position: relative;
+            min-height: 50px;
+            padding: 20px;
+            font-size: 28px;
+            line-height: 45px;
+            text-align: center;
+            color: black;
+        }
+
+        .cont {
+            max-width: 800px;
+            display: inline-block;
+            text-align: left;
+        }
+
+        .book-title {
+            font-size: 24px;
+            margin: 5px 0
+        }
+
+        .book-author {
+            font-size: 14px;
+            color: #555;
+            margin: 0 0 10px;
+        }
+
+        button {
+            background: #1c60ab;
+            font-family: 'Open Sans', sans-serif;
+            color: #fff;
+            padding: 6px 12px;
+            font-size: 14px;
+            line-height: 1.42857143;
+            -ms-touch-action: manipulation;
+            touch-action: manipulation;
+            cursor: pointer;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+            border: 1px solid transparent;
+            border-radius: 4px;
+            -webkit-transition: all .2s ease-in-out;
+            -moz-transition: all .2s ease-in-out;
+            -ms-transition: all .2s ease-in-out;
+            -o-transition: all .2s ease-in-out;
+            transition: all .2s ease-in-out;
+        }
+
+        button:hover {
+            background: #6399D5;
+        }
+
+        .sharer-heading {
+            font-size: 15px;
+        }
+
+        .sharer {
+            padding: 20px;
+            border-top: 1px solid #ddd;
+            position: relative;
+        }
+
+        .book-cont {
+            padding: 20px 20px 40px 20px;
+        }
+
+        .sharer-note {
+            padding: 10px 0 6px 10px;
+            color: black;
+        }
+
+        .sharer-name {
+            padding-left: 10px;
+            color: #555;
+            font-size: 12px;
+        }
+
+        .sharing {
+            text-align: center;
+            padding-bottom: 20px;
+            margin-top: -3px;
+            font-weight: bolder;
+            font-size: 14px;
+        }        
+
+        .sharing > * {
+            margin: 0 4px 0 5px;
+            vertical-align: middle;
+        }
+
+        .sharer-remove {
+            position: absolute;
+            top: 1px;
+            right: 10px;
+            text-decoration: none;
+            font-size: 21px;
+            padding: 10px;
+            color: #999;
+        }
+
+        .sharer-remove:hover {
+            color: black;
+        }
+
+        .copy-url-copied {
+            position: absolute;
+            color: transparent;
+            left: 100%;
+            top: 0;
+            font-weight: bold;
+            -webkit-transition: all .4s ease-in-out;
+            -moz-transition: all .4s ease-in-out;
+            -ms-transition: all .4s ease-in-out;
+            -o-transition: all .4s ease-in-out;
+            transition: all .4s ease-in-out;
+            padding-left: 10px;
+        }
+
+        .copy-url {
+            position: relative;
+            border-radius: 2px;
+            font-size: 11px;
+            line-height: 18px;
+            padding: 0 7px;
+        }
+
+        .copy-url-copied.show {
+            color: black;
+        }
+
+        .fb-like {
+            display: inline-block;
+        }
+
+        .copyel {
+            position: fixed;
+            top: -20px;
+            left: 0;
+            width: 10px;
+            height: 10px;
+        }
+    </style>
+
+    <script>
+        window.twttr = (function(d, s, id) {
+            var js, fjs = d.getElementsByTagName(s)[0],
+                t = window.twttr || {};
+            if (d.getElementById(id)) return t;
+            js = d.createElement(s);
+            js.id = id;
+            js.src = "https://platform.twitter.com/widgets.js";
+            fjs.parentNode.insertBefore(js, fjs);
+            t._e = [];
+            t.ready = function(f) {
+                t._e.push(f);
+            };
+            return t;
+        }(document, "script", "twitter-wjs"));
+
+        function copyLink(link) {
+            var copyEl = $('<input class="copyel" />');
+            copyEl.val(link);
+            $('body').append(copyEl);
+            copyEl.select()
+            copyEl.focus();
+            
+            document.execCommand('copy');
+
+            copyEl.remove();
+            
+            $('.copy-url-copied').addClass('show');
+            setTimeout(function() {
+                $('.copy-url-copied').removeClass('show');
+            }, 600);
+        }
+    </script>
+
+    <link href="https://fonts.googleapis.com/css?family=Montserrat|Open+Sans" rel="stylesheet">
+
+</head>
+
+<body>
+
+    <div id="fb-root"></div>
+    <script>(function(d, s, id) {
+    var js, fjs = d.getElementsByTagName(s)[0];
+    if (d.getElementById(id)) return;
+    js = d.createElement(s); js.id = id;
+    js.src = "//connect.facebook.net/en_GB/sdk.js#xfbml=1&version=v2.8";
+    fjs.parentNode.insertBefore(js, fjs);
+    }(document, 'script', 'facebook-jssdk'));</script>
+
+    <div class="cont">
+
+        <div class="quote">{{quote}}</div>
+        <div class="sharing">
+            {{share}}
+            <a class="twitter-share-button" href="https://twitter.com/intent/tweet?text={{note_abridged_escaped}}&url={{url_escaped}}">Tweet</a>
+            <div class="fb-like" data-href="{{url_noquotes}}" data-layout="button" data-action="like" data-show-faces="false" data-share="true"></div>
+            <button class="copy-url" onclick='copyLink("{{url_noquotes}}");'>{{copy_link}}<div class="copy-url-copied">{{copied}}</div></button>
+        </div>
+        <div class="book-cont">
+            <div class="book">
+                <div class="book-image" style="background-image:url({{book_image_url}})" /></div>
+                <div class="book-info">
+                    <div class="book-title">{{book_title}}</div>
+                    <div class="book-author">{{book_author}}</div>
+                    <a href="{{read_here_url}}"><button class="book-read {{read_class}}">{{read_here}}</button></a>
+                </div>
+            </div>
+        </div>
+        <div class="sharer {{sharer_class}}">
+            <div class="sharer-heading">{{comment}}</div>
+            <div class="sharer-note">{{sharer_note}}</div>
+            <div class="sharer-name">{{sharer_name}}</div>
+            <a class="sharer-remove {{sharer_remove_class}}" href="{{url_nosharer}}">×</div>
+        </div>
+
+    </div>
+
+</body>
+</html>

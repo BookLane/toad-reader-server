@@ -1,0 +1,67 @@
+<html>
+<head>
+    <title>Month-by-month usage report - {{idp_name}}</title>
+
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <link href="/images/readium_favicon.png" rel="shortcut icon">
+
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+    <style>
+        body {
+            font-family: 'Open Sans', sans-serif;
+            color: #333;
+        }
+
+        .month th {
+            padding: 4px 10px;
+            background: #aaa;
+            color: white;
+        }
+
+        .month td {
+            padding: 4px 10px;
+            background: #eee;
+        }
+
+        .month-title {
+            padding: 10px 0 0 3px;
+        }
+
+        .note {
+            font-size: 13px;
+            padding: 3px;
+        }
+
+        .title {
+            font-size: 20px;
+            padding: 3px;
+        }
+
+        .month .plain {
+            background: none;
+            font-weight: bold;
+        }
+
+        .month .total {
+            text-align: right;
+        }
+    </style>
+
+    <link href="https://fonts.googleapis.com/css?family=Open+Sans" rel="stylesheet">
+</head>
+
+<body>
+
+    <div class="title">Month-by-month usage report - {{idp_name}}</div>
+    <div class="note">All costs listed in USD. <a href="https://docs.google.com/document/d/1xGlN9lrBPr29KR67amCqTzQfC5XGJtmsiUr7ZMnat6g/edit?usp=sharing" target="_blank">Pricing</a></div>
+
+    <div class="cont">
+
+        {{months}}
+
+    </div>
+
+</body>
+</html>
