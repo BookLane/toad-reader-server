@@ -2,7 +2,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
 
   var path = require('path');
   var fs = require('fs');
-  var util = require('./util');
+  var util = require('../util');
 
   var shareLanguages = {
     "en": {

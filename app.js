@@ -13,7 +13,7 @@ var RedisStore = require('connect-redis')(session);
 var passport = require('passport');
 var saml = require('passport-saml');
 require('dotenv').load();  //loads the local environment
-var util = require('./routes/util');
+var util = require('./util');
 const jwt = require('jsonwebtoken');
 
 
