@@ -225,7 +225,11 @@ module.exports = function (app, s3, connection, passport, authFuncs, ensureAuthe
         log(['Deliver static file', staticFile]);
         res.sendFile(staticFile, {
             dotfiles: "allow",
-            cacheControl: urlWithoutQuery=='/css/annotations.css' ? false : true
+            cacheControl: false,
+            // Have browser just use the cached version for all html assets. This
+            // is ok because the mutable scripts and css get a bust string with each
+            // release. The only potential issue is where fonts or images change.
+            // In this case, such images or fonts should be renamed.
         });
       } else {
         log(['File not found', staticFile], 2);
