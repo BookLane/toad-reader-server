@@ -13,7 +13,7 @@ var RedisStore = require('connect-redis')(session);
 var passport = require('passport');
 var saml = require('passport-saml');
 require('dotenv').load();  //loads the local environment
-var biblemesh_util = require('./routes/biblemesh_util');
+var util = require('./routes/util');
 const jwt = require('jsonwebtoken');
 
 
@@ -115,7 +115,7 @@ var strategyCallback = function(idp, profile, done) {
 
     var completeLogin = function(userId) {
 
-      var now = biblemesh_util.timestampToMySQLDatetime(null, true);      
+      var now = util.timestampToMySQLDatetime(null, true);      
       connection.query('INSERT IGNORE into `book_instance` (??) VALUES ?',
         [['idp_id', 'book_id', 'user_id', 'first_given_access_at'], bookIds.map(function(bookId) {
           return [idpId, bookId, userId, now];
@@ -135,7 +135,7 @@ var strategyCallback = function(idp, profile, done) {
             idpUseReaderTxt: !!idp.useReaderTxt,
             idpLang: idp.language || 'en',
             idpNoAuth: false,
-            idpExpire: idp.demo_expires_at && biblemesh_util.mySQLDatetimeToTimestamp(idp.demo_expires_at),
+            idpExpire: idp.demo_expires_at && util.mySQLDatetimeToTimestamp(idp.demo_expires_at),
             idpAndroidAppURL: idp.androidAppURL,
             idpIosAppURL: idp.iosAppURL,
             idpXapiOn: idp.xapiOn,
@@ -150,7 +150,7 @@ var strategyCallback = function(idp, profile, done) {
       function (err, rows) {
         if (err) return done(err);
 
-        var currentMySQLDatetime = biblemesh_util.timestampToMySQLDatetime();
+        var currentMySQLDatetime = util.timestampToMySQLDatetime();
 
         if(rows.length == 0) {
           log('Creating new user row');
@@ -310,11 +310,11 @@ function ensureAuthenticated(req, res, next) {
             // setup a new demo IDP
             log('Creating new demo idp', 2);
 
-            var currentMySQLDatetime = biblemesh_util.timestampToMySQLDatetime();
+            var currentMySQLDatetime = util.timestampToMySQLDatetime();
             var expiresInHours = Math.min(parseInt(req.query.demo_hours, 10) || 24, 336);
-            var expiresMySQLDatetime = biblemesh_util.timestampToMySQLDatetime(
+            var expiresMySQLDatetime = util.timestampToMySQLDatetime(
               // an extra minute is included so that the full number of hours/days appears to the user
-              biblemesh_util.getUTCTimeStamp() + (1000 * 60 * 60 * expiresInHours + (1000 * 60))
+              util.getUTCTimeStamp() + (1000 * 60 * 60 * expiresInHours + (1000 * 60))
             );
             
             // insert new idp row
@@ -373,8 +373,8 @@ function ensureAuthenticated(req, res, next) {
             var sessionSharingAsRecipientInfo = JSON.parse(row.sessionSharingAsRecipientInfo);
           } catch(e) {}
 
-          var expiresAt = row.demo_expires_at && biblemesh_util.mySQLDatetimeToTimestamp(row.demo_expires_at);
-          if(expiresAt && expiresAt < biblemesh_util.getUTCTimeStamp()) {
+          var expiresAt = row.demo_expires_at && util.mySQLDatetimeToTimestamp(row.demo_expires_at);
+          if(expiresAt && expiresAt < util.getUTCTimeStamp()) {
             log(['IDP no longer exists (#2)', row.id], 2);
             return res.redirect('https://' + process.env.APP_URL + '?domain_expired=1');
 
@@ -525,7 +525,7 @@ app.get(['/RequireJS_config.js', '/book/RequireJS_config.js'], function (req, re
   res.sendFile(path.join(process.cwd(), 'dev/RequireJS_config.js'));
 })
 
-require('./routes/biblemesh_routes')(app, s3, connection, passport, authFuncs, ensureAuthenticated, embedWebsites, log);
+require('./routes/routes')(app, s3, connection, passport, authFuncs, ensureAuthenticated, embedWebsites, log);
 
 
 ////////////// LISTEN //////////////

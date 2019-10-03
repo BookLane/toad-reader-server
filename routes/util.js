@@ -8,7 +8,7 @@ var getXapiActor = function(params) {
 }
 
 var getXapiObject = function(params) {
-  var baseUrl = biblemesh_util.getBaseUrl(params.req);
+  var baseUrl = util.getBaseUrl(params.req);
 
   return {
     "id": baseUrl + "/book/" + params.bookId,
@@ -40,7 +40,7 @@ var getXapiObject = function(params) {
 }
 
 var getXapiContext = function(params) {
-  var appURI = biblemesh_util.getBaseUrl(params.req);
+  var appURI = util.getBaseUrl(params.req);
   var platform =
     params.req
     && params.req.headers
@@ -86,7 +86,7 @@ var getXapiContext = function(params) {
   };
 }
 
-var biblemesh_util = {
+var util = {
 
   NOT_DELETED_AT_TIME: '0000-01-01 00:00:00',
   
@@ -95,7 +95,7 @@ var biblemesh_util = {
   },
 
   notLaterThanNow: function(timestamp){
-    return Math.min(biblemesh_util.getUTCTimeStamp(), timestamp);
+    return Math.min(util.getUTCTimeStamp(), timestamp);
   },
 
   mySQLDatetimeToTimestamp: function(mysqlDatetime) {
@@ -166,9 +166,9 @@ var biblemesh_util = {
       },
       "object": getXapiObject(params),
       "result": {
-        "duration": biblemesh_util.secondsToDuration(params.durationInSeconds),
+        "duration": util.secondsToDuration(params.durationInSeconds),
       },
-      "timestamp": biblemesh_util.timestampToISO(params.timestamp),
+      "timestamp": util.timestampToISO(params.timestamp),
       "context": getXapiContext(params),
     });
   },
@@ -183,7 +183,7 @@ var biblemesh_util = {
         }
       },
       "object": getXapiObject(params),
-      "timestamp": biblemesh_util.timestampToISO(params.timestamp),
+      "timestamp": util.timestampToISO(params.timestamp),
       "context": getXapiContext(params),
     });
   },
@@ -198,10 +198,10 @@ var biblemesh_util = {
         }
       },
       "object": getXapiObject(params),
-      "timestamp": biblemesh_util.timestampToISO(params.timestamp),
+      "timestamp": util.timestampToISO(params.timestamp),
       "context": getXapiContext(params),
     });
   },
 }
 
-module.exports = biblemesh_util;
+module.exports = util;

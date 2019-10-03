@@ -4,7 +4,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
   var fs = require('fs');
   var multiparty = require('multiparty');
   var admzip = require('adm-zip');
-  var biblemesh_util = require('./biblemesh_util');
+  var util = require('./util');
   var Entities = require('html-entities').AllHtmlEntities;
   var entities = new Entities();
   var sharp = require('sharp');
@@ -143,7 +143,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
       return;
     }
     
-    var tmpDir = 'tmp_epub_' + biblemesh_util.getUTCTimeStamp();
+    var tmpDir = 'tmp_epub_' + util.getUTCTimeStamp();
     var toUploadDir = tmpDir + '/toupload';
     var epubToS3SuccessCount = 0;
     var epubFilePaths = [];
@@ -306,7 +306,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
           isbn: '',
           epubSizeInMB: Math.ceil(file.size/1024/1024),
           standardPriceInCents: priceMatch ? (priceMatch[1] + priceMatch[2]) : null,
-          updated_at: biblemesh_util.timestampToMySQLDatetime()
+          updated_at: util.timestampToMySQLDatetime()
         };
 
         // Put row into book table
@@ -446,9 +446,9 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
       return;
     }
 
-    var usageReportTemplate = fs.readFileSync(__dirname + '/../templates/biblemesh_usage-report.html', 'utf8')
-    var usageReportMonthTemplate = fs.readFileSync(__dirname + '/../templates/biblemesh_usage-report-month.html', 'utf8')
-    var usageReportRowTemplate = fs.readFileSync(__dirname + '/../templates/biblemesh_usage-report-row.html', 'utf8')
+    var usageReportTemplate = fs.readFileSync(__dirname + '/../templates/usage-report.html', 'utf8')
+    var usageReportMonthTemplate = fs.readFileSync(__dirname + '/../templates/usage-report-month.html', 'utf8')
+    var usageReportRowTemplate = fs.readFileSync(__dirname + '/../templates/usage-report-row.html', 'utf8')
     var months = '';
 
     var now = new Date()
@@ -456,9 +456,9 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
     var monthSets = [];
 
     for(var i=0; i<(req.query.numMonths || 3); i++) {
-      var toDate = now.getUTCFullYear() + '-' + biblemesh_util.pad(now.getUTCMonth() + 1, 2) + '-01 00:00:00'
+      var toDate = now.getUTCFullYear() + '-' + util.pad(now.getUTCMonth() + 1, 2) + '-01 00:00:00'
       now.setMonth(now.getMonth() - 1)
-      var fromDate = now.getUTCFullYear() + '-' + biblemesh_util.pad(now.getUTCMonth() + 1, 2) + '-01 00:00:00'
+      var fromDate = now.getUTCFullYear() + '-' + util.pad(now.getUTCMonth() + 1, 2) + '-01 00:00:00'
 
       monthSets.push({
         fromDate: fromDate,
@@ -533,7 +533,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
   var runHourlyCron = function() {
     log('Hourly cron started', 2);
 
-    var currentMySQLDatetime = biblemesh_util.timestampToMySQLDatetime();
+    var currentMySQLDatetime = util.timestampToMySQLDatetime();
 
     log('Get expired idps');
     connection.query('SELECT id FROM `idp` WHERE demo_expires_at IS NOT NULL AND demo_expires_at<?',
@@ -607,7 +607,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
     minuteCronRunning = true;
 
     // get the tenants (idps)
-    var currentMySQLDatetime = biblemesh_util.timestampToMySQLDatetime();
+    var currentMySQLDatetime = util.timestampToMySQLDatetime();
 
     log('Get idps with xapiOn=true');
     connection.query('SELECT * FROM `idp` WHERE xapiOn=? AND (demo_expires_at IS NULL OR demo_expires_at>?)',

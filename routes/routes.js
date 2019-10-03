@@ -3,11 +3,11 @@ module.exports = function (app, s3, connection, passport, authFuncs, ensureAuthe
   var path = require('path');
   var fs = require('fs');
   var mime = require('mime');
-  var biblemesh_util = require('./biblemesh_util');
+  var util = require('./util');
 
   function goEnsureAuthenticatedAndCheckIDP(req, res, next, redirectOnExpire) {
     if (req.isAuthenticated() && req.user.idpNoAuth) {
-      var currentMySQLDatetime = biblemesh_util.timestampToMySQLDatetime();
+      var currentMySQLDatetime = util.timestampToMySQLDatetime();
 
       log('Checking that temp demo IDP still exists');
       connection.query('SELECT * FROM `idp` WHERE id=? AND (demo_expires_at IS NULL OR demo_expires_at>?)',
@@ -40,9 +40,9 @@ module.exports = function (app, s3, connection, passport, authFuncs, ensureAuthe
     return goEnsureAuthenticatedAndCheckIDP(req, res, next, true);
   }
 
-  require('./biblemesh_auth_routes')(app, passport, authFuncs, connection, ensureAuthenticated, log);
-  require('./biblemesh_admin_routes')(app, s3, connection, ensureAuthenticatedAndCheckIDP, log);
-  require('./biblemesh_user_routes')(app, connection, ensureAuthenticatedAndCheckIDP, ensureAuthenticatedAndCheckIDPWithRedirect, embedWebsites, log);
+  require('./auth_routes')(app, passport, authFuncs, connection, ensureAuthenticated, log);
+  require('./admin_routes')(app, s3, connection, ensureAuthenticatedAndCheckIDP, log);
+  require('./user_routes')(app, connection, ensureAuthenticatedAndCheckIDP, ensureAuthenticatedAndCheckIDPWithRedirect, embedWebsites, log);
 
   var getAssetFromS3 = function(req, res, next, notFoundCallback) {
     var urlWithoutQuery = req.url.replace(/(\?.*)?$/, '').replace(/^\/book/,'').replace(/%20/g, ' ');
@@ -192,11 +192,11 @@ module.exports = function (app, s3, connection, passport, authFuncs, ensureAuthe
         // if it is full epub download and idp has xapi on, create an xapi statement
         if(req.user.idpXapiOn && urlPieces.length === 4 && urlPieces[3] === 'book.epub' && req.book) {
           var currentTimestamp = Date.now();
-          var currentMySQLDatetime = biblemesh_util.timestampToMySQLDatetime(currentTimestamp);
+          var currentMySQLDatetime = util.timestampToMySQLDatetime(currentTimestamp);
           connection.query('INSERT into `xapiQueue` SET ?',
             {
               idp_id: req.user.idpId,
-              statement: biblemesh_util.getDownloadStatement({
+              statement: util.getDownloadStatement({
                 req: req,
                 bookId: bookId,
                 bookTitle: req.book.title,

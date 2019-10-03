@@ -2,7 +2,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
 
   var path = require('path');
   var fs = require('fs');
-  var biblemesh_util = require('./biblemesh_util');
+  var util = require('./util');
 
   var shareLanguages = {
     "en": {
@@ -63,7 +63,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
         idpXapiOn: req.user.idpXapiOn,
         idpXapiConsentText: req.user.idpXapiConsentText,
       },
-      currentServerTime: biblemesh_util.getUTCTimeStamp()
+      currentServerTime: util.getUTCTimeStamp()
     }
     if(process.env.GOOGLE_ANALYTICS_CODE) {
       returnData.gaCode = process.env.GOOGLE_ANALYTICS_CODE;
@@ -91,14 +91,14 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
         function (err, rows, fields) {
           if (err) return next(err);
 
-          var baseUrl = biblemesh_util.getBaseUrl(req);
+          var baseUrl = util.getBaseUrl(req);
           var urlWithEditing = baseUrl + req.originalUrl.replace(/([\?&])editing=1&?/, '$1');
           var abridgedNote = req.query.note || ' ';
           if(abridgedNote.length > 116) {
             abridgedNote = abridgedNote.substring(0, 113) + '...';
           }
 
-          var sharePage = fs.readFileSync(__dirname + '/../templates/biblemesh_share-page.html', 'utf8')
+          var sharePage = fs.readFileSync(__dirname + '/../templates/share-page.html', 'utf8')
             .replace(/{{page_title}}/g, shareLanguageVariables.quote_from_X.replace('{title}', rows[0].title))
             .replace(/{{quote}}/g, req.query.highlight)
             .replace(/{{quote_noquotes}}/g, req.query.highlight.replace(/"/g, '&quot;'))
@@ -198,18 +198,18 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
         } else {
           var bookUserData = {
             latest_location: row.cfi,
-            updated_at: biblemesh_util.mySQLDatetimeToTimestamp(row.updated_at),
+            updated_at: util.mySQLDatetimeToTimestamp(row.updated_at),
             highlights: []
           }
 
           var highlightFields = 'spineIdRef, cfi, color, note, updated_at';
           connection.query('SELECT ' + highlightFields + ' FROM `highlight` WHERE user_id=? AND book_id=? AND deleted_at=?',
-            [req.params.userId, req.params.bookId, biblemesh_util.NOT_DELETED_AT_TIME],
+            [req.params.userId, req.params.bookId, util.NOT_DELETED_AT_TIME],
             function (err2, rows2, fields2) {
               if (err2) return next(err);
 
               rows2.forEach(function(row2, idx) {
-                rows2[idx].updated_at = biblemesh_util.mySQLDatetimeToTimestamp(row2.updated_at);
+                rows2[idx].updated_at = util.mySQLDatetimeToTimestamp(row2.updated_at);
               });
 
               bookUserData.highlights = rows2;
@@ -246,7 +246,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
             books[row.id] = row;
           })
 
-          var currentMySQLDatetime = biblemesh_util.timestampToMySQLDatetime();
+          var currentMySQLDatetime = util.timestampToMySQLDatetime();
           var queriesToRun = [];
 
           req.body.readingRecords.forEach(function(reading) {
@@ -263,13 +263,13 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
               query: 'INSERT into `xapiQueue` SET ?',
               vars: {
                 idp_id: req.user.idpId,
-                statement: biblemesh_util.getReadStatement({
+                statement: util.getReadStatement({
                   req: req,
                   bookId: reading.bookId,
                   bookTitle: book.title,
                   bookISBN: book.isbn,
                   spineIdRef: reading.spineIdRef,
-                  timestamp: biblemesh_util.notLaterThanNow(reading.endTime),
+                  timestamp: util.notLaterThanNow(reading.endTime),
                   durationInSeconds: parseInt((reading.endTime - reading.startTime) / 1000, 10),
                 }),
                 unique_tag:  // this is to prevent dups being inserted from a repeated request due to a spotted internet connection
@@ -336,17 +336,17 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
       connection.query('SELECT * FROM `latest_location` WHERE user_id=? AND book_id=?; '
         + 'SELECT spineIdRef, cfi, updated_at, IF(note="", 0, 1) as hasnote FROM `highlight` WHERE user_id=? AND book_id=? AND deleted_at=?;'
         + 'SELECT * FROM `book` WHERE id=?',
-        [req.params.userId, req.params.bookId, req.params.userId, req.params.bookId, biblemesh_util.NOT_DELETED_AT_TIME, req.params.bookId],
+        [req.params.userId, req.params.bookId, req.params.userId, req.params.bookId, util.NOT_DELETED_AT_TIME, req.params.bookId],
         function (err, results) {
           if (err) return next(err);
 
-          var currentMySQLDatetime = biblemesh_util.timestampToMySQLDatetime();
+          var currentMySQLDatetime = util.timestampToMySQLDatetime();
           var queriesToRun = [];
 
           var currentHighlightsUpdatedAtTimestamp = {};
           var currentHighlightsHasNote = {};
           results[1].forEach(function(highlightRow) {
-            currentHighlightsUpdatedAtTimestamp[getHighlightId(highlightRow)] = biblemesh_util.mySQLDatetimeToTimestamp(highlightRow.updated_at);
+            currentHighlightsUpdatedAtTimestamp[getHighlightId(highlightRow)] = util.mySQLDatetimeToTimestamp(highlightRow.updated_at);
             currentHighlightsHasNote[getHighlightId(highlightRow)] = !!highlightRow.hasnote;
           })
 
@@ -357,14 +357,14 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
               return;
             }
 
-            req.body.updated_at = biblemesh_util.notLaterThanNow(req.body.updated_at);
+            req.body.updated_at = util.notLaterThanNow(req.body.updated_at);
 
-            if((results[0].length > 0 ? biblemesh_util.mySQLDatetimeToTimestamp(results[0][0].updated_at) : 0) > req.body.updated_at) {
+            if((results[0].length > 0 ? util.mySQLDatetimeToTimestamp(results[0][0].updated_at) : 0) > req.body.updated_at) {
               containedOldPatch = true;
             } else {
               var fields = {
                 cfi: req.body.latest_location,
-                updated_at: biblemesh_util.timestampToMySQLDatetime(req.body.updated_at, true)
+                updated_at: util.timestampToMySQLDatetime(req.body.updated_at, true)
               };
               if(results[0].length > 0) {
                 queriesToRun.push({
@@ -390,7 +390,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
                 res.status(400).send();
                 return;
               }
-              highlight.updated_at = biblemesh_util.notLaterThanNow(highlight.updated_at);
+              highlight.updated_at = util.notLaterThanNow(highlight.updated_at);
 
               if((currentHighlightsUpdatedAtTimestamp[getHighlightId(highlight)] || 0) > highlight.updated_at) {
                 containedOldPatch = true;
@@ -398,25 +398,25 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
               }
 
               var updatedAtTimestamp = highlight.updated_at;
-              highlight.updated_at = biblemesh_util.timestampToMySQLDatetime(highlight.updated_at, true);
+              highlight.updated_at = util.timestampToMySQLDatetime(highlight.updated_at, true);
               // since I do not know whether to INSERT or UPDATE, just DELETE them all then then INSERT
               if(highlight._delete) {
                 if(currentHighlightsHasNote[getHighlightId(highlight)]) {
-                  var now = biblemesh_util.timestampToMySQLDatetime(null, true);
+                  var now = util.timestampToMySQLDatetime(null, true);
                   queriesToRun.push({
                     query: 'UPDATE `highlight` SET deleted_at=? WHERE user_id=? AND book_id=? AND spineIdRef=? && cfi=? AND deleted_at=?',
-                    vars: [now, req.params.userId, req.params.bookId, highlight.spineIdRef, highlight.cfi, biblemesh_util.NOT_DELETED_AT_TIME]
+                    vars: [now, req.params.userId, req.params.bookId, highlight.spineIdRef, highlight.cfi, util.NOT_DELETED_AT_TIME]
                   });
                 } else {
                   queriesToRun.push({
                     query: 'DELETE FROM `highlight` WHERE user_id=? AND book_id=? AND spineIdRef=? AND cfi=? AND deleted_at=? AND updated_at<=?',
-                    vars: [req.params.userId, req.params.bookId, highlight.spineIdRef, highlight.cfi, biblemesh_util.NOT_DELETED_AT_TIME, highlight.updated_at]
+                    vars: [req.params.userId, req.params.bookId, highlight.spineIdRef, highlight.cfi, util.NOT_DELETED_AT_TIME, highlight.updated_at]
                   });
                 }
               } else if(currentHighlightsUpdatedAtTimestamp[getHighlightId(highlight)] != null) {
                 queriesToRun.push({
                   query: 'UPDATE `highlight` SET ? WHERE user_id=? AND book_id=? AND spineIdRef=? AND cfi=? AND deleted_at=?',
-                  vars: [highlight, req.params.userId, req.params.bookId, highlight.spineIdRef, highlight.cfi, biblemesh_util.NOT_DELETED_AT_TIME]
+                  vars: [highlight, req.params.userId, req.params.bookId, highlight.spineIdRef, highlight.cfi, util.NOT_DELETED_AT_TIME]
                 });
               } else {
                 highlight.user_id = req.params.userId;
@@ -430,7 +430,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
                     query: 'INSERT into `xapiQueue` SET ?',
                     vars: {
                       idp_id: req.user.idpId,
-                      statement: biblemesh_util.getAnnotateStatement({
+                      statement: util.getAnnotateStatement({
                         req: req,
                         bookId: highlight.book_id,
                         bookTitle: results[2][0].title,
