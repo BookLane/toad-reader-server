@@ -86,7 +86,7 @@ module.exports = function (app, s3, connection, passport, authFuncs, ensureAuthe
         res.set({
           'Last-Modified': data.LastModified,
           'Content-Length': data.ContentLength,
-          'Content-Type': mime.lookup(urlWithoutQuery),
+          'Content-Type': mime.getType(urlWithoutQuery),
           'ETag': data.ETag
         }).send(new Buffer(data.Body));
       }
