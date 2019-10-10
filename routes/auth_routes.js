@@ -2,6 +2,37 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
 
   var fs = require('fs');
 
+  app.get('/confirmlogin',
+    ensureAuthenticated,
+    function (req, res) {
+
+      const postStatusToParent = () => {
+        (window.ReactNativeWebView || parent).postMessage(JSON.stringify({
+          identifier: "sendCookieAndContent",
+          payload: {
+            cookie: document.cookie,
+          },
+        }), location.hostname === 'localhost' ? '*' : location.origin);
+
+        if(window.ReactNativeWebView) {
+          document.cookie = "connect.sid=; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
+        }
+      }
+
+      res.send(`
+        <html>
+          <head>
+            <script>
+              (${String(postStatusToParent)})();
+            </script>
+          </head>
+          <body>
+          </body>
+        </html>
+      `)
+    }
+  );
+
   app.get('/login/:idpId',
     function(req, res, next) {
       log('Authenticate user', 2);

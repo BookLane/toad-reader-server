@@ -275,12 +275,10 @@ function ensureAuthenticated(req, res, next) {
     });
   } else if(
     req.method == 'GET'
-    && ((
-      req.headers['app-request']
-      && req.originalUrl.match(/^\/usersetup\.json/)
-    ) || (
-      req.originalUrl.match(/^\/(book\/[^\/]*|\?.*)?$/)
-    ))
+    && (
+      req.originalUrl.match(/^\/confirmlogin$/)
+      || req.originalUrl.match(/^\/(book\/[^\/]*|\?.*)?$/)
+    )
   ) {  // library or book call
     // if(req.query.widget) {
     //   return res.send(`
@@ -448,7 +446,7 @@ function ensureAuthenticated(req, res, next) {
               }, function(err) {
                 if (err) { return next(err); }
                 return next();
-              });            
+              });
             });
 
           } else {
