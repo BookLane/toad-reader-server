@@ -88,7 +88,7 @@ module.exports = function (app, s3, connection, passport, authFuncs, ensureAuthe
           'Content-Length': data.ContentLength,
           'Content-Type': mime.getType(urlWithoutQuery),
           'ETag': data.ETag
-        }).send(new Buffer(data.Body));
+        }).send(Buffer.from(data.Body));
       }
     });
   }
