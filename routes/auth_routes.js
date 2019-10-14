@@ -1,3 +1,5 @@
+var util = require('../util');
+
 module.exports = function (app, passport, authFuncs, connection, ensureAuthenticated, log) {
 
   var fs = require('fs');
@@ -6,11 +8,21 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
     ensureAuthenticated,
     function (req, res) {
 
+      const userInfo = {
+        id: req.user.id,
+        firstname: req.user.firstname,
+        lastname: req.user.lastname,
+      }
+
+      const currentServerTime = util.getUTCTimeStamp()
+
       const postStatusToParent = () => {
         (window.ReactNativeWebView || parent).postMessage(JSON.stringify({
-          identifier: "sendCookieAndContent",
+          identifier: "sendCookiePlus",
           payload: {
             cookie: document.cookie,
+            userInfo: USERINFO,
+            currentServerTime: CURRENTSERVERTIME,
           },
         }), location.hostname === 'localhost' ? '*' : location.origin);
 
@@ -19,11 +31,15 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
         }
       }
 
+      const postStatusToParentFunc = String(postStatusToParent)
+        .replace('USERINFO', JSON.stringify(userInfo))
+        .replace('CURRENTSERVERTIME', JSON.stringify(currentServerTime))
+
       res.send(`
         <html>
           <head>
             <script>
-              (${String(postStatusToParent)})();
+              (${postStatusToParentFunc})();
             </script>
           </head>
           <body>

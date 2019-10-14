@@ -1,6 +1,7 @@
 ////////////// REQUIRES //////////////
 
 var express = require('express');
+var cors = require('cors');
 var app = express();
 var http = require('http');
 var bodyParser = require('body-parser');
@@ -32,6 +33,12 @@ var log = function(msgs, importanceLevel) {
   }
 }
 // console.log('ENV >>> ', process.env);
+
+
+////////////// SETUP CORS ON DEV //////////////
+if(process.env.IS_DEV) {
+  app.use(cors());
+}
 
 
 ////////////// SETUP STORAGE //////////////
