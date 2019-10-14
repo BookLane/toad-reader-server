@@ -4,6 +4,9 @@
   "description": "Toad Reader server",
   "author": "Andy Hubert",
   "scripts": {
+    "add-npmrc-for-sharp-install-permissions": "echo 'unsafe-perm=true' > .npmrc",
+    "push-to-aws": "npm run add-npmrc-for-sharp-install-permissions && eb deploy && npm run remove-npmrc",
+    "remove-npmrc": " rm .npmrc",
     "start": "node ./app.js"
   },
   "dependencies": {
