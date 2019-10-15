@@ -17,18 +17,41 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
       const currentServerTime = util.getUTCTimeStamp()
 
       const postStatusToParent = () => {
-        (window.ReactNativeWebView || parent).postMessage(JSON.stringify({
+
+        let webAppDomain
+
+        if(location.hostname === 'localhost') {
+          // dev environment
+          webAppDomain = '*'
+
+        } else if(/\.data\.staging\.toadreader\.com$/.test(location.hostname)) {
+          // staging environment
+          webAppDomain = `https://${location.host.replace(/\.data\./, '.')}`
+
+        } else {
+          // production environment
+          webAppDomain = `https://${
+            location.hostname
+              .split('.')[0]
+              .replace(/--/g, '[ DASH ]')
+              .replace(/-/g, '.')
+              .replace(/\[ DASH \]/g, '-')
+          }`
+        }
+
+        ;(window.ReactNativeWebView || parent).postMessage(JSON.stringify({
           identifier: "sendCookiePlus",
           payload: {
             cookie: document.cookie,
             userInfo: USERINFO,
             currentServerTime: CURRENTSERVERTIME,
           },
-        }), location.hostname === 'localhost' ? '*' : location.origin);
+        }), webAppDomain)
 
         if(window.ReactNativeWebView) {
           document.cookie = "connect.sid=; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
         }
+
       }
 
       const postStatusToParentFunc = String(postStatusToParent)
