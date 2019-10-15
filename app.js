@@ -36,9 +36,21 @@ var log = function(msgs, importanceLevel) {
 
 
 ////////////// SETUP CORS ON DEV //////////////
-if(process.env.IS_DEV) {
-  app.use(cors());
+var corsOptionsDelegate = (req, callback) => {
+  const corsOptions = {}
+
+  if(process.env.IS_DEV) {
+    corsOptions.origin = true
+  } else if(process.env.IS_STAGING) {
+    corsOptions.origin = `https://${req.headers.host.replace(/\.data\./, '.')}`
+  } else {
+    corsOptions.origin = `https://${util.getIDPDomain(req.headers.host)}`
+  }
+
+  callback(null, corsOptions)
 }
+
+app.use(cors(corsOptionsDelegate));
 
 
 ////////////// SETUP STORAGE //////////////
