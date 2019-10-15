@@ -35,7 +35,7 @@ var log = function(msgs, importanceLevel) {
 // console.log('ENV >>> ', process.env);
 
 
-////////////// SETUP CORS ON DEV //////////////
+////////////// SETUP CORS //////////////
 var corsOptionsDelegate = (req, callback) => {
   const corsOptions = {}
 
