@@ -460,10 +460,6 @@ function ensureAuthenticated(req, res, next) {
             // the IDP does require authentication
             log('Redirecting to authenticate', 2);
             req.session.loginRedirect = req.url;
-            if(req.headers['app-request']) {
-              req.session.cookie.maxAge = parseInt(process.env.APP_SESSION_MAXAGE) || 1209600000;
-              log(['Max age to set on cookie', req.session.cookie.maxAge]);
-            }
             return res.redirect('/login/' + row.id);
           }
         }
@@ -506,7 +502,7 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'secret',
   saveUninitialized: false,
   resave: false,
-  cookie : { httpOnly: false, maxAge: parseInt(process.env.SESSION_MAXAGE) || 86400000 } // configure when sessions expires
+  cookie : { httpOnly: false }
 }));
 app.use(passport.initialize());
 app.use(passport.session());
