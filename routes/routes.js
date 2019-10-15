@@ -161,7 +161,7 @@ module.exports = function (app, s3, connection, passport, authFuncs, ensureAuthe
         getIco(req.user.idpId);
       } else {
         connection.query('SELECT id FROM `idp` WHERE domain=?',
-          [req.headers.host],
+          [util.getIDPDomain(req.headers.host)],
           function (err, rows) {
             if (err) return next(err);
             

@@ -86,6 +86,15 @@ var getXapiContext = function(params) {
   };
 }
 
+const dashifyDomain = domain => domain
+  .replace(/-/g, '--')
+  .replace(/\./g, '-')
+
+const undashifyDomain = dashedDomain => dashedDomain
+  .replace(/--/g, '[ DASH ]')
+  .replace(/-/g, '.')
+  .replace(/\[ DASH \]/g, '-')
+
 var util = {
 
   NOT_DELETED_AT_TIME: '0000-01-01 00:00:00',
@@ -202,6 +211,28 @@ var util = {
       "context": getXapiContext(params),
     });
   },
+
+  getDataDomain: domain => {
+
+    if(process.env.IS_DEV) {
+      // dev environment
+      return `localhost:8080`
+    }
+  
+    if(process.env.IS_STAGING) {
+      // staging environment
+      return `${dashifyDomain(domain)}.data.staging.toadreader.com`
+    }
+  
+    // production environment
+    return `${dashifyDomain(domain)}.data.toadreader.com`
+  
+  },
+
+  getDataOrigin: ({ domain, protocol=`https` }={}) => `${process.env.IS_DEV ? `http` : protocol}://${util.getDataDomain(domain)}`,
+
+  getIDPDomain: host => undashifyDomain(host.split('.')[0]),
+
 }
 
 module.exports = util;

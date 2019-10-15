@@ -202,7 +202,7 @@ connection.query('SELECT * FROM `idp` WHERE entryPoint IS NOT NULL',
     }
 
     rows.forEach(function(row) {
-      var baseUrl = 'https://' + row.domain
+      var baseUrl = util.getDataOrigin(row)
       var samlStrategy = new saml.Strategy(
         {
           issuer: baseUrl + "/shibboleth",
@@ -224,7 +224,7 @@ connection.query('SELECT * FROM `idp` WHERE entryPoint IS NOT NULL',
 
       passport.use(row.id, samlStrategy);
 
-      authFuncs[row.domain] = authFuncs[row.id] = {
+      authFuncs[util.getDataDomain(row.domain)] = authFuncs[row.id] = {
         getMetaData: function() {
           return samlStrategy.generateServiceProviderMetadata(row.spcert);
         },
@@ -301,75 +301,15 @@ function ensureAuthenticated(req, res, next) {
     
     log('Checking if IDP requires authentication');
     connection.query('SELECT * FROM `idp` WHERE domain=?',
-      [req.headers.host],
+      [util.getIDPDomain(req.headers.host)],
       function (err, rows) {
         if (err) return next(err);
         var row = rows[0];
 
         if(!row) {
-          // the IDP does not exist. check if they are creating a demo
-          var newDemoUrlRegExp = new RegExp('^demo--([a-zA-Z0-9\\-]+)\\.' + process.env.APP_URL.replace(/[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g, "\\$&") + '$');
-          var newDemoUrlMatches = req.headers.host.match(newDemoUrlRegExp);
+          log('Tenant not found: ' + req.headers.host, 2);
+          return res.redirect('https://' + process.env.APP_URL + '?tenant_not_found=1');
 
-          if(newDemoUrlMatches && req.query.create != undefined) {
-            // setup a new demo IDP
-            log('Creating new demo idp', 2);
-
-            var currentMySQLDatetime = util.timestampToMySQLDatetime();
-            var expiresInHours = Math.min(parseInt(req.query.demo_hours, 10) || 24, 336);
-            var expiresMySQLDatetime = util.timestampToMySQLDatetime(
-              // an extra minute is included so that the full number of hours/days appears to the user
-              util.getUTCTimeStamp() + (1000 * 60 * 60 * expiresInHours + (1000 * 60))
-            );
-            
-            // insert new idp row
-            log('Inserting new demo idp row');
-            connection.query('INSERT into `idp` SET ?',
-              {
-                name: newDemoUrlMatches[1].replace(/--[0-9]+$/, ''),
-                domain: newDemoUrlMatches[0],
-                created_at: currentMySQLDatetime,
-                demo_expires_at: expiresMySQLDatetime
-              },
-              function (err2, results2) {
-                if (err2) return next(err2);
-                log('Demo idp row inserted successfully');
-
-                // give access to all the books that the demo account has
-                log('Lookup base demo idp book_ids');
-                connection.query('SELECT `book-idp`.book_id FROM `book-idp` LEFT JOIN `idp` ON (`idp`.id=`book-idp`.idp_id) WHERE idp.domain=?',
-                  ['demo.' + process.env.APP_URL],
-                  function (err3, rows3, fields3) {
-                    if (err3) return next(err3);
-
-                    var bookInserts = ['SELECT 1'];  // dummy query, in case there are no books to insert
-                    rows3.forEach(function(row3) {
-                      var bookId = parseInt(row3.book_id, 10);
-                      if(bookId) {
-                        bookInserts.push('INSERT into `book-idp` SET book_id="' + bookId + '", idp_id="' + results2.insertId + '"');
-                      }
-                    });
-                    
-                    log('Inserting book-idp rows for new demo');
-                    connection.query(bookInserts.join('; '),
-                      function (err4, results4) {
-                        if (err4) return next(err4);
-                        log('Inserted book-idp rows successfully');
-
-                        log('Reloading new demo url now that idp created');
-                        res.redirect('/');
-                      }
-                    );
-                  }
-                );  
-              }
-            );
-
-          } else {
-            log('Tenant not found: ' + req.headers.host, 2);
-            return res.redirect('https://' + process.env.APP_URL + '?tenant_not_found=1');
-
-          }
         } else {
 
           var sessionSharingAsRecipientInfo;
