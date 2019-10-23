@@ -238,7 +238,7 @@ connection.query('SELECT * FROM `idp` WHERE entryPoint IS NOT NULL',
 
       authFuncs[util.getDataDomain(row.domain)] = authFuncs[row.id] = {
         getMetaData: function() {
-          return samlStrategy.generateServiceProviderMetadata(row.spcert);
+          return samlStrategy.generateServiceProviderMetadata(row.spcert, row.spcert);
         },
         logout: function(req, res, next) {
           log(['Logout', req.user], 2);
