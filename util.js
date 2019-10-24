@@ -216,7 +216,7 @@ var util = {
 
     if(process.env.IS_DEV) {
       // dev environment
-      return `localhost:8080`
+      return `${process.env.DEV_NETWORK_IP || `localhost`}:8080`
     }
   
     if(process.env.IS_STAGING) {

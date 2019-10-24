@@ -18,38 +18,42 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
 
       const postStatusToParent = () => {
 
-        let webAppDomain
-
-        if(location.hostname === 'localhost') {
-          // dev environment
-          webAppDomain = '*'
-
-        } else if(/\.data\.staging\.toadreader\.com$/.test(location.hostname)) {
-          // staging environment
-          webAppDomain = `https://${location.host.replace(/\.data\./, '.')}`
-
-        } else {
-          // production environment
-          webAppDomain = `https://${
-            location.hostname
-              .split('.')[0]
-              .replace(/--/g, '[ DASH ]')
-              .replace(/-/g, '.')
-              .replace(/\[ DASH \]/g, '-')
-          }`
-        }
-
-        ;(window.ReactNativeWebView || parent).postMessage(JSON.stringify({
+        const message = JSON.stringify({
           identifier: "sendCookiePlus",
           payload: {
             cookie: document.cookie,
             userInfo: USERINFO,
             currentServerTime: CURRENTSERVERTIME,
           },
-        }), webAppDomain)
+        })
 
-        if(window.ReactNativeWebView) {
+        if(window.ReactNativeWebView) {  // ios or android
+          window.ReactNativeWebView.postMessage(message)
           document.cookie = "connect.sid=; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
+
+        } else {  // web
+          let webAppDomain
+
+          if([ 'localhost', DEVNETWORKIP ].includes(location.hostname)) {
+            // dev environment
+            webAppDomain = '*'
+  
+          } else if(/\.data\.staging\.toadreader\.com$/.test(location.hostname)) {
+            // staging environment
+            webAppDomain = `https://${location.host.replace(/\.data\./, '.')}`
+  
+          } else {
+            // production environment
+            webAppDomain = `https://${
+              location.hostname
+                .split('.')[0]
+                .replace(/--/g, '[ DASH ]')
+                .replace(/-/g, '.')
+                .replace(/\[ DASH \]/g, '-')
+            }`
+          }
+  
+          parent.postMessage(message, webAppDomain)
         }
 
       }
@@ -57,6 +61,7 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
       const postStatusToParentFunc = String(postStatusToParent)
         .replace('USERINFO', JSON.stringify(userInfo))
         .replace('CURRENTSERVERTIME', JSON.stringify(currentServerTime))
+        .replace('DEVNETWORKIP', JSON.stringify(process.env.DEV_NETWORK_IP))
 
       res.send(`
         <html>
