@@ -50,6 +50,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
         id: req.user.id,
         firstname: req.user.firstname,
         lastname: req.user.lastname,
+        isAdmin: req.user.isAdmin,
         idpId: req.user.idpId,
         idpName: req.user.idpName,
         idpUseReaderTxt: req.user.idpUseReaderTxt,

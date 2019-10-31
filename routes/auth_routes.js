@@ -12,6 +12,7 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
         id: req.user.id,
         firstname: req.user.firstname,
         lastname: req.user.lastname,
+        isAdmin: req.user.isAdmin,
       }
 
       const currentServerTime = util.getUTCTimeStamp()
