@@ -480,6 +480,9 @@ app.get(['/RequireJS_config.js', '/book/RequireJS_config.js'], function (req, re
 
 require('./routes/routes')(app, s3, connection, passport, authFuncs, ensureAuthenticated, embedWebsites, log);
 
+process.on('unhandledRejection', reason => {
+  log(['Unhandled node error', reason.stack || reason], 3)
+})
 
 ////////////// LISTEN //////////////
 

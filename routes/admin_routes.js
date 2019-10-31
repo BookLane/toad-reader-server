@@ -432,6 +432,10 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         });
       });
 
+      form.on('error', function(err) {
+        res.status(400).send({ errorType: "biblemesh_bad_file" });
+      })
+
       form.parse(req);
       
     });
