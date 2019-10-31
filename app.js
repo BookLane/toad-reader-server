@@ -111,7 +111,7 @@ var authFuncs = {};
 var strategyCallback = function(idp, profile, done) {
   log(['Profile from idp', profile], 2);
 
-  var mail = profile['urn:oid:0.9.2342.19200300.100.1.3'];
+  var mail = profile['urn:oid:0.9.2342.19200300.100.1.3'] || '';
   var idpUserId = profile['idpUserId'];
   var idpId = parseInt(idp.id);
   var isAdmin =
