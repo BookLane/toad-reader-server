@@ -114,7 +114,7 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
       if(authFuncs[req.user.idpId]) {
         authFuncs[req.user.idpId].logout(req, res, next);
       } else {
-        res.redirect('/logout/callback');
+        res.redirect(`/logout/callback${req.query.noredirect ? `?noredirect=1` : ``}`);
       }
     }
   );
