@@ -75,134 +75,153 @@ var redisOptions = {
 
 ////////////// SETUP PASSPORT //////////////
 
-var filterBookIdsByIDPs = function(bookIds, idpIds, isAdmin, next, callback) {
+const getUserInfo = ({
+  idp,
+  idpUserId,
+  next,
+}) => new Promise(resolve => {
 
-  // Admins not counted as admins if they are logged into multiple IDPs
-  isAdmin = isAdmin && idpIds.length==1;
+  var options = {
+    method: 'get',
+    body: JSON.stringify({
+      payload: jwt.sign({ idpUserId }, idp.userInfoJWT),
+    }),
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  };
 
-  // filter bookIds by the book-idp (books are accessible to user only if the book is associated with login IDP)
-  connection.query('SELECT book_id FROM `book-idp` WHERE idp_id IN(?)' + (isAdmin ? '' : ' AND book_id IN(?)'),
-    [idpIds.concat([0]), bookIds.concat([0])],
-    function (err, rows, fields) {
+  // post the xapi statements
+  fetch(idp.userInfoEndpoint, options)
+    .then(res => {
+      if(res.status !== 200) {
+        log(['Invalid response from userInfoEndpoint'], 3);
+        next('Bad login.');
+        return;
+      }
+
+      res.json().then(userInfo => {
+        util.updateUserInfo({ connection, log, userInfo, idpId: idp.id, updateLastLoginAt: true, next }).then(resolve);
+      })
+    });
+
+});
+
+
+passport.serializeUser((user, done) => {
+  done(null, user.id);
+});
+
+const deserializeUser = ({ userId, next }) => new Promise(resolve => {
+  
+  const fields = `
+    user.id,
+    user.email,
+    user.fullname,
+    user.adminLevel,
+    user.idp_id,
+    idp.name,
+    idp.language,
+    idp.androidAppURL,
+    idp.iosAppURL,
+    idp.xapiOn,
+    idp.xapiConsentText,
+    idp.sessionSharingAsRecipientInfo,
+    idp.entryPoint
+  `
+
+  connection.query(''
+    + 'SELECT ' + fields + ' '
+    + 'FROM `user` '
+    + 'LEFT JOIN `idp` ON (user.idp_id=idp.id) '
+    + 'WHERE user.id=? ',
+    [userId],
+    (err, rows) => {
       if (err) return next(err);
 
-      var idpBookIds = rows.map(function(row) { return parseInt(row.book_id); });
-      log(['Filter book ids by idp', idpBookIds]);
-      
-      callback(
-        isAdmin
-          ? idpBookIds
-          : bookIds.filter(function(bId) { return idpBookIds.indexOf(bId) != -1; })
-      );
+      if(rows.length !== 1) {
+        next('User record not found');
+      }
+
+      var row = rows[0];
+      var sessionSharingAsRecipientInfo = util.parseSessionSharingAsRecipientInfo(row);
+
+      const user = {
+        id: row.id,
+        email: row.email,
+        fullname: row.fullname,
+        isAdmin: [ 'SUPER_ADMIN', 'ADMIN' ].includes(row.adminLevel),
+        idpId: row.idp_id,
+        idpName: row.name,
+        idpLang: row.language || 'en',
+        idpNoAuth: !!(process.env.SKIP_AUTH || (!sessionSharingAsRecipientInfo && !row.entryPoint)),
+        idpAndroidAppURL: row.androidAppURL,
+        idpIosAppURL: row.iosAppURL,
+        idpXapiOn: row.xapiOn,
+        idpXapiConsentText: row.xapiConsentText,
+      }
+
+      resolve(user);
     }
-  );
+  )
+
+})
+
+passport.deserializeUser((userId, done) => {
+  deserializeUser({ userId, next: done }).then(user => {
+    done(null, user)
+  })
+})
+
+const logIn = ({ userId, req, next }) => {
+  deserializeUser({ userId, next }).then(user => {
+    req.login(user, function(err) {
+      if (err) { return next(err); }
+      return next();
+    });
+  });
 }
-
-passport.serializeUser(function(user, done) {
-  done(null, user);
-});
-
-passport.deserializeUser(function(user, done) {
-  done(null, user);
-});
 
 var authFuncs = {};
 
 var strategyCallback = function(idp, profile, done) {
   log(['Profile from idp', profile], 2);
 
-  var mail = profile['urn:oid:0.9.2342.19200300.100.1.3'] || '';
   var idpUserId = profile['idpUserId'];
   var idpId = parseInt(idp.id);
-  var isAdmin =
-    !!profile['isAdmin'] ||
-    idp.adminUserEmails.toLowerCase().split(' ').indexOf(mail.toLowerCase()) != -1 ||
-    process.env.ADMIN_EMAILS.toLowerCase().split(' ').indexOf(mail.toLowerCase()) != -1;
-  var givenName = profile['urn:oid:2.5.4.42'] || '';
-  var sn = profile['urn:oid:2.5.4.4'] || '';
-  var bookIds = ( profile['bookIds'] ? profile['bookIds'].split(' ') : [] )
-    .map(function(bId) { return parseInt(bId); });
 
-  if(!mail || !idpUserId) {
+  if(!idpUserId) {
     log(['Bad login', profile], 3);
     done('Bad login.');
+    return;
   }
 
-  filterBookIdsByIDPs(bookIds, [idpId], isAdmin, done, function(filteredBookIds) {
+  if(idp.userInfoEndpoint) {
 
-    bookIds = filteredBookIds;
+    getUserInfo({ idp, idpUserId, next: done }).then(userId => done(null, userId));
 
-    var completeLogin = function(userId) {
+  } else {  // old method: get userInfo from meta data
 
-      var now = util.timestampToMySQLDatetime(null, true);      
-      connection.query('INSERT IGNORE into `book_instance` (??) VALUES ?',
-        [['idp_id', 'book_id', 'user_id', 'first_given_access_at'], bookIds.map(function(bookId) {
-          return [idpId, bookId, userId, now];
-        })],
-        function (err5, results) {
-
-          log('Login successful', 2);
-          done(null, Object.assign(profile, {
-            id: userId,
-            email: mail,
-            firstname: givenName,
-            lastname: sn,
-            bookIds: bookIds,
-            isAdmin: isAdmin,  // If I change to multiple IDP logins at once, then ensure admins can only be logged into one
-            idpId: idpId,
-            idpName: idp.name,
-            idpUseReaderTxt: !!idp.useReaderTxt,
-            idpLang: idp.language || 'en',
-            idpNoAuth: false,
-            idpExpire: idp.demo_expires_at && util.mySQLDatetimeToTimestamp(idp.demo_expires_at),
-            idpAndroidAppURL: idp.androidAppURL,
-            idpIosAppURL: idp.iosAppURL,
-            idpXapiOn: idp.xapiOn,
-            idpXapiConsentText: idp.xapiConsentText,
-          }));
-        }
-      )
+    const userInfo = {
+      idpUserId,
+      email: profile['urn:oid:0.9.2342.19200300.100.1.3'] || '',
+      adminLevel:
+        (
+          !!profile['isAdmin'] ||
+          process.env.ADMIN_EMAILS.toLowerCase().split(' ').indexOf(mail.toLowerCase()) != -1
+        ) ? 'ADMIN' : 'NONE',
+      fullname: ((profile['urn:oid:2.5.4.42'] || '') + ' ' + (profile['urn:oid:2.5.4.4'] || '')).trim(),
+      books: ( profile['bookIds'] ? profile['bookIds'].split(' ') : [] )
+        .map(bId => ({ id: parseInt(bId) })),
     }
-
-    connection.query('SELECT id FROM `user` WHERE user_id_from_idp=? AND idp_id=?',
-      [idpUserId, idpId],
-      function (err, rows) {
-        if (err) return done(err);
-
-        var currentMySQLDatetime = util.timestampToMySQLDatetime();
-
-        if(rows.length == 0) {
-          log('Creating new user row');
-          connection.query('INSERT into `user` SET ?',
-            {
-              user_id_from_idp: idpUserId,
-              idp_id: idpId,
-              email: mail,
-              last_login_at: currentMySQLDatetime
-            },
-            function (err2, results) {
-              if (err2) return done(err2);
-
-              log('User row created successfully');
-              completeLogin(results.insertId);
-            }
-          );
-
-        } else {
-          log('Updating new user row');
-          connection.query('UPDATE `user` SET last_login_at=?, email=? WHERE user_id_from_idp=? AND idp_id=?',
-            [currentMySQLDatetime, mail, idpUserId, idpId],
-            function (err2, results) {
-              if (err2) return done(err2);
-
-              log('User row updated successfully');
-              completeLogin(rows[0].id);
-            }
-          );
-        }
-      }
-    )
-  });
+  
+    if(!userInfo.email) {
+      log(['Bad login', profile], 3);
+      done('Bad login.');
+    }
+  
+    util.updateUserInfo({ connection, log, userInfo, idpId, updateLastLoginAt: true, next: done }).then(userId => done(null, userId));
+  }
 };
 
 // setup SAML strategies for IDPs
@@ -269,29 +288,11 @@ connection.query('SELECT * FROM `idp` WHERE entryPoint IS NOT NULL',
 function ensureAuthenticated(req, res, next) {
   if (req.isAuthenticated()) {
     return next();
+
   } else if (process.env.SKIP_AUTH) {
-    var fakeIdpId = 1;
-    filterBookIdsByIDPs([], [fakeIdpId], true, next, function(filteredBookIds) {
-      req.user = {
-        id: fakeIdpId * -1,
-        email: 'place@holder.com',
-        firstname: 'Jim',
-        lastname: 'Smith',
-        bookIds: filteredBookIds,
-        isAdmin: true,
-        idpId: fakeIdpId,
-        idpName: 'Toad Reader',
-        idpUseReaderTxt: false,
-        idpLang: 'en',
-        idpNoAuth: true,
-        idpExpire: false,
-        idpXapiOn: 1,
-        idpAndroidAppURL: "https://play.google.com",
-        idpIosAppURL: "https://itunes.apple.com",
-        idpXapiConsentText: "Sure?",
-      }
-      return next();
-    });
+    // log in the user with id=1
+    logIn({ userId: 1, req, next });
+
   } else if(
     req.method == 'GET'
     && (
@@ -299,6 +300,7 @@ function ensureAuthenticated(req, res, next) {
       || req.originalUrl.match(/^\/(book\/[^\/]*|\?.*)?$/)
     )
   ) {  // library or book call
+
     // if(req.query.widget) {
     //   return res.send(`
     //     <script>
@@ -316,23 +318,20 @@ function ensureAuthenticated(req, res, next) {
       [util.getIDPDomain(req.headers.host)],
       function (err, rows) {
         if (err) return next(err);
-        var row = rows[0];
+        var idp = rows[0];
 
-        if(!row) {
+        if(!idp) {
           log('Tenant not found: ' + req.headers.host, 2);
           return res.redirect('https://' + process.env.APP_URL + '?tenant_not_found=1');
 
         } else {
 
-          var sessionSharingAsRecipientInfo;
+          var idpId = parseInt(idp.id);
+          var sessionSharingAsRecipientInfo = util.parseSessionSharingAsRecipientInfo(idp);
 
-          try {
-            var sessionSharingAsRecipientInfo = JSON.parse(row.sessionSharingAsRecipientInfo);
-          } catch(e) {}
-
-          var expiresAt = row.demo_expires_at && util.mySQLDatetimeToTimestamp(row.demo_expires_at);
+          var expiresAt = idp.demo_expires_at && util.mySQLDatetimeToTimestamp(idp.demo_expires_at);
           if(expiresAt && expiresAt < util.getUTCTimeStamp()) {
-            log(['IDP no longer exists (#2)', row.id], 2);
+            log(['IDP no longer exists (#2)', idpId], 2);
             return res.redirect('https://' + process.env.APP_URL + '?domain_expired=1');
 
           } else if(sessionSharingAsRecipientInfo) {
@@ -340,79 +339,50 @@ function ensureAuthenticated(req, res, next) {
             try {
 
               var token = jwt.verify(req.cookies[sessionSharingAsRecipientInfo.cookie], sessionSharingAsRecipientInfo.secret);
-              var idpId = parseInt(row.id);
-              var isAdmin =
-                !!token.isAdmin ||
-                row.adminUserEmails.toLowerCase().split(' ').indexOf(token.email.toLowerCase()) != -1 ||
-                process.env.ADMIN_EMAILS.toLowerCase().split(' ').indexOf(token.email.toLowerCase()) != -1;
-              var namePieces = token.fullname.split(' ');
 
-              // the IDP does not require authentication
-              log('Logging in with session-sharing', 2);
-              filterBookIdsByIDPs([], [idpId], true, next, function(filteredBookIds) {
-                req.login({
-                  id: idpId * -1,
-                  email: token.email,
-                  firstname: namePieces[0],
-                  lastname: namePieces.slice(1).join(' '),
-                  bookIds: ((token.bookIds === 'all' || sessionSharingAsRecipientInfo.universalBookAccess) ? filteredBookIds : token.bookIds) || [],
-                  isAdmin: isAdmin,
-                  idpId: idpId,
-                  idpName: row.name,
-                  idpUseReaderTxt: !!row.useReaderTxt,
-                  idpLang: row.language || 'en',
-                  idpNoAuth: true,
-                  idpExpire: expiresAt,
-                  idpAndroidAppURL: row.androidAppURL,
-                  idpIosAppURL: row.iosAppURL,
-                  idpXapiOn: row.xapiOn,
-                  idpXapiConsentText: row.xapiConsentText,
-                }, function(err) {
-                  if (err) { return next(err); }
-                  return next();
-                });
-              });
+              const logInSessionSharingUser = userId => {
+                // the IDP does authentication via session-sharing
+                log('Logging in with session-sharing', 2);
+                logIn({ userId, req, next });
+              }
+              
+              if(idp.userInfoEndpoint) {
+
+                getUserInfo({ idp, idpUserId: token.id, next }).then(logInSessionSharingUser);
+            
+              } else {  // old method: get userInfo from meta data
+
+                util.updateUserInfo({
+                  connection,
+                  log,
+                  userInfo: Object.assign(
+                    {},
+                    token,
+                    {
+                      idpUserId: token.id,
+                    },
+                  ),
+                  idpId,
+                  updateLastLoginAt: true,
+                  next,
+                }).then(logInSessionSharingUser);
+
+              }
 
             } catch(e) {
               res.redirect(sessionSharingAsRecipientInfo.loginUrl || '/session-sharing-setup-error');
             }
 
-          } else if(!row.entryPoint) {
-            var isDefDemoUrl = (new RegExp('^demo\\.' + process.env.APP_URL.replace(/[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g, "\\$&") + '$')).test(req.headers.host);
-            var isDefBooksUrl = (new RegExp('^books\\.' + process.env.APP_URL.replace(/[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g, "\\$&") + '$')).test(req.headers.host);
-            var idpId = parseInt(row.id);
-
-            // the IDP does not require authentication
+          } else if(!idp.entryPoint) {
+            // the IDP does not require authentication, so log them in as userId = -idpId
             log('Logging in without authentication', 2);
-            filterBookIdsByIDPs([], [idpId], true, next, function(filteredBookIds) {
-              req.login({
-                id: idpId * -1,
-                email: 'demo@toadreader.com',
-                firstname: isDefBooksUrl ? 'Options' : 'Demo',
-                lastname: 'Account',
-                bookIds: filteredBookIds,
-                isAdmin: !isDefDemoUrl && !isDefBooksUrl,
-                idpId: idpId,
-                idpName: row.name,
-                idpUseReaderTxt: !!row.useReaderTxt,
-                idpLang: row.language || 'en',
-                idpNoAuth: true,
-                idpExpire: expiresAt,
-                idpAndroidAppURL: row.androidAppURL,
-                idpIosAppURL: row.iosAppURL,
-                idpXapiOn: row.xapiOn,
-                idpXapiConsentText: row.xapiConsentText,
-              }, function(err) {
-                if (err) { return next(err); }
-                return next();
-              });
-            });
+            logIn({ userId: idpId * -1, req, next });
 
           } else {
             // the IDP does require authentication
             log('Redirecting to authenticate', 2);
             req.session.loginRedirect = req.url;
-            return res.redirect('/login/' + row.id);
+            return res.redirect('/login/' + idpId);
           }
         }
       }

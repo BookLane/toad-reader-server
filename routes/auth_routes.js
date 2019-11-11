@@ -10,8 +10,7 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
 
       const userInfo = {
         id: req.user.id,
-        firstname: req.user.firstname,
-        lastname: req.user.lastname,
+        fullname: req.user.fullname,
         isAdmin: req.user.isAdmin,
       }
 

@@ -112,23 +112,19 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
       function (err, result) {
         if (err) return next(err);
 
-        req.user.bookIds = req.user.bookIds.filter(function(bId) { return bId != parseInt(req.params.bookId); });
-
-        req.login(req.user, function(err) {
-          if (err) { return next(err); }
-
-          log('Delete (idp disassociation) successful', 2);
+        log('Delete (idp disassociation) successful', 2);
           
-          if(req.user.idpExpire) {  // if it is a temporary demo
-            // if book was owned solely by a demo tenant, delete it
-            deleteBookIfUnassociated(req.params.bookId, next, function() {
-              res.send({ success: true });
-            });
-          } else {
-            res.send({ success: true });
-          }
+        // if(req.user.idpExpire) {  // if it is a temporary demo
+        //   // if book was owned solely by a demo tenant, delete it
+        //   deleteBookIfUnassociated(req.params.bookId, next, function() {
+        //     res.send({ success: true });
+        //   });
+        // } else {
+        //   res.send({ success: true });
+        // }
+
+        res.send({ success: true });
           
-        });            
       }
     );
 
@@ -230,8 +226,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
                 return next(err);
               }
               
-              req.user.bookIds.push(parseInt(bookRow.id));
-      
               log('Import successful', 2);
               res.send({
                 success: true,

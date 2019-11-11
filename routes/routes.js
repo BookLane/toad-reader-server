@@ -5,42 +5,45 @@ module.exports = function (app, s3, connection, passport, authFuncs, ensureAuthe
   var mime = require('mime');
   var util = require('../util');
 
-  function goEnsureAuthenticatedAndCheckIDP(req, res, next, redirectOnExpire) {
-    if (req.isAuthenticated() && req.user.idpNoAuth) {
-      var currentMySQLDatetime = util.timestampToMySQLDatetime();
+  // function goEnsureAuthenticatedAndCheckIDP(req, res, next, redirectOnExpire) {
+  //   if (req.isAuthenticated() && req.user.idpNoAuth) {
+  //     var currentMySQLDatetime = util.timestampToMySQLDatetime();
 
-      log('Checking that temp demo IDP still exists');
-      connection.query('SELECT * FROM `idp` WHERE id=? AND (demo_expires_at IS NULL OR demo_expires_at>?)',
-        [req.user.idpId, currentMySQLDatetime],
-        function (err, rows) {
-          if (err) return next(err);
+  //     log('Checking that temp demo IDP still exists');
+  //     connection.query('SELECT * FROM `idp` WHERE id=? AND (demo_expires_at IS NULL OR demo_expires_at>?)',
+  //       [req.user.idpId, currentMySQLDatetime],
+  //       function (err, rows) {
+  //         if (err) return next(err);
 
-          if(rows.length == 0) {
-            log(['IDP no longer exists', req.user.idpId], 2);
-            if(redirectOnExpire) {
-              return res.redirect('https://' + process.env.APP_URL + '?domain_expired=1');
-            } else {
-              return res.status(403).send({ errorType: "biblemesh_no_idp" });
-            }
-          }
+  //         if(rows.length == 0) {
+  //           log(['IDP no longer exists', req.user.idpId], 2);
+  //           if(redirectOnExpire) {
+  //             return res.redirect('https://' + process.env.APP_URL + '?domain_expired=1');
+  //           } else {
+  //             return res.status(403).send({ errorType: "biblemesh_no_idp" });
+  //           }
+  //         }
 
-          return ensureAuthenticated(req, res, next);
-        }
-      );
-    } else {
-      return ensureAuthenticated(req, res, next);
-    }
-  }
+  //         return ensureAuthenticated(req, res, next);
+  //       }
+  //     );
+  //   } else {
+  //     return ensureAuthenticated(req, res, next);
+  //   }
+  // }
 
   function ensureAuthenticatedAndCheckIDP(req, res, next) {
-    return goEnsureAuthenticatedAndCheckIDP(req, res, next, false);
+    // return goEnsureAuthenticatedAndCheckIDP(req, res, next, false);
+    return ensureAuthenticated(req, res, next);
   }
 
   function ensureAuthenticatedAndCheckIDPWithRedirect(req, res, next) {
-    return goEnsureAuthenticatedAndCheckIDP(req, res, next, true);
+    // return goEnsureAuthenticatedAndCheckIDP(req, res, next, true);
+    return ensureAuthenticated(req, res, next);
   }
 
   require('./auth_routes')(app, passport, authFuncs, connection, ensureAuthenticated, log);
+  require('./api_routes')(app, connection, log);
   require('./admin_routes')(app, s3, connection, ensureAuthenticatedAndCheckIDP, log);
   require('./user_routes')(app, connection, ensureAuthenticatedAndCheckIDP, ensureAuthenticatedAndCheckIDPWithRedirect, embedWebsites, log);
 
@@ -184,38 +187,42 @@ module.exports = function (app, s3, connection, passport, authFuncs, ensureAuthe
     // check that they have access if this is a book
     if(urlPieces[1] == 'epub_content') {
 
-      if(req.user.bookIds.indexOf(bookId) == -1) {
-        log(['They do not have access to this book', bookId], 2);
-        res.status(403).send({ error: 'Forbidden' });
+      util.hasAccess({ bookId, req, connection, log, next }).then(version => {
 
-      } else {
-        // if it is full epub download and idp has xapi on, create an xapi statement
-        if(req.user.idpXapiOn && urlPieces.length === 4 && urlPieces[3] === 'book.epub' && req.book) {
-          var currentTimestamp = Date.now();
-          var currentMySQLDatetime = util.timestampToMySQLDatetime(currentTimestamp);
-          connection.query('INSERT into `xapiQueue` SET ?',
-            {
-              idp_id: req.user.idpId,
-              statement: util.getDownloadStatement({
-                req: req,
-                bookId: bookId,
-                bookTitle: req.book.title,
-                bookISBN: req.book.isbn,
-                timestamp: currentTimestamp,
-              }),
-              unique_tag: Date.now(),  // not worried about dups here
-              created_at: currentMySQLDatetime,
-            },
-            function (err, results) {
-              if (err) return done(err);
-
-              getAssetFromS3(req, res, next);
-            }
-          );
+        if(!version) {
+          log(['They do not have access to this book', bookId], 2);
+          res.status(403).send({ error: 'Forbidden' });
+  
         } else {
-          getAssetFromS3(req, res, next);
+          // if it is full epub download and idp has xapi on, create an xapi statement
+          if(req.user.idpXapiOn && urlPieces.length === 4 && urlPieces[3] === 'book.epub' && req.book) {
+            var currentTimestamp = Date.now();
+            var currentMySQLDatetime = util.timestampToMySQLDatetime(currentTimestamp);
+            connection.query('INSERT into `xapiQueue` SET ?',
+              {
+                idp_id: req.user.idpId,
+                statement: util.getDownloadStatement({
+                  req: req,
+                  bookId: bookId,
+                  bookTitle: req.book.title,
+                  bookISBN: req.book.isbn,
+                  timestamp: currentTimestamp,
+                }),
+                unique_tag: Date.now(),  // not worried about dups here
+                created_at: currentMySQLDatetime,
+              },
+              function (err, results) {
+                if (err) return next(err);
+  
+                getAssetFromS3(req, res, next);
+              }
+            );
+          } else {
+            getAssetFromS3(req, res, next);
+          }
         }
-      }
+
+      })
 
     } else if(process.env.IS_DEV || ['css','fonts','images','scripts'].indexOf(urlPieces[1]) != -1) {
 

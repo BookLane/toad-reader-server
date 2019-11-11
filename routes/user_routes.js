@@ -48,17 +48,14 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
     var returnData = {
       userInfo: {
         id: req.user.id,
-        firstname: req.user.firstname,
-        lastname: req.user.lastname,
+        fullname: req.user.fullname,
         isAdmin: req.user.isAdmin,
         idpId: req.user.idpId,
         idpName: req.user.idpName,
-        idpUseReaderTxt: req.user.idpUseReaderTxt,
         idpAssetsBaseUrl: 'https://s3.amazonaws.com/' + process.env.S3_BUCKET + '/tenant_assets/',
         idpLang: req.user.idpLang,
         idpExpire: req.user.idpExpire,
         idpNoAuth: req.user.idpNoAuth,
-        isAdmin: req.user.isAdmin,
         idpAndroidAppURL: req.user.idpAndroidAppURL,
         idpIosAppURL: req.user.idpIosAppURL,
         idpXapiOn: req.user.idpXapiOn,
@@ -99,56 +96,60 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
             abridgedNote = abridgedNote.substring(0, 113) + '...';
           }
 
-          var sharePage = fs.readFileSync(__dirname + '/../templates/share-page.html', 'utf8')
-            .replace(/{{page_title}}/g, shareLanguageVariables.quote_from_X.replace('{title}', rows[0].title))
-            .replace(/{{quote}}/g, req.query.highlight)
-            .replace(/{{quote_noquotes}}/g, req.query.highlight.replace(/"/g, '&quot;'))
-            .replace(/{{note_abridged_escaped}}/g, encodeURIComp(abridgedNote))
-            .replace(/{{url_noquotes}}/g, urlWithEditing.replace(/"/g, '&quot;'))
-            .replace(/{{url_escaped}}/g, encodeURIComp(urlWithEditing))
-            .replace(/{{url_nosharer}}/g, 
-              baseUrl +
-              req.originalUrl
-                .replace(/([\?&])note=[^&]*&?/g, '$1')
-                .replace(/([\?&])sharer=[^&]*&?/g, '$1')
-            )
-            .replace(/{{read_here_url}}/g, baseUrl + req.originalUrl.replace(/\?.*$/, '') + '?goto=' + encodeURIComp(req.query.goto))
-            .replace(/{{book_image_url}}/g, baseUrl + '/' + rows[0].coverHref)
-            .replace(/{{book_title}}/g, rows[0].title)
-            .replace(/{{book_author}}/g, rows[0].author)
-            .replace(/{{comment}}/g, shareLanguageVariables.comment)
-            .replace(/{{share}}/g, shareLanguageVariables.share_)
-            .replace(/{{copy_link}}/g, shareLanguageVariables.copy_link)
-            .replace(/{{copied}}/g, shareLanguageVariables.copied)
-            .replace(/{{sharer_remove_class}}/g, req.query.editing ? '' : 'hidden');
+          util.hasAccess({ bookId: req.params.bookId, req, connection, log, next }).then(version => {
 
-          if(req.isAuthenticated()) {
-            if(req.user.bookIds.indexOf(req.params.bookId) == -1) {
-              sharePage = sharePage
-                .replace(/{{read_class}}/g, 'hidden');
+            var sharePage = fs.readFileSync(__dirname + '/../templates/share-page.html', 'utf8')
+              .replace(/{{page_title}}/g, shareLanguageVariables.quote_from_X.replace('{title}', rows[0].title))
+              .replace(/{{quote}}/g, req.query.highlight)
+              .replace(/{{quote_noquotes}}/g, req.query.highlight.replace(/"/g, '&quot;'))
+              .replace(/{{note_abridged_escaped}}/g, encodeURIComp(abridgedNote))
+              .replace(/{{url_noquotes}}/g, urlWithEditing.replace(/"/g, '&quot;'))
+              .replace(/{{url_escaped}}/g, encodeURIComp(urlWithEditing))
+              .replace(/{{url_nosharer}}/g, 
+                baseUrl +
+                req.originalUrl
+                  .replace(/([\?&])note=[^&]*&?/g, '$1')
+                  .replace(/([\?&])sharer=[^&]*&?/g, '$1')
+              )
+              .replace(/{{read_here_url}}/g, baseUrl + req.originalUrl.replace(/\?.*$/, '') + '?goto=' + encodeURIComp(req.query.goto))
+              .replace(/{{book_image_url}}/g, baseUrl + '/' + rows[0].coverHref)
+              .replace(/{{book_title}}/g, rows[0].title)
+              .replace(/{{book_author}}/g, rows[0].author)
+              .replace(/{{comment}}/g, shareLanguageVariables.comment)
+              .replace(/{{share}}/g, shareLanguageVariables.share_)
+              .replace(/{{copy_link}}/g, shareLanguageVariables.copy_link)
+              .replace(/{{copied}}/g, shareLanguageVariables.copied)
+              .replace(/{{sharer_remove_class}}/g, req.query.editing ? '' : 'hidden');
+
+            if(req.isAuthenticated()) {
+              if(!version) {
+                sharePage = sharePage
+                  .replace(/{{read_class}}/g, 'hidden');
+              } else {
+                sharePage = sharePage
+                  .replace(/{{read_here}}/g, shareLanguageVariables.read_at_the_quote)
+                  .replace(/{{read_class}}/g, '');
+              }
             } else {
               sharePage = sharePage
-                .replace(/{{read_here}}/g, shareLanguageVariables.read_at_the_quote)
+                .replace(/{{read_here}}/g, shareLanguageVariables.login_to_the_reader)
                 .replace(/{{read_class}}/g, '');
             }
-          } else {
-            sharePage = sharePage
-              .replace(/{{read_here}}/g, shareLanguageVariables.login_to_the_reader)
-              .replace(/{{read_class}}/g, '');
-          }
 
-          if(req.query.note) {
-            sharePage = sharePage
-              .replace(/{{sharer_class}}/g, '')
-              .replace(/{{sharer_name}}/g, req.query.sharer || '')
-              .replace(/{{sharer_note}}/g, req.query.note);
-          } else {
-            sharePage = sharePage
-              .replace(/{{sharer_class}}/g, 'hidden');
-          }
+            if(req.query.note) {
+              sharePage = sharePage
+                .replace(/{{sharer_class}}/g, '')
+                .replace(/{{sharer_name}}/g, req.query.sharer || '')
+                .replace(/{{sharer_note}}/g, req.query.note);
+            } else {
+              sharePage = sharePage
+                .replace(/{{sharer_class}}/g, 'hidden');
+            }
 
-          log('Deliver share page');
-          res.send(sharePage);
+            log('Deliver share page');
+            res.send(sharePage);
+
+          })
         }
       )
 
@@ -489,10 +490,12 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
     connection.query(''
       + 'SELECT b.*, bi.link_href, bi.link_label '
       + 'FROM `book` as b '
-      + 'LEFT JOIN `book-idp` as bi ON (b.id=bi.book_id) '
-      + 'WHERE b.rootUrl IS NOT NULL AND bi.idp_id=? AND b.id IN(?)',
-      [req.user.idpId, req.user.bookIds.concat([0])],
-      function (err, rows, fields) {
+      + 'LEFT JOIN `book-idp` as bi ON (bi.book_id=b.id) '
+      + 'LEFT JOIN `book_instance` as bi2 ON (bi2.book_id=b.id AND bi2.idp_id=bi.idp_id) '
+      + 'WHERE b.rootUrl IS NOT NULL AND bi.idp_id=? '
+      + (req.user.isAdmin ? '' : 'AND bi2.user_id=? '),
+      [req.user.idpId, req.user.id],
+      function (err, rows) {
         if (err) return next(err);
 
         log(['Deliver library', rows]);
