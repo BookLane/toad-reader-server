@@ -428,6 +428,25 @@ var util = {
     }
   },
 
+  paramsOk: function(params, reqParams, optParams) {
+    reqParams = reqParams || [];
+    optParams = optParams || [];
+    var numReqParamPresent = 0;
+    for(var param in params) {
+      var inReqParams = reqParams.indexOf(param) != -1;
+      if(inReqParams) {
+        numReqParamPresent++;
+      }
+      if(!inReqParams && optParams.indexOf(param) == -1) {
+        return false;
+      }
+    }
+    if(Object.keys(reqParams).length != numReqParamPresent) {
+      return false;
+    }
+    return true;
+  },
+
 }
 
 module.exports = util;

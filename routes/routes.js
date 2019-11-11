@@ -46,6 +46,8 @@ module.exports = function (app, s3, connection, passport, authFuncs, ensureAuthe
   require('./api_routes')(app, connection, log);
   require('./admin_routes')(app, s3, connection, ensureAuthenticatedAndCheckIDP, log);
   require('./user_routes')(app, connection, ensureAuthenticatedAndCheckIDP, ensureAuthenticatedAndCheckIDPWithRedirect, embedWebsites, log);
+  require('./patch_route')(app, connection, ensureAuthenticatedAndCheckIDP, log);
+  require('./xapi_routes')(app, connection, ensureAuthenticatedAndCheckIDP, log);
 
   var getAssetFromS3 = function(req, res, next, notFoundCallback) {
     var urlWithoutQuery = req.url.replace(/(\?.*)?$/, '').replace(/^\/book/,'').replace(/%20/g, ' ');
