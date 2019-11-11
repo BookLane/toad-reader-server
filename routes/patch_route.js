@@ -8,9 +8,13 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
 
   // read.biblemesh.com/users/{user_id}/books/{book_id}.json
   app.all('/users/:userId/books/:bookId.json', ensureAuthenticatedAndCheckIDP, function (req, res, next) {
-    
+
     if(['PATCH', 'POST'].indexOf(req.method) != -1) {
 
+      if(parseInt(req.params.userId, 10) !== req.user.id) {
+        res.status(403).send({ error: 'Forbidden' });
+      }
+  
       log(['Attempting patch', req.body]);
       containedOldPatch = false;
 
@@ -29,7 +33,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
       // The _delete flag signal to delete the highlight, so long as the updated_at
       // time is newer than that on the server.
 
-  // TODO: lock and unlock tables
+      // TODO: lock and unlock tables
 
       connection.query('SELECT * FROM `latest_location` WHERE user_id=? AND book_id=?; '
         + 'SELECT spineIdRef, cfi, updated_at, IF(note="", 0, 1) as hasnote FROM `highlight` WHERE user_id=? AND book_id=? AND deleted_at=?;'
