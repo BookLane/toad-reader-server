@@ -1,4 +1,8 @@
 const util = require('../util');
+const patchLatestLocation = require('./patch_keys/patch_latest_location');
+const patchHighlights = require('./patch_keys/patch_highlights');
+const patchClassrooms = require('./patch_keys/patch_classrooms');
+// const patchTools = require('./patch_keys/patch_tools');
 
 module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log) {
 
@@ -36,257 +40,64 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
 
       // TODO: lock and unlock tables
 
-      const queries = [];
-      let vars = [];
+      const preQueries = {
+        queries: ['SELECT * FROM `book` WHERE id=?'],
+        vars: [req.params.bookId],
+        resultKeys: ['books'],
+      };
 
-      queries.push('SELECT * FROM `book` WHERE id=?');
-      vars = [
-        ...vars,
-        req.params.bookId,
-      ];
+      patchLatestLocation.addPreQueries({
+        ...req,
+        preQueries,
+      });
 
-      queries.push('SELECT * FROM `latest_location` WHERE user_id=? AND book_id=?');
-      vars = [
-        ...vars,
-        req.params.userId,
-        req.params.bookId,
-      ];
+      patchHighlights.addPreQueries({
+        ...req,
+        preQueries,
+      });
 
-      if(req.body.highlights) {
-        queries.push('SELECT spineIdRef, cfi, updated_at, IF(note="", 0, 1) as hasnote FROM `highlight` WHERE user_id=? AND book_id=? AND deleted_at=?');
-        vars = [
-          ...vars,
-          req.params.userId,
-          req.params.bookId,
-          util.NOT_DELETED_AT_TIME,
-        ];
-      } else {
-        queries.push('SELECT 1');
-      }
+      patchClassrooms.addPreQueries({
+        ...req,
+        preQueries,
+      });
 
-      if(req.body.classrooms) {
-        queries.push(''
-          + 'SELECT version '
-          + 'FROM `book_instance` '
-          + 'WHERE idp_id=? '
-          + 'AND book_id=? '
-          + 'AND user_id=? '
-          + 'AND (expires_at IS NULL OR expires_at>?) '
-          + 'AND (enhanced_tools_expire_at IS NULL OR enhanced_tools_expire_at>?) '
-        );
-        vars = [
-          ...vars,
-          req.user.idpId,
-          req.params.bookId,
-          req.params.userId,
-          now,
-          now,
-        ];
-      } else {
-        queries.push('SELECT 1');
-      }
-
-      if(req.body.classrooms) {
-        queries.push(''
-          + 'SELECT c.uid, c.updated_at, c.deleted_at, cm.role '
-          + 'FROM `classroom` as c '
-          + 'LEFT JOIN `classroom_member` as cm ON (cm.classroom_uid=c.uid) '
-          + 'WHERE c.uid IN (?)'
-          + 'AND c.idp_id=?'
-          + 'AND cm.user_id=?'
-          + 'AND cm.delete_at IS NULL'
-        );
-        vars = [
-          ...vars,
-          ...req.body.classrooms.map(({ uid }) => uid),
-          req.user.idpId,
-          req.params.userId,
-        ];
-      } else {
-        queries.push('SELECT 1');
-      }
+      // patchTools.addPreQueries({
+      //   ...req,
+      //   preQueries,
+      // });
 
       connection.query(
-        queries.join('; '),
-        vars,
+        preQueries.queries.join('; '),
+        preQueries.vars,
         function (err, results) {
           if (err) return next(err);
 
-          const [ books, latestLocations, highlights, bookInstances, classrooms ] = results;
+          resultsObj = {}
+          results.forEach((result, idx) => {
+            resultsObj[preQueries.resultKeys[idx]] = result;
+          })
 
           const queriesToRun = [];
 
-          if(req.body.latest_location) {
-            if(!util.paramsOk(req.body, ['updated_at','latest_location'],['highlights'])) {
-              log(['Invalid parameter(s)', req.body], 3);
-              res.status(400).send();
-              return;
-            }
-
-            req.body.updated_at = util.notLaterThanNow(req.body.updated_at);
-
-            if((latestLocations.length > 0 ? util.mySQLDatetimeToTimestamp(latestLocations[0].updated_at) : 0) > req.body.updated_at) {
-              containedOldPatch = true;
-            } else {
-              var fields = {
-                cfi: req.body.latest_location,
-                updated_at: util.timestampToMySQLDatetime(req.body.updated_at, true)
-              };
-              if(latestLocations.length > 0) {
-                queriesToRun.push({
-                  query: 'UPDATE `latest_location` SET ? WHERE user_id=? AND book_id=?',
-                  vars: [fields, req.params.userId, req.params.bookId]
-                })
-              } else {
-                fields.user_id = req.params.userId;
-                fields.book_id = req.params.bookId;
-                queriesToRun.push({
-                  query: 'INSERT into `latest_location` SET ?',
-                  vars: [fields]
-                });
-              }
-            }
+          const patchQuestionParams = {
+            ...req.body,
+            queriesToRun,
+            ...req.params,
+            user: req.user,
+            ...resultsObj,
           }
 
-          if(req.body.highlights) {
-
-            var currentHighlightsUpdatedAtTimestamp = {};
-            var currentHighlightsHasNote = {};
-            highlights.forEach(function(highlightRow) {
-              currentHighlightsUpdatedAtTimestamp[getHighlightId(highlightRow)] = util.mySQLDatetimeToTimestamp(highlightRow.updated_at);
-              currentHighlightsHasNote[getHighlightId(highlightRow)] = !!highlightRow.hasnote;
-            })
-
-            for(let idx in req.body.highlights) {
-              const highlight = req.body.highlights[idx]
-              
-              if(!util.paramsOk(highlight, ['updated_at','spineIdRef','cfi'], ['color','note','_delete'])) {
-                log(['Invalid parameter(s)', req.body], 3);
-                res.status(400).send();
-                return;
-              }
-              highlight.updated_at = util.notLaterThanNow(highlight.updated_at);
-
-              if((currentHighlightsUpdatedAtTimestamp[getHighlightId(highlight)] || 0) > highlight.updated_at) {
-                containedOldPatch = true;
-                continue;
-              }
-
-              var updatedAtTimestamp = highlight.updated_at;
-              highlight.updated_at = util.timestampToMySQLDatetime(highlight.updated_at, true);
-              // since I do not know whether to INSERT or UPDATE, just DELETE them all then then INSERT
-              if(highlight._delete) {
-                if(currentHighlightsHasNote[getHighlightId(highlight)]) {
-                  queriesToRun.push({
-                    query: 'UPDATE `highlight` SET deleted_at=? WHERE user_id=? AND book_id=? AND spineIdRef=? && cfi=? AND deleted_at=?',
-                    vars: [now, req.params.userId, req.params.bookId, highlight.spineIdRef, highlight.cfi, util.NOT_DELETED_AT_TIME]
-                  });
-                } else {
-                  queriesToRun.push({
-                    query: 'DELETE FROM `highlight` WHERE user_id=? AND book_id=? AND spineIdRef=? AND cfi=? AND deleted_at=? AND updated_at<=?',
-                    vars: [req.params.userId, req.params.bookId, highlight.spineIdRef, highlight.cfi, util.NOT_DELETED_AT_TIME, highlight.updated_at]
-                  });
-                }
-              } else if(currentHighlightsUpdatedAtTimestamp[getHighlightId(highlight)] != null) {
-                queriesToRun.push({
-                  query: 'UPDATE `highlight` SET ? WHERE user_id=? AND book_id=? AND spineIdRef=? AND cfi=? AND deleted_at=?',
-                  vars: [highlight, req.params.userId, req.params.bookId, highlight.spineIdRef, highlight.cfi, util.NOT_DELETED_AT_TIME]
-                });
-              } else {
-                highlight.user_id = req.params.userId;
-                highlight.book_id = req.params.bookId;
-                queriesToRun.push({
-                  query: 'INSERT into `highlight` SET ?',
-                  vars: highlight
-                });
-                if(req.user.idpXapiOn && books.length > 0) {
-                  queriesToRun.push({
-                    query: 'INSERT into `xapiQueue` SET ?',
-                    vars: {
-                      idp_id: req.user.idpId,
-                      statement: util.getAnnotateStatement({
-                        req: req,
-                        bookId: highlight.book_id,
-                        bookTitle: books[0].title,
-                        bookISBN: books[0].isbn,
-                        spineIdRef: highlight.spineIdRef,
-                        timestamp: updatedAtTimestamp,
-                      }),
-                      unique_tag: Date.now(),  // not worried about dups here
-                      created_at: now,
-                    },
-                  });
-                }
-              }
-            }
+          if(
+            !patchLatestLocation.addPatchQueries(patchQuestionParams)
+            || !patchHighlights.addPatchQueries(patchQuestionParams)
+            || !patchHighlights.addPatchQueries(patchQuestionParams)
+          ) {
+            log(['Invalid patch', body], 3);
+            res.status(400).send();
+            return;
           }
 
-          if(req.body.classrooms) {
-            for(let idx in req.body.classrooms) {
-              const classroomUpdate = req.body.classrooms[idx]
-
-              if(!util.paramsOk(classroomUpdate, ['updated_at','uid'], ['name','has_syllabus','introduction','classroom_highlights_mode','closes_at','_delete'])) {
-                log(['Invalid parameter(s)', req.body], 3);
-                res.status(400).send();
-                return;
-              }
-
-              const classroom = classrooms.filter(({ uid }) => uid === classroomUpdate.uid)[0]
-
-              if((bookInstances[0] || {}).version !== 'INSTRUCTOR') {
-                log(['Invalid permissions - no INSTRUCTOR book_instance', req.body], 3);
-                res.status(400).send();
-                return;
-              }
-
-              if(classroom && classroom.role !== 'INSTRUCTOR') {
-                log(['Invalid permissions - not INSTRUCTOR of this classroom', req.body], 3);
-                res.status(400).send();
-                return;
-              }
-
-              if(classroom && util.mySQLDatetimeToTimestamp(classroom.updated_at) > classroomUpdate.updated_at) {
-                containedOldPatch = true;
-
-              } else {
-
-                highlight.updated_at = util.timestampToMySQLDatetime(highlight.updated_at, true);
-                if(highlight.closes_at) {
-                  highlight.closes_at = util.timestampToMySQLDatetime(highlight.closes_at, true);
-                }
-
-                if(classroomUpdate._delete) {  // if _delete is present, then delete
-                  if(!classroom) {
-                    // shouldn't get here, but just ignore if it does
-                  } else if(classroom.deleted_at) {
-                    containedOldPatch = true;
-                  } else {
-                    classroomUpdate.deleted_at = classroomUpdate.updated_at;
-                    delete classroomUpdate._delete;
-                    queriesToRun.push({
-                      query: 'UPDATE `classroom` SET ? WHERE uid=?',
-                      vars: [ classroomUpdate, classroomUpdate.uid ],
-                    })
-                  }
-
-                } else if(!classroom) {
-                  queriesToRun.push({
-                    query: 'INSERT into `classroom` SET ?',
-                    vars: [ classroomUpdate ],
-                  })
-
-                } else {
-                  queriesToRun.push({
-                    query: 'UPDATE `classroom` SET ? WHERE uid=?',
-                    vars: [ classroomUpdate, classroomUpdate.uid ],
-                  })
-                }
-              }
-
-            }
-          }
-
-          var runAQuery = function() {
+          const runAQuery = function() {
             if(queriesToRun.length > 0) {
               var query = queriesToRun.shift();
               log(['Patch query', query]);
