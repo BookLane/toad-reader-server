@@ -153,6 +153,7 @@ module.exports = {
             }
 
           } else if(!dbTool) {
+            tool.created_at = tool.updated_at;
             queriesToRun.push({
               query: 'INSERT into `tool` SET ?',
               vars: [ tool ],

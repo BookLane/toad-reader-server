@@ -93,6 +93,7 @@ module.exports = {
 
           } else if(!dbMember) {
             member.classroom_uid = classroomUid;
+            member.created_at = member.updated_at;
             queriesToRun.push({
               query: 'INSERT into `classroom_member` SET ?',
               vars: [ member ],

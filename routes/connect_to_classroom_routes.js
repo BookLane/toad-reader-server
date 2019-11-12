@@ -66,6 +66,14 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
             const classroomMember = rows[0];
             let insertOrUpdate = '';
 
+            const insertOrUpdateValues = {
+              classroom_uid: classroom.uid,
+              user_id: req.user.id,
+              role: isInstructorAccessCode ? 'INSTRUCTOR' : 'STUDENT',
+              updated_at: now,
+              deleted_at: null,
+            }
+
             if(classroomMember) {
               if(classroomMember.role === 'INSTRUCTOR' && !isInstructorAccessCode) {
                 // we are not going to degrade them, so do nothing
@@ -77,15 +85,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
 
             } else {
               insertOrUpdate = 'INSERT into `classroom_member` SET ?';
-            }
-
-            const insertOrUpdateValues = {
-              classroom_uid: classroom.uid,
-              user_id: req.user.id,
-              role: isInstructorAccessCode ? 'INSTRUCTOR' : 'STUDENT',
-              created_at: now,
-              updated_at: now,
-              deleted_at: null,
+              insertOrUpdateValues.created_at = now;
             }
 
             connection.query(

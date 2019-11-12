@@ -150,6 +150,7 @@ module.exports = {
           } else if(!dbClassroom) {
             classroom.idp_id = user.idpId;
             classroom.book_id = bookId;
+            classroom.created_at = classroom.updated_at;
             queriesToRun.push({
               query: 'INSERT into `classroom` SET ?',
               vars: [ classroom ],
