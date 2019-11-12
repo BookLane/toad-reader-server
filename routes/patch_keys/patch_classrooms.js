@@ -48,6 +48,7 @@ module.exports = {
         + 'LEFT JOIN `classroom_member` as cm ON (cm.classroom_uid=c.uid) '
         + 'WHERE c.uid IN (?)'
         + 'AND c.idp_id=?'
+        + 'AND c.book_id=?'
         + 'AND cm.user_id=?'
         + 'AND cm.delete_at IS NULL'
       );
@@ -55,6 +56,7 @@ module.exports = {
         ...preQueries.vars,
         ...body.classrooms.map(({ uid }) => uid),
         user.idpId,
+        params.bookId,
         params.userId,
       ];
 
@@ -73,13 +75,16 @@ module.exports = {
     classrooms,
     dbBookInstances,
     dbClassrooms,
+    user,
+    userId,
+    bookId,
   }) => {
 
     if(classrooms) {
       for(let idx in classrooms) {
         const classroom = classrooms[idx]
 
-        if(!util.paramsOk(classroom, ['updated_at','uid'], ['name','has_syllabus','introduction','classroom_highlights_mode','closes_at','_delete'])) {
+        if(!util.paramsOk(classroom, ['updated_at','uid'], ['name','has_syllabus','introduction','classroom_highlights_mode','closes_at','members','_delete'])) {
           return getErrorObj('invalid parameters');
         }
 
@@ -93,15 +98,20 @@ module.exports = {
           return getErrorObj('invalid permissions: user not INSTRUCTOR of this classroom');
         }
 
+        if(!dbClassroom && (classroom.members || []).filter(({ user_id, role }) => (user_id === userId && role === 'INSTRUCTOR')).length === 0) {
+          return getErrorObj('invalid parameters: when creating a classroom, must also be making yourself an INSTRUCTOR');
+        }
+
         if(dbClassroom && util.mySQLDatetimeToTimestamp(dbClassroom.updated_at) > classroom.updated_at) {
           containedOldPatch = true;
 
         } else {
 
-          classroom.updated_at = util.timestampToMySQLDatetime(classroom.updated_at, true);
-          if(classroom.closes_at) {
-            classroom.closes_at = util.timestampToMySQLDatetime(classroom.closes_at, true);
-          }
+          prepUpdatedAtAndCreatedAt(classroom, !dbClassroom);
+          convertTimestampsToMySQLDatetimes(classroom);
+
+          const { members } = classroom;
+          delete classroom.members;
 
           if(classroom._delete) {  // if _delete is present, then delete
             if(!dbClassroom) {
@@ -118,6 +128,8 @@ module.exports = {
             }
 
           } else if(!dbClassroom) {
+            classroom.idp_id = user.idpId;
+            classroom.book_id = bookId;
             queriesToRun.push({
               query: 'INSERT into `classroom` SET ?',
               vars: [ classroom ],

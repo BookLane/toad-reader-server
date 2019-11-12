@@ -138,6 +138,22 @@ var util = {
     return formatted;
   },
 
+  convertTimestampsToMySQLDatetimes: obj => {
+    Object.keys(obj).forEach(key => {
+      if(/_at$/.test(key) && typeof obj[key] === 'number') {
+        obj[key] = util.timestampToMySQLDatetime(obj[key], true);
+      }
+    })
+  },
+
+  prepUpdatedAtAndCreatedAt: (obj, doCreatedAt) => {
+    highlight.updated_at = util.notLaterThanNow(highlight.updated_at);
+
+    if(doCreatedAt){
+      highlight.created_at = highlight.updated_at;
+    }
+  },
+
   timestampToISO: function(timestamp) {
     var date = timestamp ? new Date(timestamp) : new Date();
 

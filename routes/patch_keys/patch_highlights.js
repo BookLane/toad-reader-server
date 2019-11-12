@@ -41,6 +41,7 @@ module.exports = {
     userId,
     bookId,
     dbHighlights,
+    user,
   }) => {
 
     if(highlights) {
@@ -66,7 +67,7 @@ module.exports = {
         }
 
         var updatedAtTimestamp = highlight.updated_at;
-        highlight.updated_at = util.timestampToMySQLDatetime(highlight.updated_at, true);
+        convertTimestampsToMySQLDatetimes(highlight);
         // since I do not know whether to INSERT or UPDATE, just DELETE them all then then INSERT
         if(highlight._delete) {
           if(currentHighlightsHasNote[getHighlightId(highlight)]) {
@@ -92,11 +93,11 @@ module.exports = {
             query: 'INSERT into `highlight` SET ?',
             vars: highlight
           });
-          if(req.user.idpXapiOn && books.length > 0) {
+          if(user.idpXapiOn && books.length > 0) {
             queriesToRun.push({
               query: 'INSERT into `xapiQueue` SET ?',
               vars: {
-                idp_id: req.user.idpId,
+                idp_id: user.idpId,
                 statement: util.getAnnotateStatement({
                   req: req,
                   bookId: highlight.book_id,

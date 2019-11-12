@@ -1,5 +1,16 @@
 const util = require('../../util');
 
+const getSuccessObj = () => ({
+  patch: 'latest_location',
+  success: true,
+})
+
+const getErrorObj = error => ({
+  ...getSuccessObj(),
+  success: false,
+  error,
+})
+
 module.exports = {
   
   addPreQueries: ({
@@ -9,7 +20,7 @@ module.exports = {
     preQueries,
   }) => {
 
-    if(body.classrooms) {
+    if(body.tools) {
 
       preQueries.queries.push(''
         + 'SELECT version '
@@ -19,6 +30,7 @@ module.exports = {
         + 'AND user_id=? '
         + 'AND (expires_at IS NULL OR expires_at>?) '
         + 'AND (enhanced_tools_expire_at IS NULL OR enhanced_tools_expire_at>?) '
+        + 'AND version IN (?) '
       );
       preQueries.vars = [
         ...preQueries.vars,
@@ -27,21 +39,25 @@ module.exports = {
         params.userId,
         now,
         now,
+        ['INSTRUCTOR', 'PUBLISHER'],
       ];
 
       preQueries.queries.push(''
-        + 'SELECT c.uid, c.updated_at, c.deleted_at, cm.role '
-        + 'FROM `classroom` as c '
-        + 'LEFT JOIN `classroom_member` as cm ON (cm.classroom_uid=c.uid) '
+        + 'SELECT t.uid, t.updated_at, t.deleted_at, t.classroom_uid, cm.role '
+        + 'FROM `tool` as t '
+        + 'LEFT JOIN `classroom` as cm ON (c.uid=t.classroom_uid) '
+        + 'LEFT JOIN `classroom_member` as cm ON (cm.classroom_uid=t.classroom_uid) '
         + 'WHERE c.uid IN (?)'
         + 'AND c.idp_id=?'
+        + 'AND c.book_id=?'
         + 'AND cm.user_id=?'
         + 'AND cm.delete_at IS NULL'
       );
       preQueries.vars = [
         ...preQueries.vars,
-        ...body.classrooms.map(({ uid }) => uid),
+        ...body.tools.map(({ uid }) => uid),
         user.idpId,
+        params.bookId,
         params.userId,
       ];
 
@@ -51,75 +67,89 @@ module.exports = {
     }
 
     preQueries.resultKeys.push('dbBookInstances');
-    preQueries.resultKeys.push('dbClassrooms');
+    preQueries.resultKeys.push('dbTools');
 
   },
 
   addPatchQueries: ({
     queriesToRun,
-    classrooms,
-    dbClassrooms,
+    tools,
     dbBookInstances,
+    dbTools,
+    user,
+    bookId,
   }) => {
 
-    if(dbClassrooms) {
-      for(let idx in dbClassrooms) {
-        const classroomUpdate = dbClassrooms[idx]
+    if(tools) {
+      for(let idx in tools) {
+        const tool = tools[idx]
 
-        if(!util.paramsOk(classroomUpdate, ['updated_at','uid'], ['name','has_syllabus','introduction','classroom_highlights_mode','closes_at','_delete'])) {
-          log(['Invalid parameter(s)', req.body], 3);
-          res.status(400).send();
-          return;
+        if(!util.paramsOk(tool, ['updated_at','uid'], ['classroom_uid','classroom_group_uid','spineIdRef','cfi',
+                                                       'ordering','name','type','data','undo_array','due_at','closes_at',
+                                                       'published_at','currently_published_tool_id','_delete'])) {
+          return getErrorObj('invalid parameters');
         }
 
-        const classroom = classrooms.filter(({ uid }) => uid === classroomUpdate.uid)[0]
+        const dbTool = dbTools.filter(({ uid }) => uid === tool.uid)[0]
 
-        if((dbBookInstances[0] || {}).version !== 'INSTRUCTOR') {
-          log(['Invalid permissions - no INSTRUCTOR book_instance', req.body], 3);
-          res.status(400).send();
-          return;
+        if(dbBookInstances[0]) {
+          return getErrorObj('invalid permissions: user lacks INSTRUCTOR/PUBLISHER book_instance');
         }
 
-        if(classroom && classroom.role !== 'INSTRUCTOR') {
-          log(['Invalid permissions - not INSTRUCTOR of this classroom', req.body], 3);
-          res.status(400).send();
-          return;
+        if(!dbTool && ['classroom_uid','spineIdRef','ordering','name','type','undo_array'].some(param => tool[param] === undefined)) {
+          return getErrorObj('invalid parameters for new tool');
         }
 
-        if(classroom && util.mySQLDatetimeToTimestamp(classroom.updated_at) > classroomUpdate.updated_at) {
+        if(dbTool && tool.classroom_uid && dbTool.classroom_uid !== tool.classroom_uid) {
+          return getErrorObj('invalid parameters: cannot change classroom_uid of existing tool');
+        }
+
+        const dbToolOrTool = dbTool || tool;
+        if(dbBookInstances[0].version === 'PUBLISHER') {
+          if(dbToolOrTool.classroom_uid !== `${user.idpId}-${bookId}`) {
+            return getErrorObj('invalid permissions: user with PUBLISHER book_instance can only edit tools related to the default version');
+          }
+        } else {  // INSTRUCTOR
+          if(dbToolOrTool.classroom_uid === `${user.idpId}-${bookId}`) {
+            return getErrorObj('invalid permissions: user with INSTRUCTOR book_instance cannot edit tools related to the default version');
+          }
+          if(dbTool && dbTool.role !== 'INSTRUCTOR') {
+            return getErrorObj('invalid permissions: user not INSTRUCTOR of the classroom this tool belongs to');
+          }
+        }
+
+        if(dbTool && util.mySQLDatetimeToTimestamp(dbTool.updated_at) > tool.updated_at) {
           containedOldPatch = true;
 
         } else {
 
-          classroomUpdate.updated_at = util.timestampToMySQLDatetime(classroomUpdate.updated_at, true);
-          if(classroomUpdate.closes_at) {
-            classroomUpdate.closes_at = util.timestampToMySQLDatetime(classroomUpdate.closes_at, true);
-          }
+          prepUpdatedAtAndCreatedAt(tool, !dbTool);
+          convertTimestampsToMySQLDatetimes(tool);
 
-          if(classroomUpdate._delete) {  // if _delete is present, then delete
-            if(!classroom) {
+          if(tool._delete) {  // if _delete is present, then delete
+            if(!dbTool) {
               // shouldn't get here, but just ignore if it does
-            } else if(classroom.deleted_at) {
+            } else if(dbTool.deleted_at) {
               containedOldPatch = true;
             } else {
-              classroomUpdate.deleted_at = classroomUpdate.updated_at;
-              delete classroomUpdate._delete;
+              tool.deleted_at = tool.updated_at;
+              delete tool._delete;
               queriesToRun.push({
-                query: 'UPDATE `classroom` SET ? WHERE uid=?',
-                vars: [ classroomUpdate, classroomUpdate.uid ],
+                query: 'UPDATE `tool` SET ? WHERE uid=?',
+                vars: [ tool, tool.uid ],
               })
             }
 
-          } else if(!classroom) {
+          } else if(!dbTool) {
             queriesToRun.push({
-              query: 'INSERT into `classroom` SET ?',
-              vars: [ classroomUpdate ],
+              query: 'INSERT into `tool` SET ?',
+              vars: [ tool ],
             })
 
           } else {
             queriesToRun.push({
-              query: 'UPDATE `classroom` SET ? WHERE uid=?',
-              vars: [ classroomUpdate, classroomUpdate.uid ],
+              query: 'UPDATE `tool` SET ? WHERE uid=?',
+              vars: [ tool, tool.uid ],
             })
           }
         }
@@ -127,7 +157,7 @@ module.exports = {
       }
     }
 
-    return true;
+    return getSuccessObj();
 
   },
 
