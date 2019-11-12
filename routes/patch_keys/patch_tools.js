@@ -23,7 +23,7 @@ module.exports = {
 
     const now = util.timestampToMySQLDatetime(null, true);
 
-    if(body.tools) {
+    if((body.tools || []).length > 0) {
 
       preQueries.queries.push(''
         + 'SELECT version '
@@ -50,11 +50,11 @@ module.exports = {
         + 'FROM `tool` as t '
         + 'LEFT JOIN `classroom` as cm ON (c.uid=t.classroom_uid) '
         + 'LEFT JOIN `classroom_member` as cm ON (cm.classroom_uid=t.classroom_uid) '
-        + 'WHERE c.uid IN (?)'
-        + 'AND c.idp_id=?'
-        + 'AND c.book_id=?'
-        + 'AND cm.user_id=?'
-        + 'AND cm.delete_at IS NULL'
+        + 'WHERE c.uid IN (?) '
+        + 'AND c.idp_id=? '
+        + 'AND c.book_id=? '
+        + 'AND cm.user_id=? '
+        + 'AND cm.delete_at IS NULL '
       );
       preQueries.vars = [
         ...preQueries.vars,
@@ -85,7 +85,7 @@ module.exports = {
 
     let containedOldPatch = false;
 
-    if(tools) {
+    if((tools || []).length > 0) {
       for(let idx in tools) {
         const tool = tools[idx]
 
@@ -93,6 +93,10 @@ module.exports = {
                                                        'ordering','name','type','data','undo_array','due_at','closes_at',
                                                        'published_at','currently_published_tool_id','_delete'])) {
           return getErrorObj('invalid parameters');
+        }
+
+        if(tool._delete !== undefined && !tool._delete) {
+          return getErrorObj('invalid parameters (_delete)');
         }
 
         const dbTool = dbTools.filter(({ uid }) => uid === tool.uid)[0]

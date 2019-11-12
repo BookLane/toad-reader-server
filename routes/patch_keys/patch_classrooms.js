@@ -1,4 +1,5 @@
 const util = require('../../util');
+const patchClassroomMembers = require('./patch_classroom_members');
 
 const getSuccessObj = containedOldPatch => ({
   patch: 'latest_location',
@@ -23,7 +24,7 @@ module.exports = {
 
     const now = util.timestampToMySQLDatetime(null, true);
 
-    if(body.classrooms) {
+    if((body.classrooms || []).length > 0) {
 
       preQueries.queries.push(''
         + 'SELECT version '
@@ -49,15 +50,15 @@ module.exports = {
         + 'SELECT c.uid, c.updated_at, c.deleted_at, cm.role '
         + 'FROM `classroom` as c '
         + 'LEFT JOIN `classroom_member` as cm ON (cm.classroom_uid=c.uid) '
-        + 'WHERE c.uid IN (?)'
-        + 'AND c.idp_id=?'
-        + 'AND c.book_id=?'
-        + 'AND cm.user_id=?'
-        + 'AND cm.delete_at IS NULL'
+        + 'WHERE c.uid IN (?) '
+        + 'AND c.idp_id=? '
+        + 'AND c.book_id=? '
+        + 'AND cm.user_id=? '
+        + 'AND cm.delete_at IS NULL '
       );
       preQueries.vars = [
         ...preQueries.vars,
-        ...body.classrooms.map(({ uid }) => uid),
+        body.classrooms.map(({ uid }) => uid),
         user.idpId,
         params.bookId,
         params.userId,
@@ -71,6 +72,11 @@ module.exports = {
     preQueries.resultKeys.push('dbBookInstances');
     preQueries.resultKeys.push('dbClassrooms');
 
+    patchClassroomMembers.addPreQueries({
+      classrooms: body.classrooms || [],
+      preQueries,
+    })
+
   },
 
   addPatchQueries: ({
@@ -78,6 +84,7 @@ module.exports = {
     classrooms,
     dbBookInstances,
     dbClassrooms,
+    dbClassroomMembers,
     user,
     userId,
     bookId,
@@ -85,12 +92,16 @@ module.exports = {
 
     let containedOldPatch = false;
 
-    if(classrooms) {
+    if((classrooms || []).length > 0) {
       for(let idx in classrooms) {
         const classroom = classrooms[idx]
 
         if(!util.paramsOk(classroom, ['updated_at','uid'], ['name','has_syllabus','introduction','classroom_highlights_mode','closes_at','members','_delete'])) {
           return getErrorObj('invalid parameters');
+        }
+
+        if(classroom._delete !== undefined && !classroom._delete) {
+          return getErrorObj('invalid parameters (_delete)');
         }
 
         const dbClassroom = dbClassrooms.filter(({ uid }) => uid === classroom.uid)[0]
@@ -107,6 +118,9 @@ module.exports = {
           return getErrorObj('invalid parameters: when creating a classroom, must also be making yourself an INSTRUCTOR');
         }
 
+        const { members } = classroom;
+        delete classroom.members;
+
         if(dbClassroom && util.mySQLDatetimeToTimestamp(dbClassroom.updated_at) > classroom.updated_at) {
           containedOldPatch = true;
 
@@ -114,9 +128,6 @@ module.exports = {
 
           prepUpdatedAtAndCreatedAt(classroom, !dbClassroom);
           convertTimestampsToMySQLDatetimes(classroom);
-
-          const { members } = classroom;
-          delete classroom.members;
 
           if(classroom._delete) {  // if _delete is present, then delete
             if(!dbClassroom) {
@@ -147,6 +158,19 @@ module.exports = {
             })
           }
         }
+
+        const patchClassroomMembersResult = patchClassroomMembers.addPatchQueries({
+          queriesToRun,
+          members,
+          classroomUid: classroom.uid,
+          dbClassroomMembers,
+        });
+
+        if(!patchClassroomMembersResult.success) {
+          return getErrorObj(patchClassroomMembersResult.error);
+        }
+
+        containedOldPatch = containedOldPatch || patchClassroomMembersResult.containedOldPatch;
 
       }
     }

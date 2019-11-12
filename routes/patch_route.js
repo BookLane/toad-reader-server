@@ -1,4 +1,4 @@
-const util = require('../util');
+// const util = require('../util');
 const patchLatestLocation = require('./patch_keys/patch_latest_location');
 const patchHighlights = require('./patch_keys/patch_highlights');
 const patchClassrooms = require('./patch_keys/patch_classrooms');

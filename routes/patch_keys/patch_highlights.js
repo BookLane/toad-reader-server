@@ -20,7 +20,7 @@ module.exports = {
     preQueries,
   }) => {
 
-    if(body.highlights) {
+    if((body.highlights || []).length > 0) {
       preQueries.queries.push('SELECT spineIdRef, cfi, updated_at, IF(note="", 0, 1) as hasnote FROM `highlight` WHERE user_id=? AND book_id=? AND deleted_at=?');
       preQueries.vars = [
         ...vars,
@@ -48,7 +48,7 @@ module.exports = {
     const now = util.timestampToMySQLDatetime(null, true);
     let containedOldPatch = false;
 
-    if(highlights) {
+    if((highlights || []).length > 0) {
 
       var currentHighlightsUpdatedAtTimestamp = {};
       var currentHighlightsHasNote = {};
@@ -63,6 +63,11 @@ module.exports = {
         if(!util.paramsOk(highlight, ['updated_at','spineIdRef','cfi'], ['color','note','_delete'])) {
           return getErrorObj('invalid parameters');
         }
+
+        if(highlight._delete !== undefined && !highlight._delete) {
+          return getErrorObj('invalid parameters (_delete)');
+        }
+
         highlight.updated_at = util.notLaterThanNow(highlight.updated_at);
 
         if((currentHighlightsUpdatedAtTimestamp[getHighlightId(highlight)] || 0) > highlight.updated_at) {
