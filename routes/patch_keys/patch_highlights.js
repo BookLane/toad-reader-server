@@ -36,9 +36,9 @@ module.exports = {
 
       var currentHighlightsUpdatedAtTimestamp = {};
       var currentHighlightsHasNote = {};
-      dbHighlights.forEach(function(highlightRow) {
-        currentHighlightsUpdatedAtTimestamp[getHighlightId(highlightRow)] = util.mySQLDatetimeToTimestamp(highlightRow.updated_at);
-        currentHighlightsHasNote[getHighlightId(highlightRow)] = !!highlightRow.hasnote;
+      dbHighlights.forEach(function(dbHighlight) {
+        currentHighlightsUpdatedAtTimestamp[getHighlightId(dbHighlight)] = util.mySQLDatetimeToTimestamp(dbHighlight.updated_at);
+        currentHighlightsHasNote[getHighlightId(dbHighlight)] = !!dbHighlight.hasnote;
       })
 
       for(let idx in highlights) {
