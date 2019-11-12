@@ -165,6 +165,9 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
       res.status(403).send({ error: 'Forbidden' });
     }
 
+// this needs to provide classroom data as well, if book is enhanced
+// when it does, it needs to create default classroom if there is not one
+
     // build the userData object
     log(['Look up latest location', req.params.userId, req.params.bookId]);
     connection.query('SELECT * FROM `latest_location` WHERE user_id=? AND book_id=?',

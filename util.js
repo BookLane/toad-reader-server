@@ -261,7 +261,7 @@ var util = {
     //   books: [
     //     {
     //       id: Integer
-    //       version: BASE|PUBLISHER|INSTRUCTOR (optional; default: BASE)
+    //       version: BASE|ENHANCED|PUBLISHER|INSTRUCTOR (optional; default: BASE)
     //       expiration: Integer (timestamp with ms; optional: default: no expiration)
     //       enhancedToolsExpiration: Integer (timestamp with ms; optional; default=expiration)
     //     }
