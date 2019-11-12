@@ -89,9 +89,12 @@ module.exports = {
       for(let idx in tools) {
         const tool = tools[idx]
 
-        if(!util.paramsOk(tool, ['updated_at','uid'], ['classroom_uid','classroom_group_uid','spineIdRef','cfi',
-                                                       'ordering','name','type','data','undo_array','due_at','closes_at',
-                                                       'published_at','currently_published_tool_id','_delete'])) {
+        if(!util.paramsOk(
+          tool,
+          ['updated_at','uid'],
+          ['classroom_uid','classroom_group_uid','spineIdRef','cfi','ordering','name','type','data','undo_array',
+           'due_at','closes_at','published_at','currently_published_tool_id','_delete']
+        )) {
           return getErrorObj('invalid parameters');
         }
 

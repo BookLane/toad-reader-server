@@ -96,7 +96,11 @@ module.exports = {
       for(let idx in classrooms) {
         const classroom = classrooms[idx]
 
-        if(!util.paramsOk(classroom, ['updated_at','uid'], ['name','has_syllabus','introduction','classroom_highlights_mode','closes_at','members','_delete'])) {
+        if(!util.paramsOk(
+          classroom,
+          ['updated_at','uid'],
+          ['name','access_code','instructor_access_code','has_syllabus','introduction','classroom_highlights_mode','closes_at','members','_delete']
+        )) {
           return getErrorObj('invalid parameters');
         }
 
