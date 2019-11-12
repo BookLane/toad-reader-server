@@ -1,5 +1,16 @@
 const util = require('../../util');
 
+const getSuccessObj = () => ({
+  patch: 'latest_location',
+  success: true,
+})
+
+const getErrorObj = error => ({
+  ...getSuccessObj(),
+  success: false,
+  error,
+})
+
 module.exports = {
   
   addPreQueries: ({
@@ -45,7 +56,7 @@ module.exports = {
         const highlight = highlights[idx]
         
         if(!util.paramsOk(highlight, ['updated_at','spineIdRef','cfi'], ['color','note','_delete'])) {
-          return false;
+          return getErrorObj('invalid parameters');
         }
         highlight.updated_at = util.notLaterThanNow(highlight.updated_at);
 
@@ -103,7 +114,7 @@ module.exports = {
       }
     }
 
-    return true;
+    return getSuccessObj();
 
   },
 

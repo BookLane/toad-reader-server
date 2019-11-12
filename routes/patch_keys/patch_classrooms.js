@@ -1,5 +1,16 @@
 const util = require('../../util');
 
+const getSuccessObj = () => ({
+  patch: 'latest_location',
+  success: true,
+})
+
+const getErrorObj = error => ({
+  ...getSuccessObj(),
+  success: false,
+  error,
+})
+
 module.exports = {
   
   addPreQueries: ({
@@ -69,23 +80,17 @@ module.exports = {
         const classroom = classrooms[idx]
 
         if(!util.paramsOk(classroom, ['updated_at','uid'], ['name','has_syllabus','introduction','classroom_highlights_mode','closes_at','_delete'])) {
-          log(['Invalid parameter(s)', req.body], 3);
-          res.status(400).send();
-          return;
+          return getErrorObj('invalid parameters');
         }
 
         const dbClassroom = dbClassrooms.filter(({ uid }) => uid === classroom.uid)[0]
 
         if(dbBookInstances[0]) {
-          log(['Invalid permissions - no INSTRUCTOR book_instance', req.body], 3);
-          res.status(400).send();
-          return;
+          return getErrorObj('invalid permissions: user lacks INSTRUCTOR book_instance');
         }
 
         if(dbClassroom && dbClassroom.role !== 'INSTRUCTOR') {
-          log(['Invalid permissions - not INSTRUCTOR of this classroom', req.body], 3);
-          res.status(400).send();
-          return;
+          return getErrorObj('invalid permissions: user not INSTRUCTOR of this classroom');
         }
 
         if(dbClassroom && util.mySQLDatetimeToTimestamp(dbClassroom.updated_at) > classroom.updated_at) {
@@ -129,7 +134,7 @@ module.exports = {
       }
     }
 
-    return true;
+    return getSuccessObj();
 
   },
 

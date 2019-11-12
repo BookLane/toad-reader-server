@@ -1,5 +1,16 @@
 const util = require('../../util');
 
+const getSuccessObj = () => ({
+  patch: 'latest_location',
+  success: true,
+})
+
+const getErrorObj = error => ({
+  ...getSuccessObj(),
+  success: false,
+  error,
+})
+
 module.exports = {
   
   addPreQueries: ({
@@ -35,7 +46,7 @@ module.exports = {
     if(latest_location) {
 
       if(!updated_at) {
-        return false;
+        return getErrorObj('missing updated_at');
       }
 
       updated_at = util.notLaterThanNow(updated_at);
@@ -64,7 +75,7 @@ module.exports = {
 
     }
 
-    return true;
+    return getSuccessObj();
 
   },
 

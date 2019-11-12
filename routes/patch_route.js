@@ -72,13 +72,15 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
             ...resultsObj,
           }
 
-          if(
-            !patchLatestLocation.addPatchQueries(patchQuestionParams)
-            || !patchHighlights.addPatchQueries(patchQuestionParams)
-            || !patchClassrooms.addPatchQueries(patchQuestionParams)
-            || !patchTools.addPatchQueries(patchQuestionParams)
-          ) {
-            log(['Invalid patch', body], 3);
+          const errorsFromAddPatchQueries = [
+            patchLatestLocation.addPatchQueries(patchQuestionParams),
+            patchHighlights.addPatchQueries(patchQuestionParams),
+            patchClassrooms.addPatchQueries(patchQuestionParams),
+            patchTools.addPatchQueries(patchQuestionParams),
+          ].filter(({ success }) => !success);
+
+          if(errorsFromAddPatchQueries.length > 0) {
+            log(['Invalid patch', ...errorsFromAddPatchQueries], 3);
             res.status(400).send();
             return;
           }
