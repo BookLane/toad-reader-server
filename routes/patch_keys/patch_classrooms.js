@@ -19,6 +19,7 @@ module.exports = {
         + 'AND user_id=? '
         + 'AND (expires_at IS NULL OR expires_at>?) '
         + 'AND (enhanced_tools_expire_at IS NULL OR enhanced_tools_expire_at>?) '
+        + 'AND version IN (?) '
       );
       preQueries.vars = [
         ...preQueries.vars,
@@ -27,6 +28,7 @@ module.exports = {
         params.userId,
         now,
         now,
+        ['INSTRUCTOR'],
       ];
 
       preQueries.queries.push(''
@@ -58,68 +60,68 @@ module.exports = {
   addPatchQueries: ({
     queriesToRun,
     classrooms,
-    dbClassrooms,
     dbBookInstances,
+    dbClassrooms,
   }) => {
 
-    if(dbClassrooms) {
-      for(let idx in dbClassrooms) {
-        const classroomUpdate = dbClassrooms[idx]
+    if(classrooms) {
+      for(let idx in classrooms) {
+        const classroom = classrooms[idx]
 
-        if(!util.paramsOk(classroomUpdate, ['updated_at','uid'], ['name','has_syllabus','introduction','classroom_highlights_mode','closes_at','_delete'])) {
+        if(!util.paramsOk(classroom, ['updated_at','uid'], ['name','has_syllabus','introduction','classroom_highlights_mode','closes_at','_delete'])) {
           log(['Invalid parameter(s)', req.body], 3);
           res.status(400).send();
           return;
         }
 
-        const classroom = classrooms.filter(({ uid }) => uid === classroomUpdate.uid)[0]
+        const dbClassroom = dbClassrooms.filter(({ uid }) => uid === classroom.uid)[0]
 
-        if((dbBookInstances[0] || {}).version !== 'INSTRUCTOR') {
+        if(dbBookInstances[0]) {
           log(['Invalid permissions - no INSTRUCTOR book_instance', req.body], 3);
           res.status(400).send();
           return;
         }
 
-        if(classroom && classroom.role !== 'INSTRUCTOR') {
+        if(dbClassroom && dbClassroom.role !== 'INSTRUCTOR') {
           log(['Invalid permissions - not INSTRUCTOR of this classroom', req.body], 3);
           res.status(400).send();
           return;
         }
 
-        if(classroom && util.mySQLDatetimeToTimestamp(classroom.updated_at) > classroomUpdate.updated_at) {
+        if(dbClassroom && util.mySQLDatetimeToTimestamp(dbClassroom.updated_at) > classroom.updated_at) {
           containedOldPatch = true;
 
         } else {
 
-          classroomUpdate.updated_at = util.timestampToMySQLDatetime(classroomUpdate.updated_at, true);
-          if(classroomUpdate.closes_at) {
-            classroomUpdate.closes_at = util.timestampToMySQLDatetime(classroomUpdate.closes_at, true);
+          classroom.updated_at = util.timestampToMySQLDatetime(classroom.updated_at, true);
+          if(classroom.closes_at) {
+            classroom.closes_at = util.timestampToMySQLDatetime(classroom.closes_at, true);
           }
 
-          if(classroomUpdate._delete) {  // if _delete is present, then delete
-            if(!classroom) {
+          if(classroom._delete) {  // if _delete is present, then delete
+            if(!dbClassroom) {
               // shouldn't get here, but just ignore if it does
-            } else if(classroom.deleted_at) {
+            } else if(dbClassroom.deleted_at) {
               containedOldPatch = true;
             } else {
-              classroomUpdate.deleted_at = classroomUpdate.updated_at;
-              delete classroomUpdate._delete;
+              classroom.deleted_at = classroom.updated_at;
+              delete classroom._delete;
               queriesToRun.push({
                 query: 'UPDATE `classroom` SET ? WHERE uid=?',
-                vars: [ classroomUpdate, classroomUpdate.uid ],
+                vars: [ classroom, classroom.uid ],
               })
             }
 
-          } else if(!classroom) {
+          } else if(!dbClassroom) {
             queriesToRun.push({
               query: 'INSERT into `classroom` SET ?',
-              vars: [ classroomUpdate ],
+              vars: [ classroom ],
             })
 
           } else {
             queriesToRun.push({
               query: 'UPDATE `classroom` SET ? WHERE uid=?',
-              vars: [ classroomUpdate, classroomUpdate.uid ],
+              vars: [ classroom, classroom.uid ],
             })
           }
         }
