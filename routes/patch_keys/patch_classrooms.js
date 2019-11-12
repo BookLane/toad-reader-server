@@ -1,8 +1,9 @@
 const util = require('../../util');
 
-const getSuccessObj = () => ({
+const getSuccessObj = containedOldPatch => ({
   patch: 'latest_location',
   success: true,
+  containedOldPatch: !!containedOldPatch,
 })
 
 const getErrorObj = error => ({
@@ -19,6 +20,8 @@ module.exports = {
     user,
     preQueries,
   }) => {
+
+    const now = util.timestampToMySQLDatetime(null, true);
 
     if(body.classrooms) {
 
@@ -79,6 +82,8 @@ module.exports = {
     userId,
     bookId,
   }) => {
+
+    let containedOldPatch = false;
 
     if(classrooms) {
       for(let idx in classrooms) {
@@ -146,7 +151,7 @@ module.exports = {
       }
     }
 
-    return getSuccessObj();
+    return getSuccessObj(containedOldPatch);
 
   },
 

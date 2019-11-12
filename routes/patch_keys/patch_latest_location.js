@@ -1,8 +1,9 @@
 const util = require('../../util');
 
-const getSuccessObj = () => ({
+const getSuccessObj = containedOldPatch => ({
   patch: 'latest_location',
   success: true,
+  containedOldPatch: !!containedOldPatch,
 })
 
 const getErrorObj = error => ({
@@ -43,6 +44,8 @@ module.exports = {
     dbLatestLocations,
   }) => {
 
+    let containedOldPatch = false;
+
     if(latest_location) {
 
       if(!updated_at) {
@@ -75,7 +78,7 @@ module.exports = {
 
     }
 
-    return getSuccessObj();
+    return getSuccessObj(containedOldPatch);
 
   },
 

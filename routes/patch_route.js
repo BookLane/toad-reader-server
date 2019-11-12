@@ -20,8 +20,6 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
       }
   
       log(['Attempting patch', req.body]);
-      let containedOldPatch = false;
-      let now = util.timestampToMySQLDatetime(null, true);
 
       // A JSON array of user-data book objects is sent to the Readium server,
       // which contains the portions that need to be added, updated or deleted.
@@ -72,12 +70,15 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
             ...resultsObj,
           }
 
-          const errorsFromAddPatchQueries = [
+          const addPatchQueryResults = [
             patchLatestLocation.addPatchQueries(patchQuestionParams),
             patchHighlights.addPatchQueries(patchQuestionParams),
             patchClassrooms.addPatchQueries(patchQuestionParams),
             patchTools.addPatchQueries(patchQuestionParams),
-          ].filter(({ success }) => !success);
+          ]
+
+          const errorsFromAddPatchQueries = addPatchQueryResults.filter(({ success }) => !success);
+          const containedOldPatch = addPatchQueryResults.some(({ containedOldPatch }) => containedOldPatch);
 
           if(errorsFromAddPatchQueries.length > 0) {
             log(['Invalid patch', ...errorsFromAddPatchQueries], 3);

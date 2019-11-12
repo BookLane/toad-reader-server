@@ -1,8 +1,9 @@
 const util = require('../../util');
 
-const getSuccessObj = () => ({
+const getSuccessObj = containedOldPatch => ({
   patch: 'latest_location',
   success: true,
+  containedOldPatch: !!containedOldPatch,
 })
 
 const getErrorObj = error => ({
@@ -43,6 +44,9 @@ module.exports = {
     dbHighlights,
     user,
   }) => {
+
+    const now = util.timestampToMySQLDatetime(null, true);
+    let containedOldPatch = false;
 
     if(highlights) {
 
@@ -115,7 +119,7 @@ module.exports = {
       }
     }
 
-    return getSuccessObj();
+    return getSuccessObj(containedOldPatch);
 
   },
 
