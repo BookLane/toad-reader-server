@@ -2,7 +2,7 @@ const util = require('../util');
 const patchLatestLocation = require('./patch_keys/patch_latest_location');
 const patchHighlights = require('./patch_keys/patch_highlights');
 const patchClassrooms = require('./patch_keys/patch_classrooms');
-// const patchTools = require('./patch_keys/patch_tools');
+const patchTools = require('./patch_keys/patch_tools');
 
 module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log) {
 
@@ -46,25 +46,10 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
         resultKeys: ['books'],
       };
 
-      patchLatestLocation.addPreQueries({
-        ...req,
-        preQueries,
-      });
-
-      patchHighlights.addPreQueries({
-        ...req,
-        preQueries,
-      });
-
-      patchClassrooms.addPreQueries({
-        ...req,
-        preQueries,
-      });
-
-      // patchTools.addPreQueries({
-      //   ...req,
-      //   preQueries,
-      // });
+      patchLatestLocation.addPreQueries({ ...req, preQueries })
+      patchHighlights.addPreQueries({ ...req, preQueries })
+      patchClassrooms.addPreQueries({ ...req, preQueries })
+      patchTools.addPreQueries({ ...req, preQueries })
 
       connection.query(
         preQueries.queries.join('; '),
@@ -90,7 +75,8 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
           if(
             !patchLatestLocation.addPatchQueries(patchQuestionParams)
             || !patchHighlights.addPatchQueries(patchQuestionParams)
-            || !patchHighlights.addPatchQueries(patchQuestionParams)
+            || !patchClassrooms.addPatchQueries(patchQuestionParams)
+            || !patchTools.addPatchQueries(patchQuestionParams)
           ) {
             log(['Invalid patch', body], 3);
             res.status(400).send();
