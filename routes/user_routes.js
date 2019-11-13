@@ -166,8 +166,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
       return;
     }
 
-// when it does, it needs to create default classroom if there is not one
-// eventually, this should include an updated_since date so as to not fetch the entirety
+    // TODO: Eventually, this listener should include an updates_since date so as to not fetch everything.
 
     util.hasAccess({ bookId: req.params.bookId, req, connection, log, next }).then(accessInfo => {
 
@@ -180,8 +179,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
       const isPublisher = ['PUBLISHER'].includes(version);
       const hasAccessToEnhancedTools = ['ENHANCED','INSTRUCTOR'].includes(version) && enhancedToolsExpiresAt > Date.now();
 
-      const getBookUserData = (err, classrooms=[]) => {
-        if (err) return next(err);
+      const getBookUserData = (classrooms=[]) => {
 
         const classroomUids = classrooms.map(({ uid }) => uid);
         const queries = [];
@@ -321,6 +319,9 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
       };
 
       if(hasAccessToEnhancedTools || isPublisher) {
+
+        const defaultClassroomUid = `${req.user.idpId}-${req.params.bookId}`;
+
         // first get the classrooms so as to reference them in the other queries
         connection.query(`
           SELECT c.*, cm_me.role
@@ -341,9 +342,39 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
             req.user.idpId,
             req.params.bookId,
             req.params.userId,
-            `${req.user.idpId}-${req.params.bookId}`,  // the default classroom
+            defaultClassroomUid,
           ],
-          getBookUserData
+          (err, classrooms) => {
+            if (err) return next(err);
+
+            if(!classrooms.some(({ uid }) => uid === defaultClassroomUid)) {
+              // no default classroom
+
+              const now = util.timestampToMySQLDatetime(null, true);
+              const defaultClassroom = {
+                uid: defaultClassroomUid,
+                idp_id: req.user.idpId,
+                book_id: req.params.bookId,
+                name: '',
+                create_at: now,
+                updated_at: now,
+              };
+
+              connection.query(
+                `INSERT into classroom SET ?`,
+                defaultClassroom,
+                (err, result) => {
+                  if (err) return next(err);
+
+                  classrooms.push(defaultClassroom);
+                  getBookUserData(classrooms);
+                }
+              );
+
+            } else {
+              getBookUserData(classrooms);
+            }
+          }
         );
 
       } else {
