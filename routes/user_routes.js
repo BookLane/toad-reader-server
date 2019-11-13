@@ -193,12 +193,12 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
       (err, rows) => {
         if (err) return next(err);
 
-        if(rows.length !== 1) {
+        if(rows.length !== 1 && !req.user.isAdmin) {
           res.status(403).send({ error: 'No access' });
           return;
         }
 
-        const { version, enhanced_tools_expire_at } = rows[0];
+        const { version, enhanced_tools_expire_at } = rows[0] || {};
         const isPublisher = ['PUBLISHER'].includes(version);
         const hasAccessToEnhancedTools = ['ENHANCED','INSTRUCTOR'].includes(version) && util.mySQLDatetimeToTimestamp(enhanced_tools_expire_at);
 
