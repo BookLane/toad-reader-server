@@ -168,7 +168,6 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
 // this needs to provide classroom data as well, if book is enhanced
 // when it does, it needs to create default classroom if there is not one
 // eventually, this should include an updated since date so as to not fetch the entirety
-// tools needs to be put under classrooms
 
     const queries = [];
     let vars = [];

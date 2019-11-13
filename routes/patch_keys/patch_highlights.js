@@ -1,7 +1,7 @@
 const util = require('../../util');
 
 const getSuccessObj = containedOldPatch => ({
-  patch: 'latest_location',
+  patch: 'highlights',
   success: true,
   containedOldPatch: !!containedOldPatch,
 })

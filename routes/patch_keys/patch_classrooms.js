@@ -1,8 +1,9 @@
 const util = require('../../util');
 const patchClassroomMembers = require('./patch_classroom_members');
+const patchTools = require('./patch_tools');
 
 const getSuccessObj = containedOldPatch => ({
-  patch: 'latest_location',
+  patch: 'classrooms',
   success: true,
   containedOldPatch: !!containedOldPatch,
 })
@@ -43,7 +44,7 @@ module.exports = {
         params.userId,
         now,
         now,
-        ['INSTRUCTOR'],
+        ['INSTRUCTOR', 'PUBLISHER'],
       ];
 
       preQueries.queries.push(''
@@ -77,6 +78,11 @@ module.exports = {
       preQueries,
     })
 
+    patchTools.addPreQueries({
+      classrooms: body.classrooms || [],
+      preQueries,
+    })
+
   },
 
   addPatchQueries: ({
@@ -99,7 +105,7 @@ module.exports = {
         if(!util.paramsOk(
           classroom,
           ['updated_at','uid'],
-          ['name','access_code','instructor_access_code','has_syllabus','introduction','classroom_highlights_mode','closes_at','members','_delete']
+          ['name','access_code','instructor_access_code','has_syllabus','introduction','classroom_highlights_mode','closes_at','members','tools','_delete']
         )) {
           return getErrorObj('invalid parameters');
         }
@@ -110,20 +116,36 @@ module.exports = {
 
         const dbClassroom = dbClassrooms.filter(({ uid }) => uid === classroom.uid)[0]
 
-        if(dbBookInstances[0]) {
-          return getErrorObj('invalid permissions: user lacks INSTRUCTOR book_instance');
+        if(!dbBookInstances[0]) {
+          return getErrorObj('invalid permissions: user lacks INSTRUCTOR/PUBLISHER book_instance');
         }
 
-        if(dbClassroom && dbClassroom.role !== 'INSTRUCTOR') {
-          return getErrorObj('invalid permissions: user not INSTRUCTOR of this classroom');
+        if(dbBookInstances[0].version === 'PUBLISHER') {
+          if(classroom.uid !== `${user.idpId}-${bookId}`) {
+            return getErrorObj('invalid permissions: user with PUBLISHER book_instance can only edit the default version');
+          }
+          if(!util.paramsOk(classroom, ['updated_at','uid'],['tools'])) {
+            return getErrorObj('invalid permissions: user with PUBLISHER book_instance can only edit tools related to the default version');
+          }
+          if(!dbClassroom) {
+            return getErrorObj('invalid data: user with PUBLISHER book_instance attempting to edit non-existent default version');
+          }
+        } else {  // INSTRUCTOR
+          if(classroom.uid === `${user.idpId}-${bookId}`) {
+            return getErrorObj('invalid permissions: user with INSTRUCTOR book_instance cannot edit the default version');
+          }
+          if(dbClassroom && dbClassroom.role !== 'INSTRUCTOR') {
+            return getErrorObj('invalid permissions: user not INSTRUCTOR of this classroom');
+          }
         }
 
         if(!dbClassroom && (classroom.members || []).filter(({ user_id, role }) => (user_id === userId && role === 'INSTRUCTOR')).length === 0) {
           return getErrorObj('invalid parameters: when creating a classroom, must also be making yourself an INSTRUCTOR');
         }
 
-        const { members } = classroom;
+        const { members, tools } = classroom;
         delete classroom.members;
+        delete classroom.tools;
 
         if(dbClassroom && util.mySQLDatetimeToTimestamp(dbClassroom.updated_at) > classroom.updated_at) {
           containedOldPatch = true;
@@ -164,6 +186,7 @@ module.exports = {
           }
         }
 
+        // do members
         const patchClassroomMembersResult = patchClassroomMembers.addPatchQueries({
           queriesToRun,
           members,
@@ -176,6 +199,20 @@ module.exports = {
         }
 
         containedOldPatch = containedOldPatch || patchClassroomMembersResult.containedOldPatch;
+
+        // do tools
+        const patchToolsResult = patchTools.addPatchQueries({
+          queriesToRun,
+          tools,
+          classroomUid: classroom.uid,
+          dbTools,
+        });
+
+        if(!patchToolsResult.success) {
+          return getErrorObj(patchToolsResult.error);
+        }
+
+        containedOldPatch = containedOldPatch || patchToolsResult.containedOldPatch;
 
       }
     }
