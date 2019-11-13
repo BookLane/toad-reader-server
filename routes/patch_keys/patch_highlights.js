@@ -76,7 +76,7 @@ module.exports = {
         }
 
         var updatedAtTimestamp = highlight.updated_at;
-        convertTimestampsToMySQLDatetimes(highlight);
+        util.convertTimestampsToMySQLDatetimes(highlight);
         // since I do not know whether to INSERT or UPDATE, just DELETE them all then then INSERT
         if(highlight._delete) {
           if(currentHighlightsHasNote[getHighlightId(highlight)]) {

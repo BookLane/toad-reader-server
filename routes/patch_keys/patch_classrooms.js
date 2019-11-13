@@ -130,8 +130,8 @@ module.exports = {
 
         } else {
 
-          prepUpdatedAtAndCreatedAt(classroom, !dbClassroom);
-          convertTimestampsToMySQLDatetimes(classroom);
+          util.prepUpdatedAtAndCreatedAt(classroom, !dbClassroom);
+          util.convertTimestampsToMySQLDatetimes(classroom);
 
           if(classroom._delete) {  // if _delete is present, then delete
             if(!dbClassroom) {

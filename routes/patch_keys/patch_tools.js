@@ -135,8 +135,8 @@ module.exports = {
 
         } else {
 
-          prepUpdatedAtAndCreatedAt(tool, !dbTool);
-          convertTimestampsToMySQLDatetimes(tool);
+          util.prepUpdatedAtAndCreatedAt(tool, !dbTool);
+          util.convertTimestampsToMySQLDatetimes(tool);
 
           if(tool._delete) {  // if _delete is present, then delete
             if(!dbTool) {

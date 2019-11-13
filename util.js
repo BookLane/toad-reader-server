@@ -138,12 +138,28 @@ var util = {
     return formatted;
   },
 
-  convertTimestampsToMySQLDatetimes: obj => {
-    Object.keys(obj).forEach(key => {
-      if(/_at$/.test(key) && typeof obj[key] === 'number') {
-        obj[key] = util.timestampToMySQLDatetime(obj[key], true);
-      }
-    })
+  convertTimestampsToMySQLDatetimes: objOrAry => {
+    if(objOrAry instanceof Array) {
+      objOrAry.forEach(obj => util.convertTimestampsToMySQLDatetimes(obj));
+    } else {
+      Object.keys(obj).forEach(key => {
+        if(/_at$/.test(key) && typeof obj[key] === 'number') {
+          obj[key] = util.timestampToMySQLDatetime(obj[key], true);
+        }
+      })
+    }
+  },
+
+  convertMySQLDatetimesToTimestamps: objOrAry => {
+    if(objOrAry instanceof Array) {
+      objOrAry.forEach(obj => util.convertMySQLDatetimesToTimestamps(obj));
+    } else {
+      Object.keys(obj).forEach(key => {
+        if(/_at$/.test(key) && typeof obj[key] === 'string') {
+          obj[key] = util.mySQLDatetimeToTimestamp(obj[key]);
+        }
+      })
+    }
   },
 
   prepUpdatedAtAndCreatedAt: (obj, doCreatedAt) => {

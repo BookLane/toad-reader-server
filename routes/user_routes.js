@@ -167,44 +167,165 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
 
 // this needs to provide classroom data as well, if book is enhanced
 // when it does, it needs to create default classroom if there is not one
+// eventually, this should include an updated since date so as to not fetch the entirety
+// tools needs to be put under classrooms
+
+    const queries = [];
+    let vars = [];
+
+    // latest_location query
+    queries.push(`
+      SELECT *
+      FROM latest_location
+      WHERE user_id=? AND book_id=?
+    `);
+    vars = [
+      ...vars,
+      req.params.userId,
+      req.params.bookId,
+    ];
+
+    // highlight query
+    queries.push(`
+      SELECT spineIdRef, cfi, color, note, updated_at
+      FROM highlight
+      WHERE user_id=?
+        AND book_id=?
+        AND deleted_at=?
+    `);
+    vars = [
+      ...vars,
+      req.params.userId,
+      req.params.bookId,
+      util.NOT_DELETED_AT_TIME,
+    ];
+
+    // classrooms query
+    queries.push(`
+      SELECT c.*, cm_me.role
+      FROM classroom as c
+        LEFT JOIN classroom_member as cm_me ON (cm_me.classroom_uid=c.uid)
+      WHERE c.idp_id=?
+        AND c.book_id=?
+        AND c.deleted_at IS NULL
+        AND cm_me.user_id=?
+        AND cm_me.delete_at IS NULL
+    `);
+    vars = [
+      ...vars,
+      req.user.idpId,
+      req.params.bookId,
+      req.params.userId,
+    ];
+
+    // classroom_members query
+    queries.push(`
+      SELECT cm.classroom_uid, cm.user_id, cm.class_group_uid, cm.role, cm.create_at, cm.updated_at, u.email, u.fullname
+      FROM classroom as c
+        LEFT JOIN classroom_member as cm_me ON (cm_me.classroom_uid=c.uid)
+        LEFT JOIN classroom_member as cm ON (cm.classroom_uid=c.uid)
+        LEFT JOIN user as u ON (cm.user_id=u.uid)
+      WHERE c.idp_id=?
+        AND c.book_id=?
+        AND c.deleted_at IS NULL
+        AND cm_me.user_id=?
+        AND cm_me.delete_at IS NULL
+        AND cm.delete_at IS NULL
+        AND (
+          cm_me.role IN (?)
+          OR cm.user_id=?
+          OR cm.role IN (?)
+        )
+    `);
+    vars = [
+      ...vars,
+      req.user.idpId,
+      req.params.bookId,
+      req.params.userId,
+      ['INSTRUCTOR'],
+      req.params.userId,
+      ['INSTRUCTOR'],
+    ];
+
+    // tools query
+    queries.push(`
+      SELECT t.*
+      FROM classroom as c
+        LEFT JOIN classroom_member as cm_me ON (cm_me.classroom_uid=c.uid)
+        LEFT JOIN tool as t ON (t.classroom_uid=c.uid)
+      WHERE c.idp_id=?
+        AND c.book_id=?
+        AND c.deleted_at IS NULL
+        AND cm_me.user_id=?
+        AND cm_me.delete_at IS NULL
+        AND t.delete_at IS NULL
+    `);
+    vars = [
+      ...vars,
+      req.user.idpId,
+      req.params.bookId,
+      req.params.userId,
+    ];
 
     // build the userData object
-    log(['Look up latest location', req.params.userId, req.params.bookId]);
-    connection.query('SELECT * FROM `latest_location` WHERE user_id=? AND book_id=?',
-      [req.params.userId, req.params.bookId],
-      function (err, rows) {
+    log(['Look up latest location, highlights and classrooms', req.params.userId, req.params.bookId]);
+    connection.query(
+      queries.join('; '),
+      vars,
+      (err, results) => {
         if (err) return next(err);
 
-        var row = rows[0];
+        const [ latestLocations, highlights, classrooms, members, tools ] = results;
+        const bookUserData = {}
 
-        if(!row) {
-            log('Deliver null userData');
-            res.send(null);
-
-        } else {
-          var bookUserData = {
-            latest_location: row.cfi,
-            updated_at: util.mySQLDatetimeToTimestamp(row.updated_at),
-            highlights: []
-          }
-
-          var highlightFields = 'spineIdRef, cfi, color, note, updated_at';
-          connection.query('SELECT ' + highlightFields + ' FROM `highlight` WHERE user_id=? AND book_id=? AND deleted_at=?',
-            [req.params.userId, req.params.bookId, util.NOT_DELETED_AT_TIME],
-            function (err2, rows2, fields2) {
-              if (err2) return next(err);
-
-              rows2.forEach(function(row2, idx) {
-                rows2[idx].updated_at = util.mySQLDatetimeToTimestamp(row2.updated_at);
-              });
-
-              bookUserData.highlights = rows2;
-              log(['Deliver userData for book', bookUserData]);
-              res.send(bookUserData);
-
-            }
-          );
+        // get latest_location
+        if(latestLocations[0]) {
+          bookUserData.latest_location = latestLocations[0].cfi;
+          bookUserData.updated_at = util.mySQLDatetimeToTimestamp(latestLocations[0].updated_at);
         }
+
+        // get highlights
+        util.convertMySQLDatetimesToTimestamps(highlights);
+        bookUserData.highlights = highlights;
+
+        // get classrooms
+        const classroomsByUid = {};
+        classrooms.forEach(classroom => {
+          if(!['INSTRUCTOR'].includes(classroom.role)) {
+            delete classroom.access_code;
+            delete classroom.instructor_access_code;
+          }
+          delete classroom.idp_id;
+          delete classroom.book_id;
+          delete classroom.deleted_at;
+          delete classroom.role;
+
+          util.convertMySQLDatetimesToTimestamps(classroom);
+
+          classroom.members = [];
+          classroom.tools = [];
+          classroomsByUid[classroom.uid] = classroom;
+        });
+
+        // add members
+        members.forEach(member => {
+          util.convertMySQLDatetimesToTimestamps(member);
+          classroomsByUid[member.classroom_uid].members.push(member)
+          delete member.classroom_uid;
+        })
+
+        // add tools
+        tools.forEach(tool => {
+          util.convertMySQLDatetimesToTimestamps(tool);
+          classroomsByUid[tool.classroom_uid].tools.push(tool)
+          delete tool.classroom_uid;
+          delete tool.deleted_at;
+        })
+
+        bookUserData.classrooms = classrooms;
+
+        log(['Deliver userData for book', bookUserData]);
+        res.send(bookUserData);
       }
     )
   })

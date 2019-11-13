@@ -74,8 +74,8 @@ module.exports = {
 
         } else {
 
-          prepUpdatedAtAndCreatedAt(member, !dbMember);
-          convertTimestampsToMySQLDatetimes(member);
+          util.prepUpdatedAtAndCreatedAt(member, !dbMember);
+          util.convertTimestampsToMySQLDatetimes(member);
 
           if(member._delete) {  // if _delete is present, then delete
             if(!dbMember) {
