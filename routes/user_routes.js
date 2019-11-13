@@ -387,16 +387,35 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
 
     // look those books up in the database and form the library
     log('Lookup library');
-    connection.query(''
-      + 'SELECT b.*, bi.link_href, bi.link_label '
-      + 'FROM `book` as b '
-      + 'LEFT JOIN `book-idp` as bi ON (bi.book_id=b.id) '
-      + 'LEFT JOIN `book_instance` as bi2 ON (bi2.book_id=b.id AND bi2.idp_id=bi.idp_id) '
-      + 'WHERE b.rootUrl IS NOT NULL AND bi.idp_id=? '
-      + (req.user.isAdmin ? '' : 'AND bi2.user_id=? '),
+    connection.query(`
+      SELECT
+        b.id,
+        b.title,
+        b.author,
+        b.coverHref,
+        b.epubSizeInMB,
+        bi.link_href,
+        bi.link_label,
+        bi2.version,
+        bi2.expires_at,
+        bi2.enhanced_tools_expire_at
+      FROM book as b
+        LEFT JOIN \`book-idp\` as bi ON (bi.book_id=b.id)
+        LEFT JOIN book_instance as bi2 ON (bi2.book_id=b.id AND bi2.idp_id=bi.idp_id)
+      WHERE b.rootUrl IS NOT NULL AND bi.idp_id=?
+        ${req.user.isAdmin ? `` : `AND bi2.user_id=?`}
+      `,
       [req.user.idpId, req.user.id],
       function (err, rows) {
         if (err) return next(err);
+
+        rows.forEach(row => {
+          for(let key in row) {
+            if(row[key] === null) {
+              delete row[key];
+            }
+          }
+        });
 
         log(['Deliver library', rows]);
         res.send(rows);
