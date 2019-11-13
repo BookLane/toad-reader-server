@@ -417,7 +417,7 @@ var util = {
     )
   }),
 
-  hasAccess: ({ bookId, checkEnhancedToolsAccess=false, req, connection, log, next }) => new Promise(resolveAll => {
+  hasAccess: ({ bookId, requireEnhancedToolsAccess=false, req, connection, log, next }) => new Promise(resolveAll => {
 
     if(!req.isAuthenticated()) {
       resolveAll(false);
@@ -429,23 +429,30 @@ var util = {
     const enhancedToolsExpiresAtOkay = 'AND (enhanced_tools_expire_at IS NULL OR enhanced_tools_expire_at>?) '
 
     connection.query(''
-      + 'SELECT bi2.version '
+      + 'SELECT bi2.version, bi2.enhanced_tools_expire_at '
       + 'FROM `book` as b '
       + 'LEFT JOIN `book-idp` as bi ON (bi.book_id=b.id) '
       + 'LEFT JOIN `book_instance` as bi2 ON (bi2.book_id=b.id AND bi2.idp_id=bi.idp_id) '
       + 'WHERE b.id=? AND b.rootUrl IS NOT NULL AND bi.idp_id=? '
       + (req.user.isAdmin ? '' : 'AND bi2.user_id=? ')
-      + (req.user.isAdmin ? '' : (
-        checkEnhancedToolsAccess
-          ? expiresAtOkay
-          : (enhancedToolsExpiresAtOkay + expiresAtOkay)
-      ))
+      + (
+        requireEnhancedToolsAccess
+          ? (enhancedToolsExpiresAtOkay + expiresAtOkay)
+          : (
+            req.user.isAdmin 
+              ? ''
+              : expiresAtOkay
+          )
+      )
       + 'LIMIT 1 ',
       [ bookId, req.user.idpId, req.user.id, now, now ],
       (err, rows) => {
         if (err) return next(err);
 
-        resolveAll(rows.length > 0 && (rows[0].version || 'BASE'));
+        resolveAll(rows.length > 0 && {
+          version: (rows[0].version || 'BASE'),
+          enhancedToolsExpiresAt: util.mySQLDatetimeToTimestamp(rows[0].enhanced_tools_expire_at || '3000-01-01 00:00:00'),
+        });
 
       }
     );

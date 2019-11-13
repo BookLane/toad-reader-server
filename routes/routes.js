@@ -190,9 +190,9 @@ module.exports = function (app, s3, connection, passport, authFuncs, ensureAuthe
     // check that they have access if this is a book
     if(urlPieces[1] == 'epub_content') {
 
-      util.hasAccess({ bookId, req, connection, log, next }).then(version => {
+      util.hasAccess({ bookId, req, connection, log, next }).then(accessInfo => {
 
-        if(!version) {
+        if(!accessInfo) {
           log(['They do not have access to this book', bookId], 2);
           res.status(403).send({ error: 'Forbidden' });
   
