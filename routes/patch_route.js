@@ -2,7 +2,6 @@
 const patchLatestLocation = require('./patch_keys/patch_latest_location');
 const patchHighlights = require('./patch_keys/patch_highlights');
 const patchClassrooms = require('./patch_keys/patch_classrooms');
-const patchTools = require('./patch_keys/patch_tools');
 
 module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log) {
 
@@ -47,7 +46,6 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
       patchLatestLocation.addPreQueries({ ...req, preQueries })
       patchHighlights.addPreQueries({ ...req, preQueries })
       patchClassrooms.addPreQueries({ ...req, preQueries })
-      patchTools.addPreQueries({ ...req, preQueries })
 
       connection.query(
         preQueries.queries.join('; '),
@@ -74,7 +72,6 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
             patchLatestLocation.addPatchQueries(patchQuestionParams),
             patchHighlights.addPatchQueries(patchQuestionParams),
             patchClassrooms.addPatchQueries(patchQuestionParams),
-            patchTools.addPatchQueries(patchQuestionParams),
           ]
 
           const errorsFromAddPatchQueries = addPatchQueryResults.filter(({ success }) => !success);
