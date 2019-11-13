@@ -169,6 +169,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
 // when it does, it needs to create default classroom if there is not one
 // eventually, this should include an updated since date so as to not fetch the entirety
 
+    const now = util.timestampToMySQLDatetime();
     const queries = [];
     let vars = [];
 
@@ -204,17 +205,24 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
       SELECT c.*, cm_me.role
       FROM classroom as c
         LEFT JOIN classroom_member as cm_me ON (cm_me.classroom_uid=c.uid)
+        LEFT JOIN book_instance as bi ON (bi.book_id=c.book_id AND bi.idp_id=c.idp_id)
       WHERE c.idp_id=?
         AND c.book_id=?
         AND c.deleted_at IS NULL
         AND cm_me.user_id=?
         AND cm_me.delete_at IS NULL
+        AND bi.user_id=?
+        AND (bi.expires_at IS NULL OR bi.expires_at>?)
+        AND (bi.enhanced_tools_expire_at IS NULL OR bi.enhanced_tools_expire_at>?)
     `);
     vars = [
       ...vars,
       req.user.idpId,
       req.params.bookId,
       req.params.userId,
+      req.params.userId,
+      now,
+      now,
     ];
 
     // classroom_members query
@@ -222,6 +230,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
       SELECT cm.classroom_uid, cm.user_id, cm.class_group_uid, cm.role, cm.create_at, cm.updated_at, u.email, u.fullname
       FROM classroom as c
         LEFT JOIN classroom_member as cm_me ON (cm_me.classroom_uid=c.uid)
+        LEFT JOIN book_instance as bi ON (bi.book_id=c.book_id AND bi.idp_id=c.idp_id)
         LEFT JOIN classroom_member as cm ON (cm.classroom_uid=c.uid)
         LEFT JOIN user as u ON (cm.user_id=u.uid)
       WHERE c.idp_id=?
@@ -229,6 +238,9 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
         AND c.deleted_at IS NULL
         AND cm_me.user_id=?
         AND cm_me.delete_at IS NULL
+        AND bi.user_id=?
+        AND (bi.expires_at IS NULL OR bi.expires_at>?)
+        AND (bi.enhanced_tools_expire_at IS NULL OR bi.enhanced_tools_expire_at>?)
         AND cm.delete_at IS NULL
         AND (
           cm_me.role IN (?)
@@ -241,6 +253,9 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
       req.user.idpId,
       req.params.bookId,
       req.params.userId,
+      req.params.userId,
+      now,
+      now,
       ['INSTRUCTOR'],
       req.params.userId,
       ['INSTRUCTOR'],
@@ -251,12 +266,16 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
       SELECT t.*
       FROM classroom as c
         LEFT JOIN classroom_member as cm_me ON (cm_me.classroom_uid=c.uid)
+        LEFT JOIN book_instance as bi ON (bi.book_id=c.book_id AND bi.idp_id=c.idp_id)
         LEFT JOIN tool as t ON (t.classroom_uid=c.uid)
       WHERE c.idp_id=?
         AND c.book_id=?
         AND c.deleted_at IS NULL
         AND cm_me.user_id=?
         AND cm_me.delete_at IS NULL
+        AND bi.user_id=?
+        AND (bi.expires_at IS NULL OR bi.expires_at>?)
+        AND (bi.enhanced_tools_expire_at IS NULL OR bi.enhanced_tools_expire_at>?)
         AND t.delete_at IS NULL
     `);
     vars = [
@@ -264,6 +283,9 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
       req.user.idpId,
       req.params.bookId,
       req.params.userId,
+      req.params.userId,
+      now,
+      now,
     ];
 
     // build the userData object
