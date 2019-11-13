@@ -32,7 +32,7 @@ module.exports = {
         SELECT t.*
         FROM tool as t
         WHERE t.uid IN (?)
-          AND t.delete_at IS NULL
+          AND t.deleted_at IS NULL
       `);
       preQueries.vars = [
         ...preQueries.vars,

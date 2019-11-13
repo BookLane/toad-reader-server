@@ -57,7 +57,7 @@ module.exports = {
           AND (
             (
               cm_me.user_id=?
-              AND cm_me.delete_at IS NULL
+              AND cm_me.deleted_at IS NULL
             )
             OR c.uid=?
           )

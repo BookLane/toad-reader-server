@@ -216,11 +216,11 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
 
           // classroom_members query
           queries.push(`
-            SELECT cm.classroom_uid, cm.user_id, cm.class_group_uid, cm.role, cm.create_at, cm.updated_at, u.email, u.fullname
+            SELECT cm.classroom_uid, cm.user_id, cm.classroom_group_uid, cm.role, cm.created_at, cm.updated_at, u.email, u.fullname
             FROM classroom_member as cm
-              LEFT JOIN user as u ON (cm.user_id=u.uid)
+              LEFT JOIN user as u ON (cm.user_id=u.id)
             WHERE cm.classroom_uid IN (?)
-              AND cm.delete_at IS NULL
+              AND cm.deleted_at IS NULL
               AND (
                 CONCAT(cm.classroom_uid, ':INSTRUCTOR') IN (?)
                 OR cm.user_id=?
@@ -242,7 +242,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
             SELECT t.*
             FROM tool as t
             WHERE t.classroom_uid IN (?)
-              AND t.delete_at IS NULL
+              AND t.deleted_at IS NULL
           `);
           vars = [
             ...vars,
@@ -333,7 +333,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
             AND (
               (
                 cm_me.user_id=?
-                AND cm_me.delete_at IS NULL
+                AND cm_me.deleted_at IS NULL
               )
               OR c.uid=?
             )
@@ -355,8 +355,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
                 uid: defaultClassroomUid,
                 idp_id: req.user.idpId,
                 book_id: req.params.bookId,
-                name: '',
-                create_at: now,
+                created_at: now,
                 updated_at: now,
               };
 
