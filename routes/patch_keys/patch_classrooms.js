@@ -27,16 +27,16 @@ module.exports = {
 
     if((body.classrooms || []).length > 0) {
 
-      preQueries.queries.push(''
-        + 'SELECT version '
-        + 'FROM `book_instance` '
-        + 'WHERE idp_id=? '
-        + 'AND book_id=? '
-        + 'AND user_id=? '
-        + 'AND (expires_at IS NULL OR expires_at>?) '
-        + 'AND (enhanced_tools_expire_at IS NULL OR enhanced_tools_expire_at>?) '
-        + 'AND version IN (?) '
-      );
+      preQueries.queries.push(`
+        SELECT version
+          FROM book_instance
+        WHERE idp_id=?
+          AND book_id=?
+          AND user_id=?
+          AND (expires_at IS NULL OR expires_at>?)
+          AND (enhanced_tools_expire_at IS NULL OR enhanced_tools_expire_at>?)
+          AND version IN (?)
+      `);
       preQueries.vars = [
         ...preQueries.vars,
         user.idpId,
@@ -47,22 +47,28 @@ module.exports = {
         ['INSTRUCTOR', 'PUBLISHER'],
       ];
 
-      preQueries.queries.push(''
-        + 'SELECT c.uid, c.updated_at, c.deleted_at, cm.role '
-        + 'FROM `classroom` as c '
-        + 'LEFT JOIN `classroom_member` as cm ON (cm.classroom_uid=c.uid) '
-        + 'WHERE c.uid IN (?) '
-        + 'AND c.idp_id=? '
-        + 'AND c.book_id=? '
-        + 'AND cm.user_id=? '
-        + 'AND cm.delete_at IS NULL '
-      );
+      preQueries.queries.push(`
+        SELECT c.uid, c.updated_at, c.deleted_at, cm.role
+          FROM classroom as c
+        LEFT JOIN classroom_member as cm ON (cm.classroom_uid=c.uid)
+        WHERE c.uid IN (?)
+          AND c.idp_id=?
+          AND c.book_id=?
+          AND (
+            (
+              cm_me.user_id=?
+              AND cm_me.delete_at IS NULL
+            )
+            OR c.uid=?
+          )
+      `);
       preQueries.vars = [
         ...preQueries.vars,
         body.classrooms.map(({ uid }) => uid),
         user.idpId,
         params.bookId,
         params.userId,
+        `${user.idpId}-${params.bookId}`,
       ];
 
     } else {
