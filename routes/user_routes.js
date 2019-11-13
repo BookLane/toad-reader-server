@@ -259,7 +259,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
           (err, results) => {
             if (err) return next(err);
 
-            const [ latestLocations, highlights, classrooms, members, tools ] = results;
+            const [ latestLocations, highlights, members, tools ] = results;
             const bookUserData = {}
 
             // get latest_location

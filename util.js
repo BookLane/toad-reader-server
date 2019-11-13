@@ -142,9 +142,9 @@ var util = {
     if(objOrAry instanceof Array) {
       objOrAry.forEach(obj => util.convertTimestampsToMySQLDatetimes(obj));
     } else {
-      Object.keys(obj).forEach(key => {
-        if(/_at$/.test(key) && typeof obj[key] === 'number') {
-          obj[key] = util.timestampToMySQLDatetime(obj[key], true);
+      Object.keys(objOrAry).forEach(key => {
+        if(/_at$/.test(key) && typeof objOrAry[key] === 'number') {
+          objOrAry[key] = util.timestampToMySQLDatetime(objOrAry[key], true);
         }
       })
     }
@@ -154,9 +154,9 @@ var util = {
     if(objOrAry instanceof Array) {
       objOrAry.forEach(obj => util.convertMySQLDatetimesToTimestamps(obj));
     } else {
-      Object.keys(obj).forEach(key => {
-        if(/_at$/.test(key) && typeof obj[key] === 'string') {
-          obj[key] = util.mySQLDatetimeToTimestamp(obj[key]);
+      Object.keys(objOrAry).forEach(key => {
+        if(/_at$/.test(key) && typeof objOrAry[key] === 'string') {
+          objOrAry[key] = util.mySQLDatetimeToTimestamp(objOrAry[key]);
         }
       })
     }
