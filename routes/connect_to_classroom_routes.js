@@ -16,16 +16,16 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
     connection.query(`
       SELECT c.uid, c.access_code, c.instructor_access_code, bi.version
       FROM classroom as c
-        LEFT JOIN book_instance as bi ON (bi.id=c.book_id)
+        LEFT JOIN book_instance as bi ON (bi.book_id=c.book_id)
       WHERE
         (
-          c.access_code=? 
-          OR c.instructor_access_code=? 
+          c.access_code=?
+          OR c.instructor_access_code=?
         )
-        AND c.idp_id=? 
-        AND bi.idp_id=? 
-        AND bi.user_id=? 
-        AND bi.version IN (?) 
+        AND c.idp_id=?
+        AND bi.idp_id=?
+        AND bi.user_id=?
+        AND bi.version IN (?)
         AND (bi.expires_at IS NULL OR bi.expires_at>?)
         AND (bi.enhanced_tools_expire_at IS NULL OR bi.enhanced_tools_expire_at>?)
       `,
@@ -50,12 +50,12 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
 
         const classroom = rows[0];
 
-        connection.query(''
-          + 'SELECT cm.role, cm.deleted_at '
-          + 'FROM `classroom_member` as cm '
-          + 'WHERE cm.user_id=? ',
-          + 'AND cm.classroom_uid=? ',
-          + '',
+        connection.query(`
+          SELECT cm.role, cm.deleted_at
+          FROM classroom_member as cm
+          WHERE cm.user_id=?
+            AND cm.classroom_uid=?
+          `,
           [
             req.user.id,
             classroom.uid,
@@ -71,7 +71,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
               return;
             }
 
-            const classroomMember = rows[0];
+            const classroomMember = rows2[0];
             let insertOrUpdate = '';
 
             const insertOrUpdateValues = {
