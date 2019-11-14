@@ -140,7 +140,7 @@ const deserializeUser = ({ userId, next }) => new Promise(resolve => {
       if (err) return next(err);
 
       if(rows.length !== 1) {
-        next('User record not found');
+        return next('User record not found');
       }
 
       var row = rows[0];
