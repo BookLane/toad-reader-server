@@ -111,8 +111,8 @@ module.exports = {
 
         if(!util.paramsOk(
           classroom,
-          ['updated_at','uid'],
-          ['name','access_code','instructor_access_code','has_syllabus','introduction','classroom_highlights_mode','closes_at','members','tools','_delete']
+          ['uid'],
+          ['updated_at','name','access_code','instructor_access_code','has_syllabus','introduction','classroom_highlights_mode','closes_at','members','tools','_delete']
         )) {
           return getErrorObj('invalid parameters');
         }
@@ -131,7 +131,7 @@ module.exports = {
           if(classroom.uid !== `${user.idpId}-${bookId}`) {
             return getErrorObj('invalid permissions: user with PUBLISHER book_instance can only edit the default version');
           }
-          if(!util.paramsOk(classroom, ['updated_at','uid'],['tools'])) {
+          if(!util.paramsOk(classroom, ['uid'],['tools'])) {
             return getErrorObj('invalid permissions: user with PUBLISHER book_instance can only edit tools related to the default version');
           }
           if(!dbClassroom) {
@@ -154,43 +154,47 @@ module.exports = {
         delete classroom.members;
         delete classroom.tools;
 
-        if(dbClassroom && util.mySQLDatetimeToTimestamp(dbClassroom.updated_at) > classroom.updated_at) {
-          containedOldPatch = true;
+        if(classroom.updated_at) {
 
-        } else {
+          if(dbClassroom && util.mySQLDatetimeToTimestamp(dbClassroom.updated_at) > classroom.updated_at) {
+            containedOldPatch = true;
 
-          util.prepUpdatedAtAndCreatedAt(classroom, !dbClassroom);
-          util.convertTimestampsToMySQLDatetimes(classroom);
+          } else {
 
-          if(classroom._delete) {  // if _delete is present, then delete
-            if(!dbClassroom) {
-              // shouldn't get here, but just ignore if it does
-            } else if(dbClassroom.deleted_at) {
-              containedOldPatch = true;
+            util.prepUpdatedAtAndCreatedAt(classroom, !dbClassroom);
+            util.convertTimestampsToMySQLDatetimes(classroom);
+
+            if(classroom._delete) {  // if _delete is present, then delete
+              if(!dbClassroom) {
+                // shouldn't get here, but just ignore if it does
+              } else if(dbClassroom.deleted_at) {
+                containedOldPatch = true;
+              } else {
+                classroom.deleted_at = classroom.updated_at;
+                delete classroom._delete;
+                queriesToRun.push({
+                  query: 'UPDATE `classroom` SET ? WHERE uid=?',
+                  vars: [ classroom, classroom.uid ],
+                })
+              }
+
+            } else if(!dbClassroom) {
+              classroom.idp_id = user.idpId;
+              classroom.book_id = bookId;
+              classroom.created_at = classroom.updated_at;
+              queriesToRun.push({
+                query: 'INSERT into `classroom` SET ?',
+                vars: [ classroom ],
+              })
+
             } else {
-              classroom.deleted_at = classroom.updated_at;
-              delete classroom._delete;
               queriesToRun.push({
                 query: 'UPDATE `classroom` SET ? WHERE uid=?',
                 vars: [ classroom, classroom.uid ],
               })
             }
-
-          } else if(!dbClassroom) {
-            classroom.idp_id = user.idpId;
-            classroom.book_id = bookId;
-            classroom.created_at = classroom.updated_at;
-            queriesToRun.push({
-              query: 'INSERT into `classroom` SET ?',
-              vars: [ classroom ],
-            })
-
-          } else {
-            queriesToRun.push({
-              query: 'UPDATE `classroom` SET ? WHERE uid=?',
-              vars: [ classroom, classroom.uid ],
-            })
           }
+
         }
 
         // do members
