@@ -196,9 +196,14 @@ var strategyCallback = function(idp, profile, done) {
     return;
   }
 
+  const returnUser = userId => (
+    deserializeUser({ userId, next: done })
+      .then(user => done(null, user))
+  )
+
   if(idp.userInfoEndpoint) {
 
-    getUserInfo({ idp, idpUserId, next: done }).then(userId => done(null, userId));
+    getUserInfo({ idp, idpUserId, next: done }).then(returnUser)
 
   } else {  // old method: get userInfo from meta data
 
@@ -221,7 +226,7 @@ var strategyCallback = function(idp, profile, done) {
       done('Bad login.');
     }
   
-    util.updateUserInfo({ connection, log, userInfo, idpId, updateLastLoginAt: true, next: done }).then(userId => done(null, userId));
+    util.updateUserInfo({ connection, log, userInfo, idpId, updateLastLoginAt: true, next: done }).then(returnUser)
   }
 };
 

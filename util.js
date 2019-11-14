@@ -297,7 +297,7 @@ var util = {
         [idpId, books.map(({ id }) => id).concat([0])],
         function (err, rows, fields) {
           if (err) return next(err);
-    
+
           // const bookIds = books.map(({ id }) => id);
           const idpBookIds = rows.map(({ book_id }) => parseInt(book_id));
     
@@ -405,7 +405,7 @@ var util = {
                   ],
                   err => {
                     if (err) return next(err);
-                    resolveAll();
+                    resolveAll(userId);
                   }
                 )
               })
