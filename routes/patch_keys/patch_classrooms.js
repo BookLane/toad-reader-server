@@ -48,9 +48,9 @@ module.exports = {
       ];
 
       preQueries.queries.push(`
-        SELECT c.uid, c.updated_at, c.deleted_at, cm.role
+        SELECT c.uid, c.updated_at, c.deleted_at, cm_me.role
           FROM classroom as c
-        LEFT JOIN classroom_member as cm ON (cm.classroom_uid=c.uid)
+        LEFT JOIN classroom_member as cm_me ON (cm_me.classroom_uid=c.uid)
         WHERE c.uid IN (?)
           AND c.idp_id=?
           AND c.book_id=?
@@ -97,6 +97,7 @@ module.exports = {
     dbBookInstances,
     dbClassrooms,
     dbClassroomMembers,
+    dbTools,
     user,
     userId,
     bookId,

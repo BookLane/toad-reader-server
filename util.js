@@ -163,10 +163,10 @@ var util = {
   },
 
   prepUpdatedAtAndCreatedAt: (obj, doCreatedAt) => {
-    highlight.updated_at = util.notLaterThanNow(highlight.updated_at);
+    obj.updated_at = util.notLaterThanNow(obj.updated_at);
 
     if(doCreatedAt){
-      highlight.created_at = highlight.updated_at;
+      obj.created_at = obj.updated_at;
     }
   },
 
