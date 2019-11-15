@@ -402,11 +402,13 @@ var util = {
 
                   // Expire book_instance rows for books no longer in the list
                   connection.query(
-                    'UPDATE `book_instance` SET ? WHERE book_id NOT IN(?) AND (expires_at IS NULL OR expires_at>?)',
+                    'UPDATE `book_instance` SET ? WHERE idp_id=? AND user_id=? AND book_id NOT IN(?) AND (expires_at IS NULL OR expires_at>?)',
                     [
                       {
                         expires_at: now,
                       },
+                      idpId,
+                      userId,
                       filteredAndFilledOutBooks.map(({ id }) => id).concat([0]),
                       now,
                     ],
