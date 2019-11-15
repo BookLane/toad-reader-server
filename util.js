@@ -437,24 +437,34 @@ var util = {
     const expiresAtOkay = 'AND (expires_at IS NULL OR expires_at>?) '
     const enhancedToolsExpiresAtOkay = 'AND (enhanced_tools_expire_at IS NULL OR enhanced_tools_expire_at>?) '
 
-    connection.query(''
-      + 'SELECT bi2.version, bi2.enhanced_tools_expire_at '
-      + 'FROM `book` as b '
-      + 'LEFT JOIN `book-idp` as bi ON (bi.book_id=b.id) '
-      + 'LEFT JOIN `book_instance` as bi2 ON (bi2.book_id=b.id AND bi2.idp_id=bi.idp_id) '
-      + 'WHERE b.id=? AND b.rootUrl IS NOT NULL AND bi.idp_id=? '
-      + (req.user.isAdmin ? '' : 'AND bi2.user_id=? ')
-      + (
-        requireEnhancedToolsAccess
-          ? (enhancedToolsExpiresAtOkay + expiresAtOkay)
-          : (
-            req.user.isAdmin 
-              ? ''
-              : expiresAtOkay
-          )
-      )
-      + 'LIMIT 1 ',
-      [ bookId, req.user.idpId, req.user.id, now, now ],
+    connection.query(`
+      SELECT bi2.version, bi2.enhanced_tools_expire_at
+      FROM book as b
+        LEFT JOIN \`book-idp\` as bi ON (bi.book_id=b.id)
+        LEFT JOIN book_instance as bi2 ON (bi2.book_id=b.id AND bi2.idp_id=bi.idp_id AND bi2.user_id=?)
+      WHERE b.id=?
+        AND b.rootUrl IS NOT NULL
+        AND bi.idp_id=?
+        ${req.user.isAdmin ? '' : 'AND bi2.user_id=? '}
+        ${
+          requireEnhancedToolsAccess
+            ? (enhancedToolsExpiresAtOkay + expiresAtOkay)
+            : (
+              req.user.isAdmin 
+                ? ''
+                : expiresAtOkay
+            )
+        }
+      LIMIT 1
+      `,
+      [
+        req.user.id,
+        bookId,
+        req.user.idpId,
+        req.user.id,
+        now,
+        now,
+      ],
       (err, rows) => {
         if (err) return next(err);
 
