@@ -284,7 +284,7 @@ var util = {
     //   ]
     // }
 
-    const { idpUserId, email, fullname, adminLevel, forceResetLoginBefore, books } = userInfo
+    const { idpUserId, email, fullname, adminLevel, forceResetLoginBefore, books, ssoData } = userInfo
     const now = util.timestampToMySQLDatetime();
 
     const filterAndFillOutBookByIDPs = () => new Promise(resolve => {
@@ -331,9 +331,19 @@ var util = {
           user_id_from_idp: idpUserId,
           idp_id: idpId,
           email,
-          fullname,
-          adminLevel: [ 'SUPER_ADMIN', 'ADMIN', 'NONE' ].includes(adminLevel) ? adminLevel : 'NONE',
         };
+
+        if(fullname) {
+          vars.fullname = fullname;
+        }
+
+        if(adminLevel) {
+          vars.adminLevel = [ 'SUPER_ADMIN', 'ADMIN', 'NONE' ].includes(adminLevel) ? adminLevel : 'NONE';
+        }
+
+        if(ssoData) {
+          vars.ssoData = JSON.stringify(ssoData);
+        }
 
         if(updateLastLoginAt) {
           vars.last_login_at = now;

@@ -119,6 +119,7 @@ const deserializeUser = ({ userId, next }) => new Promise(resolve => {
     user.email,
     user.fullname,
     user.adminLevel,
+    user.ssoData,
     user.idp_id,
     idp.name,
     idp.language,
@@ -146,11 +147,17 @@ const deserializeUser = ({ userId, next }) => new Promise(resolve => {
       var row = rows[0];
       var sessionSharingAsRecipientInfo = util.parseSessionSharingAsRecipientInfo(row);
 
+      let ssoData = null
+      try {
+        ssoData = JSON.parse(row.ssoData);
+      } catch (e) {}
+
       const user = {
         id: row.id,
         email: row.email,
         fullname: row.fullname,
         isAdmin: [ 'SUPER_ADMIN', 'ADMIN' ].includes(row.adminLevel),
+        ssoData: ssoData,
         idpId: row.idp_id,
         idpName: row.name,
         idpLang: row.language || 'en',
@@ -219,6 +226,7 @@ var strategyCallback = function(idp, profile, done) {
       fullname: ((profile['urn:oid:2.5.4.42'] || '') + ' ' + (profile['urn:oid:2.5.4.4'] || '')).trim(),
       books: ( profile['bookIds'] ? profile['bookIds'].split(' ') : [] )
         .map(bId => ({ id: parseInt(bId) })),
+      ssoData: profile,
     }
   
     if(!userInfo.email) {
@@ -271,9 +279,9 @@ connection.query('SELECT * FROM `idp` WHERE entryPoint IS NOT NULL',
             log('Redirect to session-sharing SLO');
             res.redirect(row.sessionSharingAsRecipientInfo.logoutUrl || '/session-sharing-setup-error');
 
-          } else if(req.user.nameID && req.user.nameIDFormat) {
+          } else if(req.user.ssoData) {
             log('Redirect to SLO');
-            samlStrategy.logout(req, function(err2, req2){
+            samlStrategy.logout({ user: req.user.ssoData }, function(err2, req2){
               if (err2) return next(err2);
 
               log('Back from SLO');
