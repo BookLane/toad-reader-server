@@ -214,21 +214,26 @@ var strategyCallback = function(idp, profile, done) {
 
   } else {  // old method: get userInfo from meta data
 
-    const email = profile['urn:oid:0.9.2342.19200300.100.1.3'] || ''
     const userInfo = {
       idpUserId,
-      email,
-      adminLevel:
-        (
-          !!profile['isAdmin'] ||
-          process.env.ADMIN_EMAILS.toLowerCase().split(' ').indexOf(email.toLowerCase()) != -1
-        ) ? 'ADMIN' : 'NONE',
-      fullname: ((profile['urn:oid:2.5.4.42'] || '') + ' ' + (profile['urn:oid:2.5.4.4'] || '')).trim(),
+      email: profile['urn:oid:0.9.2342.19200300.100.1.3'] || '',
       books: ( profile['bookIds'] ? profile['bookIds'].split(' ') : [] )
         .map(bId => ({ id: parseInt(bId) })),
       ssoData: profile,
+    };
+
+    if(
+      !!profile['isAdmin']
+      || process.env.ADMIN_EMAILS.toLowerCase().split(' ').indexOf(userInfo.email.toLowerCase()) != -1
+    ) {
+      userInfo.adminLevel = 'ADMIN';
     }
-  
+
+    const fullname = ((profile['urn:oid:2.5.4.42'] || '') + ' ' + (profile['urn:oid:2.5.4.4'] || '')).trim();
+    if(fullname) {
+      userInfo.fullname = fullname;
+    }
+
     if(!userInfo.email) {
       log(['Bad login', profile], 3);
       done('Bad login.');
