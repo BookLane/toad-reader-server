@@ -401,11 +401,15 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
         bi2.enhanced_tools_expire_at
       FROM book as b
         LEFT JOIN \`book-idp\` as bi ON (bi.book_id=b.id)
-        LEFT JOIN book_instance as bi2 ON (bi2.book_id=b.id AND bi2.idp_id=bi.idp_id)
+        LEFT JOIN book_instance as bi2 ON (bi2.book_id=b.id AND bi2.idp_id=bi.idp_id AND bi2.user_id=?)
       WHERE b.rootUrl IS NOT NULL AND bi.idp_id=?
         ${req.user.isAdmin ? `` : `AND bi2.user_id=?`}
       `,
-      [req.user.idpId, req.user.id],
+      [
+        req.user.id,
+        req.user.idpId,
+        req.user.id,
+      ],
       function (err, rows) {
         if (err) return next(err);
 

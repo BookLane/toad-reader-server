@@ -445,7 +445,7 @@ var util = {
       WHERE b.id=?
         AND b.rootUrl IS NOT NULL
         AND bi.idp_id=?
-        ${req.user.isAdmin ? '' : 'AND bi2.user_id=? '}
+        ${req.user.isAdmin ? '' : 'AND bi2.user_id=?'}
         ${
           requireEnhancedToolsAccess
             ? (enhancedToolsExpiresAtOkay + expiresAtOkay)
