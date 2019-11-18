@@ -122,6 +122,7 @@ const deserializeUser = ({ userId, next }) => new Promise(resolve => {
     user.ssoData,
     user.idp_id,
     idp.name,
+    idp.useReaderTxt,
     idp.language,
     idp.androidAppURL,
     idp.iosAppURL,
@@ -160,6 +161,7 @@ const deserializeUser = ({ userId, next }) => new Promise(resolve => {
         ssoData: ssoData,
         idpId: row.idp_id,
         idpName: row.name,
+        idpUseReaderTxt: row.useReaderTxt,
         idpLang: row.language || 'en',
         idpNoAuth: !!(process.env.SKIP_AUTH || (!sessionSharingAsRecipientInfo && !row.entryPoint)),
         idpAndroidAppURL: row.androidAppURL,
@@ -461,11 +463,6 @@ app.use('*', function(req, res, next) {
     next();
   }
 });
-
-// route RequireJS_config.js properly (for dev)
-app.get(['/RequireJS_config.js', '/book/RequireJS_config.js'], function (req, res) {
-  res.sendFile(path.join(process.cwd(), 'dev/RequireJS_config.js'));
-})
 
 require('./routes/routes')(app, s3, connection, passport, authFuncs, ensureAuthenticated, embedWebsites, log);
 
