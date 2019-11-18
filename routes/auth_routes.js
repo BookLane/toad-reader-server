@@ -1,8 +1,7 @@
 var util = require('../util');
+var fs = require('fs');
 
 module.exports = function (app, passport, authFuncs, connection, ensureAuthenticated, log) {
-
-  var fs = require('fs');
 
   app.get('/confirmlogin',
     ensureAuthenticated,
