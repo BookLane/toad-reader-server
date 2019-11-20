@@ -16,6 +16,8 @@ var saml = require('passport-saml');
 require('dotenv').load();  //loads the local environment
 var util = require('./util');
 const jwt = require('jsonwebtoken');
+const { i18nSetup } = require("inline-i18n")
+const fs = require('fs');
 
 
 ////////////// SETUP SERVER //////////////
@@ -52,7 +54,6 @@ var corsOptionsDelegate = (req, callback) => {
 
 app.use(cors(corsOptionsDelegate));
 
-
 ////////////// SETUP STORAGE //////////////
 
 var s3 = new AWS.S3();
@@ -72,6 +73,36 @@ var redisOptions = {
   port: process.env.REDIS_PORT
 }
 
+////////////// SETUP I18N //////////////
+
+const translationsDir = `./translations`
+const locales = [ 'en' ]
+
+fs.readdir(translationsDir, (err, files) => {
+  if(err) {
+    log('Could not set up i18n because the translations dir was not found.', 3)
+    return
+  }
+
+  files.forEach(file => {
+    const regex = /\.json$/
+    if(!regex.test(file)) return
+    locales.push(file.replace(regex, ''))
+  })
+
+  log(['locales:', locales], 1)
+
+  i18nSetup({
+    locales,
+    fetchLocale: locale => new Promise((resolve, reject) => fs.readFile(`${translationsDir}/${locale}.json`, (err, contents) => {
+      if(err) {
+        reject(err)
+      } else {
+        resolve(JSON.parse(contents))
+      }
+    })),
+  })
+})
 
 ////////////// SETUP PASSPORT //////////////
 

@@ -1,23 +1,38 @@
 const path = require('path');
 const fs = require('fs');
 const util = require('../util');
+const { i18n } = require("inline-i18n")
 
 module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensureAuthenticatedAndCheckIDPWithRedirect, embedWebsites, log) {
 
-  const shareLanguages = {
-    "en": {
-      "share_" : "Share:",
-      "copy_link" : "Copy link",
-      "copied" : "Copied",
-      "quote_from_X" : "Quote from {title}",
-      "read_at_the_quote" : "Read at the quote",
-      "login_to_the_reader" : "Login to the Reader",
-      "comment" : "Comment"
-    }
+  const encodeURIComp = function(comp) {
+    return encodeURIComponent(comp).replace(/%20/g, "+")
   }
 
-  var encodeURIComp = function(comp) {
-    return encodeURIComponent(comp).replace(/%20/g, "+");
+  const setIdpLang = (req, res, next) => {
+
+    if(req.isAuthenticated()) {
+      req.idpLang = req.user.idpLang
+      return next()
+    }
+
+    connection.query(
+      'SELECT language FROM `idp` WHERE domain=?',
+      [util.getIDPDomain(req.headers.host)],
+      (err, rows) => {
+        if (err) return next(err)
+  
+        if(rows.length !== 1) {
+          log(["Request came from invalid host.", req.headers.host], 3)
+          return res.status(403).send({ success: false })
+        }
+  
+        req.idpLang = rows[0].language || 'en'
+  
+        return next()
+      },
+    )
+  
   }
 
   // get current milliseconds timestamp for syncing clock with the client
@@ -36,7 +51,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
         idpName: req.user.idpName,
         idpUseReaderTxt: req.user.idpUseReaderTxt,  // unneeded after I update all apps
         idpAssetsBaseUrl: 'https://s3.amazonaws.com/' + process.env.S3_BUCKET + '/tenant_assets/',
-        idpLang: req.user.idpLang,
+        idpLang: req.user.idpLang || 'en',
         idpExpire: req.user.idpExpire,
         idpNoAuth: req.user.idpNoAuth,
         idpAndroidAppURL: req.user.idpAndroidAppURL,
@@ -54,14 +69,9 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
   })
 
   // get shared quotation
-  app.get('/book/:bookId', function (req, res, next) {
+  app.get('/book/:bookId', setIdpLang, function (req, res, next) {
 
-    var shareLanguageVariables = shareLanguages[
-      req.isAuthenticated()
-        ? req.user.idpLang
-        : 'en'
-    ];
-    shareLanguageVariables = shareLanguageVariables || shareLanguages['en'];
+    const locale = req.idpLang
 
     if(req.query.highlight) {
       // If "creating" query parameter is present, then they can get rid of their name and/or note (and change their note?) 
@@ -82,7 +92,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
           util.hasAccess({ bookId: req.params.bookId, req, connection, log, next }).then(accessInfo => {
 
             var sharePage = fs.readFileSync(__dirname + '/../templates/share-page.html', 'utf8')
-              .replace(/{{page_title}}/g, shareLanguageVariables.quote_from_X.replace('{title}', rows[0].title))
+              .replace(/{{page_title}}/g, i18n("Quote from {{title}}", { title: rows[0].title }, { locale }))
               .replace(/{{quote}}/g, req.query.highlight)
               .replace(/{{quote_noquotes}}/g, req.query.highlight.replace(/"/g, '&quot;'))
               .replace(/{{note_abridged_escaped}}/g, encodeURIComp(abridgedNote))
@@ -98,10 +108,10 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
               .replace(/{{book_image_url}}/g, baseUrl + '/' + rows[0].coverHref)
               .replace(/{{book_title}}/g, rows[0].title)
               .replace(/{{book_author}}/g, rows[0].author)
-              .replace(/{{comment}}/g, shareLanguageVariables.comment)
-              .replace(/{{share}}/g, shareLanguageVariables.share_)
-              .replace(/{{copy_link}}/g, shareLanguageVariables.copy_link)
-              .replace(/{{copied}}/g, shareLanguageVariables.copied)
+              .replace(/{{comment}}/g, i18n("Comment", {}, { locale }))
+              .replace(/{{share}}/g, i18n("Share:", {}, { locale }))
+              .replace(/{{copy_link}}/g, i18n("Copy link", {}, { locale }))
+              .replace(/{{copied}}/g, i18n("Copied", {}, { locale }))
               .replace(/{{sharer_remove_class}}/g, req.query.editing ? '' : 'hidden');
 
             if(req.isAuthenticated()) {
@@ -110,12 +120,12 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
                   .replace(/{{read_class}}/g, 'hidden');
               } else {
                 sharePage = sharePage
-                  .replace(/{{read_here}}/g, shareLanguageVariables.read_at_the_quote)
+                  .replace(/{{read_here}}/g, i18n("Read at the quote", {}, { locale }))
                   .replace(/{{read_class}}/g, '');
               }
             } else {
               sharePage = sharePage
-                .replace(/{{read_here}}/g, shareLanguageVariables.login_to_the_reader)
+                .replace(/{{read_here}}/g, i18n("Login to the Reader", {}, { locale }))
                 .replace(/{{read_class}}/g, '');
             }
 
