@@ -8,6 +8,8 @@
     "push-to-aws": "npm run add-npmrc-for-sharp-install-permissions && eb deploy && npm run remove-npmrc",
     "remove-npmrc": " rm .npmrc",
     "translate": "node node_modules/inline-i18n/scripts/makeTranslationFiles.js --parse-dirs='routes'",
+    "translate-convert-csv-to-json": "node node_modules/inline-i18n/scripts/convertTranslationCSVtoJSON.js",
+    "translate-convert-json-to-csv": "node node_modules/inline-i18n/scripts/convertTranslationJSONtoCSV.js",
     "start": "node ./app.js"
   },
   "dependencies": {
