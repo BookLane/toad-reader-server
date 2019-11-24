@@ -5,10 +5,6 @@ const patchClassrooms = require('./patch_keys/patch_classrooms');
 
 module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log) {
 
-  var getHighlightId = function(highlight) {
-    return highlight.spineIdRef + ' ' + highlight.cfi;
-  }
-
   // read.biblemesh.com/users/{user_id}/books/{book_id}.json
   app.all('/users/:userId/books/:bookId.json', ensureAuthenticatedAndCheckIDP, function (req, res, next) {
 
@@ -61,6 +57,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
           const queriesToRun = [];
 
           const patchQuestionParams = {
+            req,
             ...req.body,
             queriesToRun,
             ...req.params,

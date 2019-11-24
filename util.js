@@ -8,7 +8,7 @@ var getXapiActor = function(params) {
 }
 
 var getXapiObject = function(params) {
-  var baseUrl = util.getBaseUrl(params.req);
+  var baseUrl = util.getFrontendBaseUrl(params.req);
 
   return {
     "id": baseUrl + "/book/" + params.bookId,
@@ -40,7 +40,7 @@ var getXapiObject = function(params) {
 }
 
 var getXapiContext = function(params) {
-  var appURI = util.getBaseUrl(params.req);
+  var appURI = util.getFrontendBaseUrl(params.req);
   var platform =
     params.req
     && params.req.headers
@@ -187,12 +187,14 @@ var util = {
     return s;
   },
 
-  getBaseUrl: function(req) {
-    return (req.secure || req.headers['x-forwarded-proto'] === 'https' || process.env.REQUIRE_HTTPS
+  getProtocol: req => (
+    (req.secure || req.headers['x-forwarded-proto'] === 'https' || process.env.REQUIRE_HTTPS)
       ? 'https' 
       : 'http'
-    ) + '://' + req.headers.host;
-  },
+  ),
+
+  getBackendBaseUrl: req => `${util.getProtocol(req)}://${req.headers.host}`,
+  getFrontendBaseUrl: req => `${util.getProtocol(req)}://${util.getIDPDomain(req.headers.host)}`,
 
   // xAPI statement utils below
 
@@ -263,7 +265,7 @@ var util = {
 
   getDataOrigin: ({ domain, protocol=`https` }={}) => `${process.env.IS_DEV ? `http` : protocol}://${util.getDataDomain(domain)}`,
 
-  getIDPDomain: host => undashifyDomain(host.split('.')[0]),
+  getIDPDomain: host => process.env.IS_DEV ? `${process.env.DEV_NETWORK_IP || `localhost`}:19006` : undashifyDomain(host.split('.')[0]),
 
   updateUserInfo: ({ connection, log, userInfo, idpId, updateLastLoginAt=false, next }) => new Promise(resolveAll => {
 

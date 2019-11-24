@@ -82,8 +82,9 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
         function (err, rows, fields) {
           if (err) return next(err);
 
-          var baseUrl = util.getBaseUrl(req);
-          var urlWithEditing = baseUrl + req.originalUrl.replace(/([\?&])editing=1&?/, '$1');
+          var frontendBaseUrl = util.getFrontendBaseUrl(req);
+          var backendBaseUrl = util.getBackendBaseUrl(req);
+          var urlWithEditing = backendBaseUrl + req.originalUrl.replace(/([\?&])editing=1&?/, '$1');
           var abridgedNote = req.query.note || ' ';
           if(abridgedNote.length > 116) {
             abridgedNote = abridgedNote.substring(0, 113) + '...';
@@ -99,13 +100,13 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
               .replace(/{{url_noquotes}}/g, urlWithEditing.replace(/"/g, '&quot;'))
               .replace(/{{url_escaped}}/g, encodeURIComp(urlWithEditing))
               .replace(/{{url_nosharer}}/g, 
-                baseUrl +
+                backendBaseUrl +
                 req.originalUrl
                   .replace(/([\?&])note=[^&]*&?/g, '$1')
                   .replace(/([\?&])sharer=[^&]*&?/g, '$1')
               )
-              .replace(/{{read_here_url}}/g, baseUrl + req.originalUrl.replace(/\?.*$/, '') + '?goto=' + encodeURIComp(req.query.goto))
-              .replace(/{{book_image_url}}/g, baseUrl + '/' + rows[0].coverHref)
+              .replace(/{{read_here_url}}/g, frontendBaseUrl + req.originalUrl.replace(/\?.*$/, '') + '?goto=' + encodeURIComp(req.query.goto))
+              .replace(/{{book_image_url}}/g, backendBaseUrl + '/' + rows[0].coverHref)
               .replace(/{{book_title}}/g, rows[0].title)
               .replace(/{{book_author}}/g, rows[0].author)
               .replace(/{{comment}}/g, i18n("Comment", {}, { locale }))

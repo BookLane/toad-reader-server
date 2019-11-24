@@ -12,6 +12,8 @@ const getErrorObj = error => ({
   error,
 })
 
+const getHighlightId = ({ spineIdRef, cfi }) => `${spineIdRef} ${cfi}`
+
 module.exports = {
   
   addPreQueries: ({
@@ -23,7 +25,7 @@ module.exports = {
     if((body.highlights || []).length > 0) {
       preQueries.queries.push('SELECT spineIdRef, cfi, updated_at, IF(note="", 0, 1) as hasnote FROM `highlight` WHERE user_id=? AND book_id=? AND deleted_at=?');
       preQueries.vars = [
-        ...vars,
+        ...preQueries.vars,
         params.userId,
         params.bookId,
         util.NOT_DELETED_AT_TIME,
@@ -43,6 +45,8 @@ module.exports = {
     bookId,
     dbHighlights,
     user,
+    books,
+    req,
   }) => {
 
     const now = util.timestampToMySQLDatetime(null, true);
