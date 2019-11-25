@@ -94,6 +94,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
 
             var sharePage = fs.readFileSync(__dirname + '/../templates/share-page.html', 'utf8')
               .replace(/{{page_title}}/g, i18n("Quote from {{title}}", { title: rows[0].title }, { locale }))
+              .replace(/{{favicon_url}}/g, frontendBaseUrl + '/favicon.ico')
               .replace(/{{quote}}/g, req.query.highlight)
               .replace(/{{quote_noquotes}}/g, req.query.highlight.replace(/"/g, '&quot;'))
               .replace(/{{note_abridged_escaped}}/g, encodeURIComp(abridgedNote))
