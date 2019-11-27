@@ -445,19 +445,6 @@ function ensureAuthenticated(req, res, next) {
   }
 }
 
-// setup map of embed websites
-var embedWebsites = {};
-log('Create map from embed_website');
-connection.query('SELECT embed_website.domain, idp.domain as idp_domain FROM `embed_website` LEFT JOIN `idp` ON (embed_website.idp_id = idp.id)',
-  function (err, rows) {
-    if (err) return next(err);
-    rows.forEach(function(row) {
-      embedWebsites[row.domain] = row.idp_domain;
-    });
-    log(['embedWebsites:', embedWebsites]);
-  }
-);
-
 ////////////// MIDDLEWARE //////////////
 
 // see http://stackoverflow.com/questions/14014446/how-to-save-and-retrieve-session-from-redis
@@ -495,7 +482,7 @@ app.use('*', function(req, res, next) {
   }
 });
 
-require('./routes/routes')(app, s3, connection, passport, authFuncs, ensureAuthenticated, embedWebsites, log);
+require('./routes/routes')(app, s3, connection, passport, authFuncs, ensureAuthenticated, log);
 
 process.on('unhandledRejection', reason => {
   log(['Unhandled node error', reason.stack || reason], 3)

@@ -3,7 +3,7 @@ const fs = require('fs');
 const util = require('../util');
 const { i18n } = require("inline-i18n")
 
-module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensureAuthenticatedAndCheckIDPWithRedirect, embedWebsites, log) {
+module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensureAuthenticatedAndCheckIDPWithRedirect, log) {
 
   const encodeURIComp = function(comp) {
     return encodeURIComponent(comp).replace(/%20/g, "+")
@@ -155,17 +155,32 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
   })
 
   // Redirect if embedded and set to be mapped
-  app.get(['/', '/book/:bookId'], function (req, res, next) {
-    if(req.query.widget && req.query.parent_domain) {
-      var embedWebsite = embedWebsites[req.query.parent_domain];
-      if(embedWebsite) {
-        log(['Redirect to different idp per embed_website table', req.query.parent_domain, embedWebsite, req.headers.host]);
-        res.redirect('https://' + embedWebsite + req.originalUrl.replace(/&?parent_domain=[^&]*/, ''));
-        return;
-      }
+  app.get('/check_for_embed_website_redirect', (req, res, next) => {
+    if(!req.query.parent_domain) {
+      return res.status(400).send({ error: 'missing parent_domain parameter' });
     }
-    next();
-  })
+
+    log('Check for embed website redirect');
+    connection.query(`
+      SELECT embed_website.domain, idp.domain as idp_domain
+      FROM embed_website
+        LEFT JOIN idp ON (embed_website.idp_id = idp.id)
+      WHERE embed_website.domain = ?
+      `,
+      [
+        req.query.parent_domain,
+      ],
+      (err, rows) => {
+        if(err) return next(err);
+
+        if(rows.length === 0) {
+          res.send({});
+        } else {
+          res.send({ redirectToDomain: rows[0].idp_domain });
+        }
+      }
+    );
+  });
 
   // Accepts GET method to retrieve the app
   // read.biblemesh.com
