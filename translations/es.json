@@ -1,1 +1,11 @@
-{}
+{
+  "default": {
+    "Quote from {{title}}": "Citar de {{title}}",
+    "Comment": "Comentar",
+    "Share:": "Compartir:",
+    "Copy link": "Copiar enlace",
+    "Copied": "Copiado",
+    "Read at the quote": "Leer en la cita",
+    "Login to the Reader": "Inicio de sesión en el Lector"
+  }
+}
