@@ -65,7 +65,7 @@ var connection = mysql.createConnection({
   password: process.env.OVERRIDE_RDS_PASSWORD || process.env.RDS_PASSWORD,
   database: process.env.OVERRIDE_RDS_DB_NAME || process.env.RDS_DB_NAME,
   multipleStatements: true,
-  dateStrings: true
+  dateStrings: true,
 })
 
 var redisOptions = {

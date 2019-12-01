@@ -91,6 +91,8 @@ module.exports = {
           util.prepUpdatedAtAndCreatedAt(tool, !dbTool);
           util.convertTimestampsToMySQLDatetimes(tool);
 
+          util.convertJsonColsToStrings({ tableName: 'tool', row: tool })
+
           if(tool._delete) {  // if _delete is present, then delete
             if(!dbTool) {
               // shouldn't get here, but just ignore if it does

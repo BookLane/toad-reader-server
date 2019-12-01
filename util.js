@@ -95,7 +95,11 @@ const undashifyDomain = dashedDomain => dashedDomain
   .replace(/-/g, '.')
   .replace(/\[ DASH \]/g, '-')
 
-var util = {
+const jsonCols = {
+  tool: [ 'data', 'undo_array' ],
+}
+
+const util = {
 
   NOT_DELETED_AT_TIME: '0000-01-01 00:00:00',
   
@@ -505,6 +509,24 @@ var util = {
       return false;
     }
     return true;
+  },
+
+  convertJsonColsFromStrings: ({ tableName, row }) => {
+    ;(jsonCols[tableName] || []).forEach(col => {
+      if(row[col] !== undefined) {
+        try {
+          row[col] = JSON.parse(row[col])
+        } catch(e) {}
+      }
+    })
+  },
+
+  convertJsonColsToStrings: ({ tableName, row }) => {
+    ;(jsonCols[tableName] || []).forEach(col => {
+      if(row[col] !== undefined) {
+        row[col] = JSON.stringify(row[col])
+      }
+    })
   },
 
 }

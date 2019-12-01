@@ -336,6 +336,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
               // add tools
               tools.forEach(tool => {
                 util.convertMySQLDatetimesToTimestamps(tool);
+                util.convertJsonColsFromStrings({ tableName: 'tool', row: tool })
                 classroomsByUid[tool.classroom_uid].tools.push(tool)
                 delete tool.classroom_uid;
                 delete tool.deleted_at;
