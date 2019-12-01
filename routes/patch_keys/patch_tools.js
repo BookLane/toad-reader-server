@@ -63,7 +63,7 @@ module.exports = {
         if(!util.paramsOk(
           tool,
           ['updated_at','uid'],
-          ['classroom_group_uid','spineIdRef','cfi','ordering','name','type','data','undo_array',
+          ['classroom_group_uid','spineIdRef','cfi','ordering','name','toolType','data','undo_array',
            'due_at','closes_at','published_at','currently_published_tool_id','_delete']
         )) {
           return getErrorObj('invalid parameters');
@@ -79,7 +79,7 @@ module.exports = {
           return getErrorObj('invalid data: tool placed under wrong classroom');
         }
 
-        if(!dbTool && ['spineIdRef','ordering','name','type','undo_array'].some(param => tool[param] === undefined)) {
+        if(!dbTool && ['spineIdRef','ordering','name','toolType','undo_array'].some(param => tool[param] === undefined)) {
           return getErrorObj('missing parameters for new tool');
         }
 
