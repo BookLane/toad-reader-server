@@ -276,6 +276,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
             FROM tool as t
             WHERE t.classroom_uid IN (?)
               AND t.deleted_at IS NULL
+            ORDER BY t.ordering
           `);
           vars = [
             ...vars,
