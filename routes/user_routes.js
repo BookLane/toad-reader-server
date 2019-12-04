@@ -255,7 +255,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
             WHERE cm.classroom_uid IN (?)
               AND cm.deleted_at IS NULL
               AND (
-                CONCAT(cm.classroom_uid, ':INSTRUCTOR') IN (?)
+                CONCAT(cm.classroom_uid, ':', 'INSTRUCTOR') IN (?)
                 OR cm.user_id=?
                 OR cm.role IN (?)
               )

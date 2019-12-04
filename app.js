@@ -8,6 +8,7 @@ var bodyParser = require('body-parser');
 var cookieParser = require('cookie-parser');
 var path = require('path');
 var mysql = require('mysql');
+var SqlString = require('mysql/lib/protocol/SqlString')
 var AWS = require('aws-sdk');
 var session = require('express-session');
 var RedisStore = require('connect-redis')(session);
@@ -66,6 +67,22 @@ var connection = mysql.createConnection({
   database: process.env.OVERRIDE_RDS_DB_NAME || process.env.RDS_DB_NAME,
   multipleStatements: true,
   dateStrings: true,
+  queryFormat: function (query, values) {
+    if(!values) return query
+
+    if(/\:(\w+)/.test(query)) {
+      return query.replace(/\:(\w+)/g, (txt, key) => {
+        if(values.hasOwnProperty(key)) {
+          return this.escape(values[key])
+        }
+        return txt
+      })
+
+    } else {
+      return SqlString.format(query, values, this.config.stringifyObjects, this.config.timezone)
+    }
+  },
+  // debug: true,
 })
 
 var redisOptions = {

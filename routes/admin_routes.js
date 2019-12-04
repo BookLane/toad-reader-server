@@ -1,6 +1,5 @@
 module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, log) {
 
-  var path = require('path');
   var fs = require('fs');
   var multiparty = require('multiparty');
   var admzip = require('adm-zip');
@@ -130,7 +129,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
 
   })
 
-  // import
+  // import book
   app.post('/importbook.json', ensureAuthenticatedAndCheckIDP, function (req, res, next) {
 
     if(!req.user.isAdmin) {
@@ -433,6 +432,116 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
       form.parse(req);
       
     });
+  })
+
+  // import file
+  app.post('/importfile/:classroomUid', ensureAuthenticatedAndCheckIDP, function (req, res, next) {
+
+    const { classroomUid } = req.params
+    const isDefaultClassroomUid = /^[0-9]+-[0-9]+$/.test(classroomUid)
+    const now = util.timestampToMySQLDatetime(null, true)
+
+    connection.query(
+      `
+        SELECT c.uid
+        FROM classroom as c
+          LEFT JOIN classroom_member as cm_me ON (cm_me.classroom_uid=c.uid)
+          LEFT JOIN book_instance as bi ON (bi.book_id=c.book_id)
+        WHERE c.uid=:classroomUid
+          AND c.idp_id=:idpId
+          AND c.deleted_at IS NULL
+          ${!isDefaultClassroomUid ? `` : `
+            (
+              cm_me.user_id=:userId
+              AND cm_me.role='INSTRUCTOR'
+              AND cm_me.deleted_at IS NULL
+            )
+          `}
+          AND bi.idp_id=:idpId
+          AND bi.user_id=:userId
+          AND bi.version='${isDefaultClassroomUid ? 'PUBLISHER' : 'INSTRUCTOR'}'
+          AND (bi.expires_at IS NULL OR bi.expires_at>:now)
+          AND (bi.enhanced_tools_expire_at IS NULL OR bi.enhanced_tools_expire_at>:now)
+      `,
+      {
+        classroomUid,
+        idpId: req.user.idpId,
+        userId: req.user.id,
+        now,
+      },
+      (err, rows) => {
+        if(err) return next(err)
+
+        if(rows.length === 0) {
+          log('No permission to import file', 3)
+          res.status(403).send({ errorType: "biblemesh_no_permission" })
+          return
+        }
+
+        const tmpDir = 'tmp_file_' + util.getUTCTimeStamp();
+
+        deleteFolderRecursive(tmpDir)
+
+        fs.mkdir(tmpDir, err => {
+          if(err) return next(err)
+
+          const form = new multiparty.Form({
+            uploadDir: tmpDir,
+          })
+
+          let processedOneFile = false  // at this point, we only allow one upload at a time
+
+          form.on('file', (name, file) => {
+
+            if(processedOneFile) return
+            processedOneFile = true
+
+            const filename = file.originalFilename
+              .replace(/[^a-z0-9._-]/gi, '')
+              .replace(/(\.[^.]+)$/gi, `-${Date.now()}$1`)
+
+            if(!filename || !/-[0-9]+\.[^.]+$/.test(filename)) {
+              deleteFolderRecursive(tmpDir)
+              res.status(400).send({ errorType: "biblemesh_invalid_filename" })
+              return
+            }
+
+            const body = fs.createReadStream(file.path)
+
+            const key = 'enhanced_assets/' + classroomUid + '/' + filename
+            log(['Upload file to S3', key]);
+            s3.putObject({
+              Bucket: process.env.S3_BUCKET,
+              Key: key,
+              Body: body,
+              ContentLength: body.byteCount,
+            }, (err, data) => {
+              // clean up
+              deleteFolderRecursive(tmpDir)
+
+              if(err) return next(err)
+
+              res.send({
+                success: true,
+                filename,
+              })
+            })
+
+          })
+  
+          form.on('error', err => {
+            log(['importfile error', err], 3)
+            deleteFolderRecursive(tmpDir)
+            res.status(400).send({ errorType: "biblemesh_bad_file" })
+          })
+  
+          form.parse(req)
+
+        })
+
+      }
+    )
+  
   })
 
   // usage costs
