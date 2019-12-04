@@ -29,7 +29,7 @@ module.exports = {
 
       preQueries.queries.push(`
         SELECT version
-          FROM book_instance
+        FROM book_instance
         WHERE idp_id=?
           AND book_id=?
           AND user_id=?
@@ -49,8 +49,8 @@ module.exports = {
 
       preQueries.queries.push(`
         SELECT c.uid, c.updated_at, c.deleted_at, cm_me.role
-          FROM classroom as c
-        LEFT JOIN classroom_member as cm_me ON (cm_me.classroom_uid=c.uid)
+        FROM classroom as c
+          LEFT JOIN classroom_member as cm_me ON (cm_me.classroom_uid=c.uid)
         WHERE c.uid IN (?)
           AND c.idp_id=?
           AND c.book_id=?
