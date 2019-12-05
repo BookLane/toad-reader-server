@@ -192,6 +192,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
   app.get('/users/:userId/books/:bookId.json', ensureAuthenticatedAndCheckIDP, function (req, res, next) {
 
     if(parseInt(req.params.userId, 10) !== req.user.id) {
+      log(['Forbidden: userId in request does not match login', req.params.userId, req.user.id], 3);
       res.status(403).send({ error: 'Forbidden' });
       return;
     }
@@ -201,6 +202,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
     util.hasAccess({ bookId: req.params.bookId, req, connection, log, next }).then(accessInfo => {
 
       if(!accessInfo) {
+        log(['Forbidden: user does not have access to this book'], 3);
         res.status(403).send({ error: 'Forbidden' });
         return;
       }
@@ -417,6 +419,8 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
   // get epub_library.json with library listing for given user
   app.get('/epub_content/epub_library.json', ensureAuthenticatedAndCheckIDP, function (req, res, next) {
 
+    const now = util.timestampToMySQLDatetime(null, true);
+
     // look those books up in the database and form the library
     log('Lookup library');
     connection.query(`
@@ -434,13 +438,18 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
       FROM book as b
         LEFT JOIN \`book-idp\` as bi ON (bi.book_id=b.id)
         LEFT JOIN book_instance as bi2 ON (bi2.book_id=b.id AND bi2.idp_id=bi.idp_id AND bi2.user_id=?)
-      WHERE b.rootUrl IS NOT NULL AND bi.idp_id=?
-        ${req.user.isAdmin ? `` : `AND bi2.user_id=?`}
+      WHERE b.rootUrl IS NOT NULL
+        AND bi.idp_id=?
+        ${req.user.isAdmin ? `` : `
+          AND bi2.user_id=?
+          AND (bi2.expires_at IS NULL OR bi2.expires_at>?)
+        `}
       `,
       [
         req.user.id,
         req.user.idpId,
         req.user.id,
+        now,
       ],
       function (err, rows) {
         if (err) return next(err);

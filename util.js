@@ -290,7 +290,17 @@ const util = {
     //   ]
     // }
 
-    const { idpUserId, email, fullname, adminLevel, forceResetLoginBefore, books, ssoData } = userInfo
+    const { idpUserId, email, fullname, adminLevel, forceResetLoginBefore, ssoData } = userInfo
+
+    // dedup books
+    const bookIdObj = {}
+    const books = userInfo.books.filter(({ id }) => {
+      if(!bookIdObj[id]) {
+        bookIdObj[id] = true
+        return true
+      }
+    })
+    
     const now = util.timestampToMySQLDatetime();
 
     connection.query(
@@ -305,7 +315,7 @@ const util = {
           user_id_from_idp: idpUserId,
           idp_id: idpId,
           email,
-          adminLevel: ([ 'SUPER_ADMIN', 'ADMIN', 'NONE' ].includes(adminLevel) ? adminLevel : userBeforeUpdate.adminLevel) || 'NONE',
+          adminLevel: ([ 'SUPER_ADMIN', 'ADMIN', 'NONE' ].includes(adminLevel) ? adminLevel : (userBeforeUpdate || {}).adminLevel) || 'NONE',
         };
 
         if(fullname) {
@@ -340,7 +350,7 @@ const util = {
 
             // filter bookIds by the book-idp (books are accessible to user only if the book is associated with login IDP)
             connection.query(
-              'SELECT book_id as id FROM `book-idp` WHERE idp_id=?' + (isAdmin ? '' : ' AND book_id IN(?)'),
+              'SELECT book_id FROM `book-idp` WHERE idp_id=?' + (isAdmin ? '' : ' AND book_id IN(?)'),
               [idpId, books.map(({ id }) => id).concat([0])],
               function (err, rows, fields) {
                 if (err) return next(err);
@@ -349,7 +359,7 @@ const util = {
                 const idpBookIds = rows.map(({ book_id }) => parseInt(book_id));
           
                 const filteredAndFilledOutBooks = books.filter(({ id }) => idpBookIds.includes(id))
-          
+
                 // fill out admins with base version of missing books 
                 // if(isAdmin) {
                 //   idpBookIds.forEach(id => {
@@ -368,28 +378,29 @@ const util = {
                 const updateBookInstance = ({ id, version, expiration, enhancedToolsExpiration }) => new Promise(resolve => {
                   enhancedToolsExpiration = enhancedToolsExpiration || expiration
 
-                  const cols = {
-                    idp_id: idpId,
-                    book_id: id,
-                    user_id: userId,
-                    version,
+                  const updateCols = {
+                    version: version || 'BASE',
                     expires_at: expiration ? util.timestampToMySQLDatetime(expiration) : null,
                     enhanced_tools_expire_at: enhancedToolsExpiration ? util.timestampToMySQLDatetime(enhancedToolsExpiration) : null,
                   }
 
-                  var query, vars;
-                  if(bookIds.includes(id)) {
-                    query = 'UPDATE `book_instance` SET ? WHERE idp_id=? AND book_id=? AND user_id=?';
-                    vars = [ cols, idpId, id, userId ]
-                  } else {
-                    query = 'INSERT INTO `book_instance` SET ?';
-                    vars = cols;
-                    vars.first_given_access_at = now;
+                  const insertCols = {
+                    ...updateCols,
+                    idp_id: idpId,
+                    book_id: id,
+                    user_id: userId,
+                    first_given_access_at: now,
                   }
 
                   connection.query(
-                    query,
-                    vars,
+                    `
+                      INSERT INTO \`book_instance\` SET ?
+                        ON DUPLICATE KEY UPDATE ?
+                    `,
+                    [
+                      insertCols,
+                      updateCols,
+                    ],
                     err => {
                       if (err) return next(err);
                       resolve();
