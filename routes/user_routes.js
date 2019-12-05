@@ -61,9 +61,6 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
       },
       currentServerTime: util.getUTCTimeStamp()
     }
-    if(process.env.GOOGLE_ANALYTICS_CODE) {
-      returnData.gaCode = process.env.GOOGLE_ANALYTICS_CODE;
-    }
     log(['Deliver user setup', returnData]);
     res.send(returnData);
   })
