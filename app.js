@@ -272,10 +272,7 @@ var strategyCallback = function(idp, profile, done) {
       ssoData: profile,
     };
 
-    if(
-      !!profile['isAdmin']
-      || process.env.ADMIN_EMAILS.toLowerCase().split(' ').indexOf(userInfo.email.toLowerCase()) != -1
-    ) {
+    if(profile['isAdmin']) {
       userInfo.adminLevel = 'ADMIN';
     }
 
