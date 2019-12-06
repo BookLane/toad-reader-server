@@ -379,14 +379,23 @@ const util = {
                   enhancedToolsExpiration = enhancedToolsExpiration || expiration
 
                   const updateCols = {
-                    version: version || 'BASE',
-                    expires_at: expiration ? util.timestampToMySQLDatetime(expiration) : null,
-                    enhanced_tools_expire_at: enhancedToolsExpiration ? util.timestampToMySQLDatetime(enhancedToolsExpiration) : null,
+                    idp_id: idpId,  // there needs to be at least one column, so this one is here, though it will not change on update
+                  }
+
+                  if(expiration) {
+                    updateCols.expires_at = util.timestampToMySQLDatetime(expiration)
+                  }
+
+                  if(enhancedToolsExpiration) {
+                    updateCols.enhanced_tools_expire_at = util.timestampToMySQLDatetime(enhancedToolsExpiration)
+                  }
+
+                  if(version) {
+                    updateCols.version = version
                   }
 
                   const insertCols = {
                     ...updateCols,
-                    idp_id: idpId,
                     book_id: id,
                     user_id: userId,
                     first_given_access_at: now,
