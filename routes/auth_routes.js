@@ -92,7 +92,7 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
       passport.authenticate(req.params.idpId, { failureRedirect: '/login/fail' })(req, res, next);
     },
     function(req, res) {
-      var loginRedirect = req.session.loginRedirect || '/';
+      var loginRedirect = req.session.loginRedirect || '/confirmlogin';
       delete req.session.loginRedirect;
       log(['Post login redirect', loginRedirect]);
       res.redirect(loginRedirect);
