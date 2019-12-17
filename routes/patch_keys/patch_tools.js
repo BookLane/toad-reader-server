@@ -74,6 +74,9 @@ module.exports = {
         }
 
         const dbTool = dbTools.filter(({ uid }) => uid === tool.uid)[0]
+        if(dbTool) {
+          util.convertJsonColsFromStrings({ tableName: 'tool', row: dbTool })
+        }
 
         if(dbTool && dbTool.published_at) {
           return getErrorObj('invalid data: cannot edit a published tool')
