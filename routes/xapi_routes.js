@@ -6,7 +6,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
   app.post('/reportReading', ensureAuthenticatedAndCheckIDP, function (req, res, next) {
 
     if(!req.user.idpXapiOn) {
-      res.status(400).send();
+      res.send({ off: true });
     }
 
     log(['Attempting to report reads for xapi', req.body]);
