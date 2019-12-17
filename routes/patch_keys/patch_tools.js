@@ -66,30 +66,38 @@ module.exports = {
           ['classroom_group_uid','spineIdRef','cfi','ordering','name','toolType','data','undo_array',
            'due_at','closes_at','published_at','currently_published_tool_id','_delete']
         )) {
-          return getErrorObj('invalid parameters');
+          return getErrorObj('invalid parameters')
         }
 
         if(tool._delete !== undefined && !tool._delete) {
-          return getErrorObj('invalid parameters (_delete)');
+          return getErrorObj('invalid parameters (_delete)')
         }
 
         const dbTool = dbTools.filter(({ uid }) => uid === tool.uid)[0]
 
+        if(dbTool && dbTool.published_at) {
+          return getErrorObj('invalid data: cannot edit a published tool')
+        }
+
         if(dbTool && dbTool.classroom_uid !== classroomUid) {
-          return getErrorObj('invalid data: tool placed under wrong classroom');
+          return getErrorObj('invalid data: tool placed under wrong classroom')
+        }
+
+        if(dbTool && tool.toolType && dbTool.toolType !== tool.toolType && Object.keys(dbTool.data || {}).length > 0) {
+          return getErrorObj('invalid data: cannot change the toolType of a tool with existing data')
         }
 
         if(!dbTool && ['spineIdRef','ordering','name','toolType','undo_array'].some(param => tool[param] === undefined)) {
-          return getErrorObj('missing parameters for new tool');
+          return getErrorObj('missing parameters for new tool')
         }
 
         if(dbTool && util.mySQLDatetimeToTimestamp(dbTool.updated_at) > tool.updated_at) {
-          containedOldPatch = true;
+          containedOldPatch = true
 
         } else {
 
-          util.prepUpdatedAtAndCreatedAt(tool, !dbTool);
-          util.convertTimestampsToMySQLDatetimes(tool);
+          util.prepUpdatedAtAndCreatedAt(tool, !dbTool)
+          util.convertTimestampsToMySQLDatetimes(tool)
 
           util.convertJsonColsToStrings({ tableName: 'tool', row: tool })
 
