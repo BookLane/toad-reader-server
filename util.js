@@ -1,4 +1,15 @@
-var moment = require('moment');
+const moment = require('moment')
+const redis = require('redis')
+
+const fakeRedisClient = {}
+const client = process.env.IS_DEV
+  ? {
+    get: (key) => fakeRedisClient[key],
+    set: (key, val) => {
+      fakeRedisClient[key] = val
+    },
+  }
+  : redis.createClient(process.env.REDIS_HOSTNAME, process.env.REDIS_PORT)
 
 var getXapiActor = function(params) {
   return {
@@ -112,6 +123,8 @@ const util = {
   },
 
   mySQLDatetimeToTimestamp: function(mysqlDatetime) {
+    if(!mysqlDatetime) return 0
+
     // Split timestamp into [ Y, M, D, h, m, s, ms ]
     var t = mysqlDatetime.split(/[- :\.]/);
 
@@ -275,7 +288,7 @@ const util = {
 
     // Payload:
     // {
-    //   idpUserId: Integer
+    //   idpUserId: String
     //   email: String
     //   fullname: String
     //   adminLevel: NONE|ADMIN|SUPER_ADMIN (optional; default: NONE)
@@ -291,6 +304,11 @@ const util = {
     // }
 
     const { idpUserId, email, fullname, adminLevel, forceResetLoginBefore, ssoData } = userInfo
+
+    const finishUp = async userId => {
+      await util.updateComputedBookAccess({ idpId, userId, connection, log })
+      resolveAll(userId)
+    }
 
     // dedup books
     const bookIdObj = {}
@@ -422,7 +440,7 @@ const util = {
                 Promise.all(filteredAndFilledOutBooks.map(updateBookInstance)).then(() => {
 
                   if(isAdmin) {
-                    resolveAll(userId);
+                    finishUp(userId);
                     return;
                   }
 
@@ -440,7 +458,7 @@ const util = {
                     ],
                     err => {
                       if (err) return next(err);
-                      resolveAll(userId);
+                      finishUp(userId);
                     }
                   )
                 })
@@ -460,37 +478,33 @@ const util = {
     }
 
     const now = util.timestampToMySQLDatetime();
-    const expiresAtOkay = 'AND (expires_at IS NULL OR expires_at>?) '
-    const enhancedToolsExpiresAtOkay = 'AND (enhanced_tools_expire_at IS NULL OR enhanced_tools_expire_at>?) '
 
-    connection.query(`
-      SELECT bi2.version, bi2.enhanced_tools_expire_at
-      FROM book as b
-        LEFT JOIN \`book-idp\` as bi ON (bi.book_id=b.id)
-        LEFT JOIN book_instance as bi2 ON (bi2.book_id=b.id AND bi2.idp_id=bi.idp_id AND bi2.user_id=?)
-      WHERE b.id=?
-        AND b.rootUrl IS NOT NULL
-        AND bi.idp_id=?
-        ${req.user.isAdmin ? '' : 'AND bi2.user_id=?'}
-        ${
-          requireEnhancedToolsAccess
-            ? (enhancedToolsExpiresAtOkay + expiresAtOkay)
-            : (
-              req.user.isAdmin 
-                ? ''
-                : expiresAtOkay
-            )
-        }
-      LIMIT 1
+    connection.query(
+      `
+        SELECT cba.version, cba.enhanced_tools_expire_at
+        FROM book as b
+          LEFT JOIN \`book-idp\` as bi ON (bi.book_id=b.id)
+          LEFT JOIN computed_book_access as cba ON (
+            cba.book_id=b.id
+            AND cba.idp_id=bi.idp_id
+            AND cba.user_id=:userId
+            AND (cba.expires_at IS NULL OR cba.expires_at>:now)
+          )
+        WHERE b.id=:bookId
+          AND b.rootUrl IS NOT NULL
+          AND bi.idp_id=:idpId
+          ${req.user.isAdmin ? `` : `AND cba.books_id IS NOT NULL`}
+          ${!requireEnhancedToolsAccess ? `` : `
+            AND (cba.enhanced_tools_expire_at IS NULL OR cba.enhanced_tools_expire_at>:now)
+          `}
+        LIMIT 1
       `,
-      [
-        req.user.id,
+      {
+        userId: req.user.id,
         bookId,
-        req.user.idpId,
-        req.user.id,
+        idpId: req.user.idpId,
         now,
-        now,
-      ],
+      },
       (err, rows) => {
         if (err) return next(err);
 
@@ -501,6 +515,152 @@ const util = {
 
       }
     );
+
+  }),
+
+  updateComputedBookAccess: ({ idpId, userId, bookId, connection, log }) => new Promise(resolve => {
+
+    // idpId and connection are required
+    if(!idpId || !connection) {
+      throw new Error(`updateComputedBookAccess missing param`)
+    }
+
+    // look up all relevant book instances
+    // look up all relevant default books info
+    // look up all relevant subscription info
+    // look up all relevant computed book access rows
+    connection.query(
+      `
+        SELECT bi.*
+        FROM book_instance as bi
+        WHERE bi.idp_id=:idpId
+          ${userId ? `AND bi.user_id=:userId` : ``}
+          ${bookId ? `AND bi.book_id=:bookId` : ``}
+        ;
+
+        SELECT u.idp_id, sb.book_id, u.id as user_id, sb.version, NULL as expires_at, NULL as enhanced_tools_expire_at
+        FROM \`subscription-book\` as sb
+          LEFT JOIN user as u ON (1=1)
+        WHERE sb.subscription_id=:negativeIdpId
+          AND u.idp_id=:idpId
+          ${userId ? `AND u.id=:userId` : ``}
+          ${bookId ? `AND sb.book_id=:bookId` : ``}
+        ;
+
+        SELECT s.idp_id, sb.book_id, si.user_id, sb.version, si.expires_at, si.enhanced_tools_expire_at
+        FROM subscription as s
+          LEFT JOIN subscription_instance as si ON (si.subscription_id=s.id)
+          LEFT JOIN \`subscription-book\` as sb ON (sb.subscription_id=s.id)
+        WHERE s.idp_id=:idpId
+          AND s.deleted_at IS NULL
+          ${userId ? `AND si.user_id=:userId` : ``}
+          ${bookId ? `AND sb.book_id=:bookId` : ``}
+          AND si.id IS NOT NULL
+          AND sb.book_id IS NOT NULL
+        ;
+
+        SELECT cba.*
+        FROM computed_book_access as cba
+        WHERE cba.idp_id=:idpId
+          ${userId ? `AND cba.user_id=:userId` : ``}
+          ${bookId ? `AND cba.book_id=:bookId` : ``}
+        ;
+      `,
+      {
+        idpId,
+        negativeIdpId: idpId * -1,
+        userId,
+        bookId,
+      },
+      (err, results) => {
+        if(err) throw err
+
+        const [ bookInstanceRows, defaultSubscriptionInfoRows, subscriptionInfoRows, computedBookAccessRows ] = results
+
+        const getKey = ({ book_id, user_id }) => `${book_id} ${user_id}`
+
+        const getLaterMySQLDatetime = (datetime1, datetime2) => (
+          util.mySQLDatetimeToTimestamp(datetime1) > util.mySQLDatetimeToTimestamp(datetime2)
+            ? datetime1
+            : datetime2
+        )
+
+        const getCompiledRow = (row1, row2={}) => {
+          const versionPrecedentOrder = [ 'BASE', 'ENHANCED', 'INSTRUCTOR', 'PUBLISHER' ]
+          return {
+            idp_id: row1.idp_id,
+            book_id: row1.book_id,
+            user_id: row1.user_id,
+            version: versionPrecedentOrder.indexOf(row1.version) > versionPrecedentOrder.indexOf(row2.version) ? row1.version : row2.version,
+            expires_at: getLaterMySQLDatetime(row1.expires_at, row2.expires_at),  // the latest between the two
+            enhanced_tools_expire_at: getLaterMySQLDatetime(row1.enhanced_tools_expire_at, row2.enhanced_tools_expire_at),  // the latest between the two
+          }
+        }
+
+        // build out what computed book access rows should be
+        const updatedComputedBookAccessRowsByBookIdAndUserId = {}
+
+        ;[ bookInstanceRows, defaultSubscriptionInfoRows, subscriptionInfoRows ].forEach(rows => {
+          rows.forEach(row => {
+            updatedComputedBookAccessRowsByBookIdAndUserId[getKey(row)] = getCompiledRow(row, updatedComputedBookAccessRowsByBookIdAndUserId[getKey(row)])
+          })
+        })
+
+        const computedBookAccessRowsByBookIdAndUserId = {}
+
+        computedBookAccessRows.forEach(row => {
+          computedBookAccessRowsByBookIdAndUserId[getKey(row)] = row
+        })
+
+        const getSet = row => Object.keys(row).map(key => `${key}=${connection.escape(row[key])}`).join(', ')
+        const getWhere = row => [ 'idp_id', 'book_id', 'user_id' ].map(key => `${key}=${connection.escape(row[key])}`).join(' AND ')
+
+        const modificationQueries = [
+          // insert where needed
+          ...Object.values(updatedComputedBookAccessRowsByBookIdAndUserId)
+            .filter(row => !computedBookAccessRowsByBookIdAndUserId[getKey(row)])
+            .map(row => `INSERT INTO computed_book_access SET ${getSet(row)}`),
+
+          // update where needed
+          ...Object.values(updatedComputedBookAccessRowsByBookIdAndUserId)
+            .filter(row => {
+              const currentComputedRow = computedBookAccessRowsByBookIdAndUserId[getKey(row)]
+              return (
+                currentComputedRow
+                && Object.keys(row).some(key => currentComputedRow[key] != row[key])
+              )
+            })
+            .map(row => `UPDATE computed_book_access SET ${getSet(row)} WHERE ${getWhere(row)}`),
+
+          // delete where needed
+          ...Object.values(computedBookAccessRowsByBookIdAndUserId)
+            .filter(row => !updatedComputedBookAccessRowsByBookIdAndUserId[getKey(row)])
+            .map(row => `DELETE FROM computed_book_access WHERE ${getWhere(row)}`),
+        ]
+
+        if(modificationQueries.length === 0) {
+          // nothing to do
+          log([`Re-computed computed_book_access. Nothing to do.`, { idpId, userId, bookId }], 1)
+          resolve()
+          return
+        }
+
+        log([`Re-computed computed_book_access. Running ${modificationQueries.length} queries to update.`, { idpId, userId, bookId }, modificationQueries], 1)
+
+        connection.query(
+          modificationQueries.join('; '),
+          {
+            idpId,
+            userId,
+            bookId,
+          },
+          (err, results) => {
+            if (err) throw(err)
+            resolve()
+          }
+        )
+      }
+    )
 
   }),
 
@@ -549,6 +709,40 @@ const util = {
     })
   },
 
+  createAccessCode: () => {
+    const digitOptions = `ABCDEFGHJKMNPQRSTUVWXYZ23456789`
+  
+    return Array(6)
+      .fill(0)
+      .map(() => digitOptions[parseInt(Math.random() * digitOptions.length, 10)])
+      .join('')
+  },
+
+  getLoginInfoByAccessCode: ({ accessCode, next }) => new Promise(resolve => {
+    client.get(`login access code: ${accessCode}`, (err, value) => {
+      if(err) return next(err)
+
+      try {
+        resolve(JSON.stringify(value))
+      } catch(e) {
+        resolve()
+      }
+    })
+  }),
+
+  setLoginInfoByAccessCode: ({ accessCode, loginInfo, next }) => new Promise(resolve => {
+    client.set(
+      `login access code: ${accessCode}`,
+      JSON.stringify(loginInfo),
+      'EXPIRE',
+      (60 * 15),  // expires in 15 minutes
+      (err, value) => {
+        if(err) return next(err)
+        resolve()
+      }
+    )
+  }),
+  
 }
 
 module.exports = util;

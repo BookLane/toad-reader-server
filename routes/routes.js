@@ -1,4 +1,4 @@
-module.exports = function (app, s3, connection, passport, authFuncs, ensureAuthenticated, log) {
+module.exports = function (app, s3, connection, passport, authFuncs, ensureAuthenticated, logIn, log) {
 
   var path = require('path');
   var fs = require('fs');
@@ -42,7 +42,7 @@ module.exports = function (app, s3, connection, passport, authFuncs, ensureAuthe
     return ensureAuthenticated(req, res, next);
   }
 
-  require('./auth_routes')(app, passport, authFuncs, connection, ensureAuthenticated, log);
+  require('./auth_routes')(app, passport, authFuncs, connection, ensureAuthenticated, logIn, log);
   require('./api_routes')(app, connection, log);
   require('./admin_routes')(app, s3, connection, ensureAuthenticatedAndCheckIDP, log);
   require('./user_routes')(app, connection, ensureAuthenticatedAndCheckIDP, ensureAuthenticatedAndCheckIDPWithRedirect, log);

@@ -290,6 +290,21 @@ var strategyCallback = function(idp, profile, done) {
   }
 };
 
+// re-compute all computed_book_access rows and update where necessary
+connection.query(
+  `SELECT id FROM idp`,
+  async (err, rows) => {
+    if(err) {
+      log(["Could not re-compute all computed_book_access rows.", err], 3)
+      return
+    }
+
+    for(let idx in rows) {
+      await util.updateComputedBookAccess({ idpId: rows[idx].id, connection, log })
+    }
+  }
+)
+
 // setup SAML strategies for IDPs
 connection.query('SELECT * FROM `idp` WHERE entryPoint IS NOT NULL',
   function (err, rows) {
@@ -500,7 +515,7 @@ app.use('*', function(req, res, next) {
   }
 });
 
-require('./routes/routes')(app, s3, connection, passport, authFuncs, ensureAuthenticated, log);
+require('./routes/routes')(app, s3, connection, passport, authFuncs, ensureAuthenticated, logIn, log);
 
 process.on('unhandledRejection', reason => {
   log(['Unhandled node error', reason.stack || reason], 3)

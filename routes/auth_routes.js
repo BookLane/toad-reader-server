@@ -1,7 +1,6 @@
-var util = require('../util');
-var fs = require('fs');
+var util = require('../util')
 
-module.exports = function (app, passport, authFuncs, connection, ensureAuthenticated, log) {
+module.exports = function (app, passport, authFuncs, connection, ensureAuthenticated, logIn, log) {
 
   app.get('/confirmlogin',
     ensureAuthenticated,
@@ -152,5 +151,103 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
       );
     }
   );
+
+  // passwordless login
+  app.get('/loginwithemail/:email',
+    async (req, res, next) => {
+      log('Authenticate user via email', 2)
+
+      let accessCode = util.createAccessCode()
+
+      // ensure it is unique
+      while(await util.getLoginInfoByAccessCode({ accessCode, next })) {
+        accessCode = util.createAccessCode()
+      }
+
+      const loginInfo = {
+        email: req.params.email,
+      }
+
+      await util.setLoginInfoByAccessCode({ accessCode, loginInfo, next })
+      
+      // send the email
+      // req.params.email
+      console.log(`Access code: ${loginAccessCode}`)
+
+    },
+  )
+
+  app.get('/loginwithaccesscode/:accessCode',
+    async (req, res, next) => {
+      log(`Authenticate user via email: sent access code: ${req.params.accessCode}`, 2)
+
+      const { email } = await util.getLoginInfoByAccessCode({ accessCode, next }) || {}
+
+      if(email) {
+
+        connection.query(
+          `SELECT * FROM idp WHERE domain=:domain`,
+          {
+            domain: util.getIDPDomain(req.headers.host),
+          },
+          async (err2, row2) => {
+            if(err2) return next(err2)
+
+            const idp = row2[0]
+            let userId
+
+            if(idp.userInfoEndpoint) {
+              // get user info, if endpoint provided
+              userId = await getUserInfo({ idp, idpUserId: email, next })
+              
+            } else {
+              // create the user if they do not exist
+              userId = await util.updateUserInfo({
+                connection,
+                log,
+                userInfo: {
+                  idpUserId: email,
+                  email,
+                },
+                idpId,
+                updateLastLoginAt: true,
+                next,
+              })
+            }
+
+            // log them in
+            await logIn({
+              userId,
+              req,
+              next: err => {
+                if(err) return next(err)
+
+                // send the info back
+                res.send({
+                  success: true,
+                  userInfo: {
+                    id: req.user.id,
+                    fullname: req.user.fullname,
+                    isAdmin: req.user.isAdmin,
+                  },
+                  currentServerTime: Date.now(),
+                })
+              }
+            })
+
+          }
+        )
+
+      } else {
+        // invalid access code
+        res.send({
+          success: false,
+          error: 'invalid access code',
+        })
+
+      }
+
+    },
+  )
 
 }
