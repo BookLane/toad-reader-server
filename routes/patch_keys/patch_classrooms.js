@@ -99,7 +99,6 @@ module.exports = {
     dbClassroomMembers,
     dbTools,
     user,
-    userId,
     bookId,
   }) => {
 
@@ -112,7 +111,7 @@ module.exports = {
         if(!util.paramsOk(
           classroom,
           ['uid'],
-          ['updated_at','name','access_code','instructor_access_code','has_syllabus','introduction','classroom_highlights_mode','closes_at','members','tools','_delete']
+          ['updated_at','name','access_code','instructor_access_code','syllabus','introduction','classroom_highlights_mode','closes_at','members','tools','_delete']
         )) {
           return getErrorObj('invalid parameters');
         }
@@ -146,7 +145,7 @@ module.exports = {
           }
         }
 
-        if(!dbClassroom && (classroom.members || []).filter(({ user_id, role }) => (user_id === userId && role === 'INSTRUCTOR')).length === 0) {
+        if(!dbClassroom && (classroom.members || []).filter(({ user_id, role }) => (user_id === user.id && role === 'INSTRUCTOR')).length === 0) {
           return getErrorObj('invalid parameters: when creating a classroom, must also be making yourself an INSTRUCTOR');
         }
 
@@ -161,8 +160,10 @@ module.exports = {
 
           } else {
 
-            util.prepUpdatedAtAndCreatedAt(classroom, !dbClassroom);
-            util.convertTimestampsToMySQLDatetimes(classroom);
+            util.prepUpdatedAtAndCreatedAt(classroom, !dbClassroom)
+            util.convertTimestampsToMySQLDatetimes(classroom)
+
+            util.convertJsonColsToStrings({ tableName: 'classroom', row: classroom })
 
             if(classroom._delete) {  // if _delete is present, then delete
               if(!dbClassroom) {

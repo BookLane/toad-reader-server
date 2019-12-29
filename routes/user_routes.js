@@ -285,25 +285,25 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
         }
 
         // build the userData object
-        log(['Look up latest location, highlights and classrooms', req.params.userId, req.params.bookId]);
+        log(['Look up latest location, highlights and classrooms', req.params.userId, req.params.bookId])
         connection.query(
           queries.join('; '),
           vars,
           (err, results) => {
-            if (err) return next(err);
+            if (err) return next(err)
 
-            const [ latestLocations, highlights, members, tools ] = results;
+            const [ latestLocations, highlights, members, tools ] = results
             const bookUserData = {}
 
             // get latest_location
             if(latestLocations[0]) {
-              bookUserData.latest_location = latestLocations[0].cfi;
-              bookUserData.updated_at = util.mySQLDatetimeToTimestamp(latestLocations[0].updated_at);
+              bookUserData.latest_location = latestLocations[0].cfi
+              bookUserData.updated_at = util.mySQLDatetimeToTimestamp(latestLocations[0].updated_at)
             }
 
             // get highlights
-            util.convertMySQLDatetimesToTimestamps(highlights);
-            bookUserData.highlights = highlights;
+            util.convertMySQLDatetimesToTimestamps(highlights)
+            bookUserData.highlights = highlights
 
             if(hasAccessToEnhancedTools || isPublisher) {
 
@@ -311,26 +311,27 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
               const classroomsByUid = {};
               classrooms.forEach(classroom => {
                 if(!['INSTRUCTOR'].includes(classroom.role)) {
-                  delete classroom.access_code;
-                  delete classroom.instructor_access_code;
+                  delete classroom.access_code
+                  delete classroom.instructor_access_code
                 }
-                delete classroom.idp_id;
-                delete classroom.book_id;
-                delete classroom.deleted_at;
-                delete classroom.role;
+                delete classroom.idp_id
+                delete classroom.book_id
+                delete classroom.deleted_at
+                delete classroom.role
 
-                util.convertMySQLDatetimesToTimestamps(classroom);
+                util.convertMySQLDatetimesToTimestamps(classroom)
+                util.convertJsonColsFromStrings({ tableName: 'classroom', row: classroom })
 
-                classroom.members = [];
-                classroom.tools = [];
-                classroomsByUid[classroom.uid] = classroom;
+                classroom.members = []
+                classroom.tools = []
+                classroomsByUid[classroom.uid] = classroom
               });
 
               // add members
               members.forEach(member => {
-                util.convertMySQLDatetimesToTimestamps(member);
+                util.convertMySQLDatetimesToTimestamps(member)
                 classroomsByUid[member.classroom_uid].members.push(member)
-                delete member.classroom_uid;
+                delete member.classroom_uid
               })
 
               // add tools
@@ -338,19 +339,19 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
                 util.convertMySQLDatetimesToTimestamps(tool);
                 util.convertJsonColsFromStrings({ tableName: 'tool', row: tool })
                 classroomsByUid[tool.classroom_uid].tools.push(tool)
-                delete tool.classroom_uid;
-                delete tool.deleted_at;
+                delete tool.classroom_uid
+                delete tool.deleted_at
               })
 
-              bookUserData.classrooms = classrooms;
+              bookUserData.classrooms = classrooms
 
             }
 
-            log(['Deliver userData for book', bookUserData]);
-            res.send(bookUserData);
+            log(['Deliver userData for book', bookUserData])
+            res.send(bookUserData)
           }
-        );
-      };
+        )
+      }
 
       if(hasAccessToEnhancedTools || isPublisher) {
 
