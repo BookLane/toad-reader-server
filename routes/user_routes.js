@@ -213,14 +213,14 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
 
       const getBookUserData = (classrooms=[]) => {
 
-        const classroomUids = classrooms.map(({ uid }) => uid);
-        const queries = [];
+        const classroomUids = classrooms.map(({ uid }) => uid)
+        const queries = []
         const vars = {
           userId: req.params.userId,
           bookId: req.params.bookId,
           notDeletedAtTime: util.NOT_DELETED_AT_TIME,
-          classroomUids,
-          instructorClassroomUids: classrooms.filter(({ role }) => role === 'INSTRUCTOR').map(({ uid }) => uid),
+          classroomUids: [ '', ...classroomUids ],  // Blank string added to prevent error in case there are none
+          instructorClassroomUids: [ '', ...classrooms.filter(({ role }) => role === 'INSTRUCTOR').map(({ uid }) => uid) ],  // Blank string added to prevent error in case there are none
         }
 
         // latest_location query
