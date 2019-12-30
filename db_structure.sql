@@ -7,7 +7,7 @@
 #
 # Host: localhost (MySQL 5.7.27)
 # Database: ToadReader
-# Generation Time: 2019-12-29 13:18:42 +0000
+# Generation Time: 2019-12-30 09:40:16 +0000
 # ************************************************************
 
 
@@ -228,6 +228,7 @@ CREATE TABLE `embed_website` (
 # ------------------------------------------------------------
 
 CREATE TABLE `highlight` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT COMMENT 'Only used for instructor_highlight to attach to.',
   `user_id` int(11) NOT NULL,
   `book_id` int(11) unsigned NOT NULL,
   `spineIdRef` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
@@ -237,6 +238,7 @@ CREATE TABLE `highlight` (
   `updated_at` datetime(3) NOT NULL,
   `deleted_at` datetime NOT NULL DEFAULT '0000-01-01 00:00:00',
   PRIMARY KEY (`user_id`,`book_id`,`spineIdRef`,`cfi`,`deleted_at`),
+  UNIQUE KEY `id` (`id`),
   KEY `user_id` (`user_id`,`book_id`),
   KEY `deleted_at` (`deleted_at`),
   KEY `updated_at` (`updated_at`),
@@ -301,12 +303,13 @@ CREATE TABLE `idp_group_member` (
 # ------------------------------------------------------------
 
 CREATE TABLE `instructor_highlight` (
-  `uid` varchar(36) NOT NULL DEFAULT '',
-  `highlight_key` varchar(550) NOT NULL DEFAULT '',
-  `classroom_id` int(11) unsigned NOT NULL,
+  `highlight_id` int(11) unsigned NOT NULL,
+  `classroom_uid` varchar(36) NOT NULL DEFAULT '',
   `created_at` datetime NOT NULL,
-  `deleted_at` int(11) DEFAULT NULL,
-  PRIMARY KEY (`uid`)
+  PRIMARY KEY (`highlight_id`,`classroom_uid`),
+  KEY `highlight_id` (`highlight_id`),
+  KEY `classroom_id` (`classroom_uid`),
+  KEY `created_at` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 
