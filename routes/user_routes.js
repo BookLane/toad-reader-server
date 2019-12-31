@@ -53,7 +53,6 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
         idpAssetsBaseUrl: 'https://s3.amazonaws.com/' + process.env.S3_BUCKET + '/tenant_assets/',
         idpLang: req.user.idpLang || 'en',
         idpExpire: req.user.idpExpire,
-        idpNoAuth: req.user.idpNoAuth,
         idpAndroidAppURL: req.user.idpAndroidAppURL,
         idpIosAppURL: req.user.idpIosAppURL,
         idpXapiOn: req.user.idpXapiOn,
