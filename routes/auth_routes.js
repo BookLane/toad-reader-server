@@ -1,5 +1,7 @@
 const util = require('../util')
 const cookie = require('cookie-signature')
+const { i18n } = require("inline-i18n")
+const sendEmail = require("../sendEmail")
 
 module.exports = function (app, passport, authFuncs, connection, ensureAuthenticated, logIn, log) {
 
@@ -178,9 +180,24 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
 
       await util.setLoginInfoByAccessCode({ accessCode, loginInfo, next })
       
-      // send the email
-      // req.query.email
-      console.log(`Access code: ${accessCode}`)
+      try {
+
+        // send the email
+        await sendEmail({
+          toAddrs: req.query.email,
+          subject: i18n("Login code"),
+          body: `
+            <p>${i18n("You login code: {{code}}", { code: `<span style="font-weight: bold;">${accessCode}</span>` })}</p>
+            <p>${i18n("Enter this code into the native or web app.")}</p>
+            <p style="font-size: 12px; color: #777;">${i18n("Note: This code expires in 15 minutes.")}</p>
+          `,
+          connection,
+          req,
+        })
+
+      } catch (err) {
+        res.status(500).send({ success: false, error: err.message })
+      }
 
       res.send({ success: true })
 
