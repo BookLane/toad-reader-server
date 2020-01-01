@@ -516,7 +516,7 @@ app.use(function(req, res, next) {
 })
 app.use(cookieParser());
 app.use(session({
-  store: new RedisStore(redisOptions),
+  store: process.env.IS_DEV ? null : new RedisStore(redisOptions),
   secret: process.env.SESSION_SECRET || 'secret',
   saveUninitialized: false,
   resave: false,

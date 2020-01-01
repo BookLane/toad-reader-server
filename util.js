@@ -2,14 +2,6 @@ const moment = require('moment')
 const redis = require('redis')
 
 const fakeRedisClient = {}
-const client = process.env.IS_DEV
-  ? {
-    get: (key) => fakeRedisClient[key],
-    set: (key, val) => {
-      fakeRedisClient[key] = val
-    },
-  }
-  : redis.createClient(process.env.REDIS_HOSTNAME, process.env.REDIS_PORT)
 
 var getXapiActor = function(params) {
   return {
@@ -114,6 +106,21 @@ const util = {
 
   NOT_DELETED_AT_TIME: '0000-01-01 00:00:00',
   
+  redisStore: (
+    process.env.IS_DEV
+      ? {
+        get: (key, callback) => {
+          callback && callback(null, fakeRedisClient[key])
+        },
+        set: (key, val, ...otherParams) => {
+          fakeRedisClient[key] = val
+          const callback = otherParams.pop()
+          callback && callback()
+        },
+      }
+      : redis.createClient(process.env.REDIS_PORT, process.env.REDIS_HOSTNAME)
+  ),
+
   getUTCTimeStamp: function(){
     return new Date().getTime();
   },
@@ -312,7 +319,7 @@ const util = {
 
     // dedup books
     const bookIdObj = {}
-    const books = userInfo.books.filter(({ id }) => {
+    const books = (userInfo.books || []).filter(({ id }) => {
       if(!bookIdObj[id]) {
         bookIdObj[id] = true
         return true
@@ -718,23 +725,27 @@ const util = {
       .join('')
   },
 
-  getLoginInfoByAccessCode: ({ accessCode, next }) => new Promise(resolve => {
-    client.get(`login access code: ${accessCode}`, (err, value) => {
+  getLoginInfoByAccessCode: ({ accessCode, destroyAfterGet, next }) => new Promise(resolve => {
+    util.redisStore.get(`login access code: ${accessCode}`, (err, value) => {
       if(err) return next(err)
 
       try {
-        resolve(JSON.stringify(value))
+        resolve(JSON.parse(value))
       } catch(e) {
         resolve()
+      }
+
+      if(destroyAfterGet) {
+        util.redisStore.set(`login access code: ${accessCode}`, '', 'EX', 1)
       }
     })
   }),
 
   setLoginInfoByAccessCode: ({ accessCode, loginInfo, next }) => new Promise(resolve => {
-    client.set(
+    util.redisStore.set(
       `login access code: ${accessCode}`,
       JSON.stringify(loginInfo),
-      'EXPIRE',
+      'EX',
       (60 * 15),  // expires in 15 minutes
       (err, value) => {
         if(err) return next(err)
@@ -742,7 +753,12 @@ const util = {
       }
     )
   }),
-  
+
+  isValidEmail: email => {
+    const re = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/
+    return re.test(email)
+  },
+
 }
 
 module.exports = util;

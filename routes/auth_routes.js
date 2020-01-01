@@ -1,4 +1,5 @@
-var util = require('../util')
+const util = require('../util')
+const cookie = require('cookie-signature')
 
 module.exports = function (app, passport, authFuncs, connection, ensureAuthenticated, logIn, log) {
 
@@ -153,9 +154,16 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
   );
 
   // passwordless login
-  app.get('/loginwithemail/:email',
+  app.get('/loginwithemail',
     async (req, res, next) => {
       log('Authenticate user via email', 2)
+
+      if(!util.isValidEmail(req.query.email)) {
+        res.status(400).send({
+          success: false,
+          error: 'invalid access code',
+        })
+      }
 
       let accessCode = util.createAccessCode()
 
@@ -165,23 +173,25 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
       }
 
       const loginInfo = {
-        email: req.params.email,
+        email: req.query.email,
       }
 
       await util.setLoginInfoByAccessCode({ accessCode, loginInfo, next })
       
       // send the email
-      // req.params.email
-      console.log(`Access code: ${loginAccessCode}`)
+      // req.query.email
+      console.log(`Access code: ${accessCode}`)
+
+      res.send({ success: true })
 
     },
   )
 
-  app.get('/loginwithaccesscode/:accessCode',
+  app.get('/loginwithaccesscode',
     async (req, res, next) => {
-      log(`Authenticate user via email: sent access code: ${req.params.accessCode}`, 2)
+      log(`Authenticate user via email: sent access code: ${req.query.code}`, 2)
 
-      const { email } = await util.getLoginInfoByAccessCode({ accessCode, next }) || {}
+      const { email } = await util.getLoginInfoByAccessCode({ accessCode: req.query.code, destroyAfterGet: true, next }) || {}
 
       if(email) {
 
@@ -209,7 +219,7 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
                   idpUserId: email,
                   email,
                 },
-                idpId,
+                idpId: idp.id,
                 updateLastLoginAt: true,
                 next,
               })
@@ -231,6 +241,7 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
                     isAdmin: req.user.isAdmin,
                   },
                   currentServerTime: Date.now(),
+                  cookie: `connect.sid=${encodeURIComponent(`s:${cookie.sign(req.sessionID, process.env.SESSION_SECRET || 'secret')}`)}; expires=Fri, 01 Jan 2100 00:00:00 UTC;`,
                 })
               }
             })
