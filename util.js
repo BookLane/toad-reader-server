@@ -500,7 +500,7 @@ const util = {
         WHERE b.id=:bookId
           AND b.rootUrl IS NOT NULL
           AND bi.idp_id=:idpId
-          ${req.user.isAdmin ? `` : `AND cba.books_id IS NOT NULL`}
+          ${req.user.isAdmin ? `` : `AND cba.book_id IS NOT NULL`}
           ${!requireEnhancedToolsAccess ? `` : `
             AND (cba.enhanced_tools_expire_at IS NULL OR cba.enhanced_tools_expire_at>:now)
           `}
