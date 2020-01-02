@@ -227,6 +227,52 @@ module.exports = function (app, s3, connection, passport, authFuncs, ensureAuthe
 
       })
 
+    } else if(urlPieces[1] == 'enhanced_assets') {
+
+      const classroomUid = urlPieces[2]
+      const isDefaultClassroomUid = /^[0-9]+-[0-9]+$/.test(classroomUid)
+      const now = util.timestampToMySQLDatetime(null, true)
+
+      connection.query(
+        `
+          SELECT c.uid
+          FROM classroom as c
+            LEFT JOIN classroom_member as cm_me ON (cm_me.classroom_uid=c.uid)
+            LEFT JOIN book_instance as bi ON (bi.book_id=c.book_id)
+          WHERE c.uid=:classroomUid
+            AND c.idp_id=:idpId
+            AND c.deleted_at IS NULL
+            ${isDefaultClassroomUid ? `
+              AND bi.version='PUBLISHER'
+            ` : `
+              AND cm_me.user_id=:userId
+              AND cm_me.deleted_at IS NULL
+              AND bi.version IN ('INSTRUCTOR', 'ENHANCED')
+            `}
+            AND bi.idp_id=:idpId
+            AND bi.user_id=:userId
+            AND (bi.expires_at IS NULL OR bi.expires_at>:now)
+            AND (bi.enhanced_tools_expire_at IS NULL OR bi.enhanced_tools_expire_at>:now)
+        `,
+        {
+          classroomUid,
+          idpId: req.user.idpId,
+          userId: req.user.id,
+          now,
+        },
+        (err, rows) => {
+          if(err) return next(err)
+
+          if(rows.length === 0) {
+            log('No permission to view file', 3)
+            res.status(403).send({ errorType: "biblemesh_no_permission" })
+            return
+          }
+
+          getAssetFromS3(req, res, next)
+        }
+      )
+
     } else {
       log(['Forbidden file or directory', urlWithoutQuery], 3);
       res.status(403).send({ error: 'Forbidden' });

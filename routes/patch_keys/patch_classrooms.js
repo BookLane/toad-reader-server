@@ -1,6 +1,7 @@
 const util = require('../../util');
 const patchClassroomMembers = require('./patch_classroom_members');
 const patchTools = require('./patch_tools');
+const patchInstructorHighlights = require('./patch_instructor_highlights');
 
 const getSuccessObj = containedOldPatch => ({
   patch: 'classrooms',
@@ -89,6 +90,12 @@ module.exports = {
       preQueries,
     })
 
+    patchInstructorHighlights.addPreQueries({
+      params,
+      classrooms: body.classrooms || [],
+      preQueries,
+    })
+
   },
 
   addPatchQueries: ({
@@ -98,8 +105,8 @@ module.exports = {
     dbClassrooms,
     dbClassroomMembers,
     dbTools,
+    dbHighlightsWithInstructorHighlight,
     user,
-    userId,
     bookId,
   }) => {
 
@@ -112,7 +119,7 @@ module.exports = {
         if(!util.paramsOk(
           classroom,
           ['uid'],
-          ['updated_at','name','access_code','instructor_access_code','has_syllabus','introduction','classroom_highlights_mode','closes_at','members','tools','_delete']
+          ['updated_at','name','access_code','instructor_access_code','syllabus','introduction','classroom_highlights_mode','closes_at','members','tools','instructorHighlights','_delete']
         )) {
           return getErrorObj('invalid parameters');
         }
@@ -131,11 +138,14 @@ module.exports = {
           if(classroom.uid !== `${user.idpId}-${bookId}`) {
             return getErrorObj('invalid permissions: user with PUBLISHER computed_book_access can only edit the default version');
           }
-          if(!util.paramsOk(classroom, ['uid'],['tools'])) {
+          if(!util.paramsOk(classroom, ['uid'], ['tools'])) {
             return getErrorObj('invalid permissions: user with PUBLISHER computed_book_access can only edit tools related to the default version');
           }
           if(!dbClassroom) {
             return getErrorObj('invalid data: user with PUBLISHER computed_book_access attempting to edit non-existent default version');
+          }
+          if(classroom.instructorHighlights) {
+            return getErrorObj('invalid data: user with PUBLISHER book_instance attempting to edit instructor highlights');
           }
         } else {  // INSTRUCTOR
           if(classroom.uid === `${user.idpId}-${bookId}`) {
@@ -146,13 +156,14 @@ module.exports = {
           }
         }
 
-        if(!dbClassroom && (classroom.members || []).filter(({ user_id, role }) => (user_id === userId && role === 'INSTRUCTOR')).length === 0) {
+        if(!dbClassroom && (classroom.members || []).filter(({ user_id, role }) => (user_id === user.id && role === 'INSTRUCTOR')).length === 0) {
           return getErrorObj('invalid parameters: when creating a classroom, must also be making yourself an INSTRUCTOR');
         }
 
-        const { members, tools } = classroom;
+        const { members, tools, instructorHighlights } = classroom;
         delete classroom.members;
         delete classroom.tools;
+        delete classroom.instructorHighlights;
 
         if(classroom.updated_at) {
 
@@ -161,8 +172,10 @@ module.exports = {
 
           } else {
 
-            util.prepUpdatedAtAndCreatedAt(classroom, !dbClassroom);
-            util.convertTimestampsToMySQLDatetimes(classroom);
+            util.prepUpdatedAtAndCreatedAt(classroom, !dbClassroom)
+            util.convertTimestampsToMySQLDatetimes(classroom)
+
+            util.convertJsonColsToStrings({ tableName: 'classroom', row: classroom })
 
             if(classroom._delete) {  // if _delete is present, then delete
               if(!dbClassroom) {
@@ -203,13 +216,13 @@ module.exports = {
           members,
           classroomUid: classroom.uid,
           dbClassroomMembers,
-        });
+        })
 
         if(!patchClassroomMembersResult.success) {
           return getErrorObj(patchClassroomMembersResult.error);
         }
 
-        containedOldPatch = containedOldPatch || patchClassroomMembersResult.containedOldPatch;
+        containedOldPatch = containedOldPatch || patchClassroomMembersResult.containedOldPatch
 
         // do tools
         const patchToolsResult = patchTools.addPatchQueries({
@@ -217,13 +230,27 @@ module.exports = {
           tools,
           classroomUid: classroom.uid,
           dbTools,
-        });
+        })
 
         if(!patchToolsResult.success) {
           return getErrorObj(patchToolsResult.error);
         }
 
-        containedOldPatch = containedOldPatch || patchToolsResult.containedOldPatch;
+        containedOldPatch = containedOldPatch || patchToolsResult.containedOldPatch
+
+        // do instructor highlights
+        const patchInstructorHighlightsResult = patchInstructorHighlights.addPatchQueries({
+          queriesToRun,
+          instructorHighlights,
+          classroomUid: classroom.uid,
+          dbHighlightsWithInstructorHighlight,
+        })
+
+        if(!patchInstructorHighlightsResult.success) {
+          return getErrorObj(patchInstructorHighlightsResult.error);
+        }
+
+        containedOldPatch = containedOldPatch || patchInstructorHighlightsResult.containedOldPatch
 
       }
     }
