@@ -7,7 +7,7 @@
 #
 # Host: localhost (MySQL 5.7.27)
 # Database: ToadReader
-# Generation Time: 2019-12-22 14:04:20 +0000
+# Generation Time: 2020-01-02 05:20:17 +0000
 # ************************************************************
 
 
@@ -88,7 +88,7 @@ CREATE TABLE `classroom` (
   `name` varchar(255) NOT NULL DEFAULT '',
   `access_code` varchar(10) DEFAULT NULL,
   `instructor_access_code` varchar(10) DEFAULT NULL,
-  `has_syllabus` tinyint(1) NOT NULL DEFAULT '0',
+  `syllabus` text,
   `introduction` text,
   `classroom_highlights_mode` enum('OFF','CLASSROOM','GROUP') NOT NULL DEFAULT 'CLASSROOM',
   `closes_at` datetime DEFAULT NULL,
@@ -100,7 +100,6 @@ CREATE TABLE `classroom` (
   UNIQUE KEY `instructor_access_code` (`instructor_access_code`),
   KEY `idp_id` (`idp_id`),
   KEY `book_id` (`book_id`),
-  KEY `has_syllabus` (`has_syllabus`),
   KEY `classroom_highlights_mode` (`classroom_highlights_mode`),
   KEY `closes_at` (`closes_at`),
   KEY `created_at` (`created_at`),
@@ -229,6 +228,7 @@ CREATE TABLE `embed_website` (
 # ------------------------------------------------------------
 
 CREATE TABLE `highlight` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT COMMENT 'Only used for instructor_highlight to attach to.',
   `user_id` int(11) NOT NULL,
   `book_id` int(11) unsigned NOT NULL,
   `spineIdRef` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
@@ -238,6 +238,7 @@ CREATE TABLE `highlight` (
   `updated_at` datetime(3) NOT NULL,
   `deleted_at` datetime NOT NULL DEFAULT '0000-01-01 00:00:00',
   PRIMARY KEY (`user_id`,`book_id`,`spineIdRef`,`cfi`,`deleted_at`),
+  UNIQUE KEY `id` (`id`),
   KEY `user_id` (`user_id`,`book_id`),
   KEY `deleted_at` (`deleted_at`),
   KEY `updated_at` (`updated_at`),
@@ -253,7 +254,9 @@ CREATE TABLE `idp` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `name` text COLLATE utf8_bin NOT NULL,
   `domain` varchar(253) COLLATE utf8_bin NOT NULL DEFAULT '',
+  `fromEmail` text CHARACTER SET utf8,
   `useReaderTxt` tinyint(4) NOT NULL,
+  `authMethod` enum('SESSION_SHARING','SHIBBOLETH','EMAIL','NONE_OR_EMAIL') COLLATE utf8_bin NOT NULL DEFAULT 'NONE_OR_EMAIL',
   `sessionSharingAsRecipientInfo` text COLLATE utf8_bin,
   `entryPoint` text COLLATE utf8_bin,
   `logoutUrl` text COLLATE utf8_bin,
@@ -302,12 +305,13 @@ CREATE TABLE `idp_group_member` (
 # ------------------------------------------------------------
 
 CREATE TABLE `instructor_highlight` (
-  `uid` varchar(36) NOT NULL DEFAULT '',
-  `highlight_key` varchar(550) NOT NULL DEFAULT '',
-  `classroom_id` int(11) unsigned NOT NULL,
+  `highlight_id` int(11) unsigned NOT NULL,
+  `classroom_uid` varchar(36) NOT NULL DEFAULT '',
   `created_at` datetime NOT NULL,
-  `deleted_at` int(11) DEFAULT NULL,
-  PRIMARY KEY (`uid`)
+  PRIMARY KEY (`highlight_id`,`classroom_uid`),
+  KEY `highlight_id` (`highlight_id`),
+  KEY `classroom_id` (`classroom_uid`),
+  KEY `created_at` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 
