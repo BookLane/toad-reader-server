@@ -3,9 +3,26 @@ const cookie = require('cookie-signature')
 const { i18n } = require("inline-i18n")
 const sendEmail = require("../sendEmail")
 
-const getCookie = req => `connect.sid=${encodeURIComponent(`s:${cookie.sign(req.sessionID, process.env.SESSION_SECRET || 'secret')}`)}; expires=Fri, 01 Jan 2100 00:00:00 UTC;`
+const getCookie = req => `connect.sid=${encodeURIComponent(`s:${cookie.sign(req.sessionID, process.env.SESSION_SECRET || 'secret')}`)}`
 
 module.exports = function (app, passport, authFuncs, connection, ensureAuthenticated, logIn, log) {
+
+  app.get('/setcookie',
+    (req, res) => {
+      if(!req.query['cookie']) {
+        return res.send({ success: false })
+      }
+
+      req.query['cookie'].split(';').forEach(cookie => {
+        const [ key, value ] = cookie.split(/=/)
+        if(key && value) {
+          res.cookie(key, value, { maxAge: 1000*60*60*24*365*100 })
+        }
+      })
+
+      res.send({ success: true })
+    }
+  )
 
   app.get('/fixsafari',
     (req, res) => {
