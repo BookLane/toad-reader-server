@@ -384,7 +384,7 @@ function ensureAuthenticated(req, res, next) {
         )
         || req.originalUrl.match(/^\/(book\/[^\/]*|\?.*)?$/)
       )
-    ) || process.env.AUTH_METHOD_OVERRIDE === 'NONE_OR_EMAIL'  // Shouldn't need this; it is a temporary hack for dev
+    )
   ) {  // library or book call
 
     // if(req.query.widget) {
