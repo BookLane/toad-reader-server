@@ -80,12 +80,18 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         } else {
 
           log(['Check if book is unused', bookId]);
-          connection.query('SELECT * FROM `book_instance` WHERE book_id=? LIMIT 1',
-            [bookId],
-            function (err2, rows2, fields2) {
+          connection.query(
+            `
+              SELECT id FROM book_instance WHERE book_id=:book_id LIMIT 1;
+              SELECT subscription_id FROM \`subscription-book\` WHERE book_id=:book_id LIMIT 1
+            `,
+            {
+              bookId,
+            },
+            function (err2, results2) {
               if (err2) return next(err2);
 
-              if(rows2.length > 0) {
+              if(results2.some(rows2 => rows2.length > 0)) {
                 callback();
               } else {
                 deleteBook(bookId, next, callback);
@@ -108,7 +114,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
 
     connection.query('DELETE FROM `book-idp` WHERE book_id=? AND idp_id=?',
       [req.params.bookId, req.user.idpId],
-      function (err, result) {
+      async (err, result) => {
         if (err) return next(err);
 
         log('Delete (idp disassociation) successful', 2);
@@ -121,6 +127,8 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         // } else {
         //   res.send({ success: true });
         // }
+
+        await util.updateComputedBookAccess({ idpId: req.user.idpId, bookId: req.params.bookId, connection, log })
 
         res.send({ success: true });
           
@@ -198,8 +206,10 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
                       log(['INSERT book-idp row', bookIdpParams], 2);
                       connection.query('INSERT INTO `book-idp` SET ?',
                         bookIdpParams,
-                        function (err, results) {
+                        async (err, results) => {
                           if (err) return next(err);
+
+                          await util.updateComputedBookAccess({ idpId: req.user.idpId, bookId: rows[0].id, connection, log })
 
                           log('Import unnecessary (book exists in idp with same group; added association)', 2);
                           res.send({
@@ -220,11 +230,13 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
             }            
             
             log(['Update book row', bookRow], 2);
-            connection.query('UPDATE `book` SET ? WHERE id=?', [bookRow, bookRow.id], function (err, result) {
+            connection.query('UPDATE `book` SET ? WHERE id=?', [bookRow, bookRow.id], async (err, result) => {
               if (err) {
                 return next(err);
               }
-              
+
+              await util.updateComputedBookAccess({ idpId: req.user.idpId, bookId: bookRow.id, connection, log })
+
               log('Import successful', 2);
               res.send({
                 success: true,
@@ -446,7 +458,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         SELECT c.uid
         FROM classroom as c
           LEFT JOIN classroom_member as cm_me ON (cm_me.classroom_uid=c.uid)
-          LEFT JOIN book_instance as bi ON (bi.book_id=c.book_id)
+          LEFT JOIN computed_book_access as cba ON (cba.book_id=c.book_id)
         WHERE c.uid=:classroomUid
           AND c.idp_id=:idpId
           AND c.deleted_at IS NULL
@@ -457,11 +469,11 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
               AND cm_me.deleted_at IS NULL
             )
           `}
-          AND bi.idp_id=:idpId
-          AND bi.user_id=:userId
-          AND bi.version='${isDefaultClassroomUid ? 'PUBLISHER' : 'INSTRUCTOR'}'
-          AND (bi.expires_at IS NULL OR bi.expires_at>:now)
-          AND (bi.enhanced_tools_expire_at IS NULL OR bi.enhanced_tools_expire_at>:now)
+          AND cba.idp_id=:idpId
+          AND cba.user_id=:userId
+          AND cba.version='${isDefaultClassroomUid ? 'PUBLISHER' : 'INSTRUCTOR'}'
+          AND (cba.expires_at IS NULL OR cba.expires_at>:now)
+          AND (cba.enhanced_tools_expire_at IS NULL OR cba.enhanced_tools_expire_at>:now)
       `,
       {
         classroomUid,
@@ -668,8 +680,10 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
             });
 
             connection.query(deleteQueries.join('; '),
-              function (err3, result3) {
+              async (err3, result3) => {
                 if (err3) return log(err3, 3);
+
+                await Promise.all(expiredIdpIds.map(idpId => util.updateComputedBookAccess({ idpId, connection, log })))
 
                 var booksOwnedByDeletedIdps = [];
                 rows2.forEach(function(row2) {

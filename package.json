@@ -18,6 +18,7 @@
     "body-parser": "1.19.0",
     "connect-redis": "3.2.0",
     "cookie-parser": "1.4.4",
+    "cookie-signature": "^1.1.0",
     "cors": "2.8.5",
     "dotenv": "4.0.0",
     "express": "4.17.1",
@@ -33,6 +34,7 @@
     "node-fetch": "2.3.0",
     "passport": "0.3.2",
     "passport-saml": "1.2.0",
+    "redis": "^2.8.0",
     "sharp": "0.23.1"
   }
 }

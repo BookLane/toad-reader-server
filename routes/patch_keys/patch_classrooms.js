@@ -30,7 +30,7 @@ module.exports = {
 
       preQueries.queries.push(`
         SELECT version
-        FROM book_instance
+        FROM computed_book_access
         WHERE idp_id=?
           AND book_id=?
           AND user_id=?
@@ -77,7 +77,7 @@ module.exports = {
       preQueries.queries.push('SELECT 1');
     }
 
-    preQueries.resultKeys.push('dbBookInstances');
+    preQueries.resultKeys.push('dbComputedBookAccess');
     preQueries.resultKeys.push('dbClassrooms');
 
     patchClassroomMembers.addPreQueries({
@@ -101,7 +101,7 @@ module.exports = {
   addPatchQueries: ({
     queriesToRun,
     classrooms,
-    dbBookInstances,
+    dbComputedBookAccess,
     dbClassrooms,
     dbClassroomMembers,
     dbTools,
@@ -130,26 +130,26 @@ module.exports = {
 
         const dbClassroom = dbClassrooms.filter(({ uid }) => uid === classroom.uid)[0]
 
-        if(!dbBookInstances[0]) {
-          return getErrorObj('invalid permissions: user lacks INSTRUCTOR/PUBLISHER book_instance');
+        if(!dbComputedBookAccess[0]) {
+          return getErrorObj('invalid permissions: user lacks INSTRUCTOR/PUBLISHER computed_book_access');
         }
 
-        if(dbBookInstances[0].version === 'PUBLISHER') {
+        if(dbComputedBookAccess[0].version === 'PUBLISHER') {
           if(classroom.uid !== `${user.idpId}-${bookId}`) {
-            return getErrorObj('invalid permissions: user with PUBLISHER book_instance can only edit the default version');
+            return getErrorObj('invalid permissions: user with PUBLISHER computed_book_access can only edit the default version');
           }
           if(!util.paramsOk(classroom, ['uid'], ['tools'])) {
-            return getErrorObj('invalid permissions: user with PUBLISHER book_instance can only edit tools related to the default version');
+            return getErrorObj('invalid permissions: user with PUBLISHER computed_book_access can only edit tools related to the default version');
           }
           if(!dbClassroom) {
-            return getErrorObj('invalid data: user with PUBLISHER book_instance attempting to edit non-existent default version');
+            return getErrorObj('invalid data: user with PUBLISHER computed_book_access attempting to edit non-existent default version');
           }
           if(classroom.instructorHighlights) {
             return getErrorObj('invalid data: user with PUBLISHER book_instance attempting to edit instructor highlights');
           }
         } else {  // INSTRUCTOR
           if(classroom.uid === `${user.idpId}-${bookId}`) {
-            return getErrorObj('invalid permissions: user with INSTRUCTOR book_instance cannot edit the default version');
+            return getErrorObj('invalid permissions: user with INSTRUCTOR computed_book_access cannot edit the default version');
           }
           if(dbClassroom && dbClassroom.role !== 'INSTRUCTOR') {
             return getErrorObj('invalid permissions: user not INSTRUCTOR of this classroom');

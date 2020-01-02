@@ -7,7 +7,7 @@
 #
 # Host: localhost (MySQL 5.7.27)
 # Database: ToadReader
-# Generation Time: 2019-12-30 09:40:16 +0000
+# Generation Time: 2020-01-02 05:20:17 +0000
 # ************************************************************
 
 
@@ -254,7 +254,9 @@ CREATE TABLE `idp` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `name` text COLLATE utf8_bin NOT NULL,
   `domain` varchar(253) COLLATE utf8_bin NOT NULL DEFAULT '',
+  `fromEmail` text CHARACTER SET utf8,
   `useReaderTxt` tinyint(4) NOT NULL,
+  `authMethod` enum('SESSION_SHARING','SHIBBOLETH','EMAIL','NONE_OR_EMAIL') COLLATE utf8_bin NOT NULL DEFAULT 'NONE_OR_EMAIL',
   `sessionSharingAsRecipientInfo` text COLLATE utf8_bin,
   `entryPoint` text COLLATE utf8_bin,
   `logoutUrl` text COLLATE utf8_bin,

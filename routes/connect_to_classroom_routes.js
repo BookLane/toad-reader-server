@@ -13,37 +13,35 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
     const { code } = req.body
     const now = util.timestampToMySQLDatetime(null, true);
 
-    connection.query(`
-      SELECT c.uid, c.access_code, c.instructor_access_code, bi.version
-      FROM classroom as c
-        LEFT JOIN book_instance as bi ON (bi.book_id=c.book_id)
-      WHERE
-        (
-          c.access_code=?
-          OR c.instructor_access_code=?
-        )
-        AND c.idp_id=?
-        AND bi.idp_id=?
-        AND bi.user_id=?
-        AND bi.version IN (?)
-        AND (bi.expires_at IS NULL OR bi.expires_at>?)
-        AND (bi.enhanced_tools_expire_at IS NULL OR bi.enhanced_tools_expire_at>?)
+    connection.query(
+      `
+        SELECT c.uid, c.access_code, c.instructor_access_code, cba.version
+        FROM classroom as c
+          LEFT JOIN computed_book_access as cba ON (cba.book_id=c.book_id)
+        WHERE
+          (
+            c.access_code=:code
+            OR c.instructor_access_code=:code
+          )
+          AND c.idp_id=:idpId
+          AND cba.idp_id=:idpId
+          AND cba.user_id=:userId
+          AND cba.version IN (:versions)
+          AND (cba.expires_at IS NULL OR cba.expires_at>:now)
+          AND (cba.enhanced_tools_expire_at IS NULL OR cba.enhanced_tools_expire_at>:now)
       `,
-      [
+      {
         code,
-        code,
-        req.user.idpId,
-        req.user.idpId,
-        req.user.id,
-        ['ENHANCED','INSTRUCTOR'],
+        idpId: req.user.idpId,
+        userId: req.user.id,
+        versions: ['ENHANCED','INSTRUCTOR'],
         now,
-        now,
-      ],
+      },
       (err, rows) => {
         if (err) return next(err);
 
         if(rows.length === 0) {
-          log(['Invalid access code or user does not have required book_instance', code, req.user.id], 3);
+          log(['Invalid access code or user does not have required computed_book_access', code, req.user.id], 3);
           res.status(400).send();
           return;
         }

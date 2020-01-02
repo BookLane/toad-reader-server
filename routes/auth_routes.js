@@ -1,7 +1,9 @@
-var util = require('../util');
-var fs = require('fs');
+const util = require('../util')
+const cookie = require('cookie-signature')
+const { i18n } = require("inline-i18n")
+const sendEmail = require("../sendEmail")
 
-module.exports = function (app, passport, authFuncs, connection, ensureAuthenticated, log) {
+module.exports = function (app, passport, authFuncs, connection, ensureAuthenticated, logIn, log) {
 
   app.get('/confirmlogin',
     ensureAuthenticated,
@@ -152,5 +154,128 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
       );
     }
   );
+
+  // passwordless login
+  app.get('/loginwithemail',
+    async (req, res, next) => {
+      log('Authenticate user via email', 2)
+
+      if(!util.isValidEmail(req.query.email)) {
+        res.status(400).send({
+          success: false,
+          error: 'invalid access code',
+        })
+      }
+
+      let accessCode = util.createAccessCode()
+
+      // ensure it is unique
+      while(await util.getLoginInfoByAccessCode({ accessCode, next })) {
+        accessCode = util.createAccessCode()
+      }
+
+      const loginInfo = {
+        email: req.query.email,
+      }
+
+      await util.setLoginInfoByAccessCode({ accessCode, loginInfo, next })
+      
+      try {
+
+        // send the email
+        await sendEmail({
+          toAddrs: req.query.email,
+          subject: i18n("Login code"),
+          body: `
+            <p>${i18n("You login code: {{code}}", { code: `<span style="font-weight: bold;">${accessCode}</span>` })}</p>
+            <p>${i18n("Enter this code into the native or web app.")}</p>
+            <p style="font-size: 12px; color: #777;">${i18n("Note: This code expires in 15 minutes.")}</p>
+          `,
+          connection,
+          req,
+        })
+
+      } catch (err) {
+        res.status(500).send({ success: false, error: err.message })
+      }
+
+      res.send({ success: true })
+
+    },
+  )
+
+  app.get('/loginwithaccesscode',
+    async (req, res, next) => {
+      log(`Authenticate user via email: sent access code: ${req.query.code}`, 2)
+
+      const { email } = await util.getLoginInfoByAccessCode({ accessCode: req.query.code, destroyAfterGet: true, next }) || {}
+
+      if(email) {
+
+        connection.query(
+          `SELECT * FROM idp WHERE domain=:domain`,
+          {
+            domain: util.getIDPDomain(req.headers.host),
+          },
+          async (err2, row2) => {
+            if(err2) return next(err2)
+
+            const idp = row2[0]
+            let userId
+
+            if(idp.userInfoEndpoint) {
+              // get user info, if endpoint provided
+              userId = await getUserInfo({ idp, idpUserId: email, next })
+              
+            } else {
+              // create the user if they do not exist
+              userId = await util.updateUserInfo({
+                connection,
+                log,
+                userInfo: {
+                  idpUserId: email,
+                  email,
+                },
+                idpId: idp.id,
+                updateLastLoginAt: true,
+                next,
+              })
+            }
+
+            // log them in
+            await logIn({
+              userId,
+              req,
+              next: err => {
+                if(err) return next(err)
+
+                // send the info back
+                res.send({
+                  success: true,
+                  userInfo: {
+                    id: req.user.id,
+                    fullname: req.user.fullname,
+                    isAdmin: req.user.isAdmin,
+                  },
+                  currentServerTime: Date.now(),
+                  cookie: `connect.sid=${encodeURIComponent(`s:${cookie.sign(req.sessionID, process.env.SESSION_SECRET || 'secret')}`)}; expires=Fri, 01 Jan 2100 00:00:00 UTC;`,
+                })
+              }
+            })
+
+          }
+        )
+
+      } else {
+        // invalid access code
+        res.send({
+          success: false,
+          error: 'invalid access code',
+        })
+
+      }
+
+    },
+  )
 
 }

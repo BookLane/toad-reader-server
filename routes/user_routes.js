@@ -53,7 +53,6 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
         idpAssetsBaseUrl: 'https://s3.amazonaws.com/' + process.env.S3_BUCKET + '/tenant_assets/',
         idpLang: req.user.idpLang || 'en',
         idpExpire: req.user.idpExpire,
-        idpNoAuth: req.user.idpNoAuth,
         idpAndroidAppURL: req.user.idpAndroidAppURL,
         idpIosAppURL: req.user.idpIosAppURL,
         idpXapiOn: req.user.idpXapiOn,
@@ -445,25 +444,31 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
         b.epubSizeInMB,
         bi.link_href,
         bi.link_label,
-        bi2.version,
-        bi2.expires_at,
-        bi2.enhanced_tools_expire_at
+        cba.version,
+        cba.expires_at,
+        cba.enhanced_tools_expire_at
       FROM book as b
         LEFT JOIN \`book-idp\` as bi ON (bi.book_id=b.id)
-        LEFT JOIN book_instance as bi2 ON (bi2.book_id=b.id AND bi2.idp_id=bi.idp_id AND bi2.user_id=?)
+        LEFT JOIN computed_book_access as cba ON (
+          cba.book_id=b.id
+          AND cba.idp_id=:idpId
+          AND cba.user_id=:userId
+          AND (
+            cba.expires_at IS NULL
+            OR cba.expires_at>:now
+          )
+        )
       WHERE b.rootUrl IS NOT NULL
-        AND bi.idp_id=?
+        AND bi.idp_id=:idpId
         ${req.user.isAdmin ? `` : `
-          AND bi2.user_id=?
-          AND (bi2.expires_at IS NULL OR bi2.expires_at>?)
+          AND cba.book_id IS NOT NULL
         `}
       `,
-      [
-        req.user.id,
-        req.user.idpId,
-        req.user.id,
+      {
+        userId: req.user.id,
+        idpId: req.user.idpId,
         now,
-      ],
+      },
       function (err, rows) {
         if (err) return next(err);
 

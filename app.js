@@ -176,7 +176,6 @@ const deserializeUser = ({ userId, next }) => new Promise(resolve => {
     idp.iosAppURL,
     idp.xapiOn,
     idp.xapiConsentText,
-    idp.sessionSharingAsRecipientInfo,
     idp.entryPoint
   `
 
@@ -194,7 +193,6 @@ const deserializeUser = ({ userId, next }) => new Promise(resolve => {
       }
 
       var row = rows[0];
-      var sessionSharingAsRecipientInfo = util.parseSessionSharingAsRecipientInfo(row);
 
       let ssoData = null
       try {
@@ -211,7 +209,6 @@ const deserializeUser = ({ userId, next }) => new Promise(resolve => {
         idpName: row.name,
         idpUseReaderTxt: row.useReaderTxt,
         idpLang: row.language || 'en',
-        idpNoAuth: !!(process.env.SKIP_AUTH || (!sessionSharingAsRecipientInfo && !row.entryPoint)),
         idpAndroidAppURL: row.androidAppURL,
         idpIosAppURL: row.iosAppURL,
         idpXapiOn: row.xapiOn,
@@ -290,6 +287,21 @@ var strategyCallback = function(idp, profile, done) {
   }
 };
 
+// re-compute all computed_book_access rows and update where necessary
+connection.query(
+  `SELECT id FROM idp`,
+  async (err, rows) => {
+    if(err) {
+      log(["Could not re-compute all computed_book_access rows.", err], 3)
+      return
+    }
+
+    for(let idx in rows) {
+      await util.updateComputedBookAccess({ idpId: rows[idx].id, connection, log })
+    }
+  }
+)
+
 // setup SAML strategies for IDPs
 connection.query('SELECT * FROM `idp` WHERE entryPoint IS NOT NULL',
   function (err, rows) {
@@ -326,23 +338,31 @@ connection.query('SELECT * FROM `idp` WHERE entryPoint IS NOT NULL',
           return samlStrategy.generateServiceProviderMetadata(row.spcert, row.spcert);
         },
         logout: function(req, res, next) {
-          log(['Logout', req.user], 2);
-          if(row.sessionSharingAsRecipientInfo) {
-            log('Redirect to session-sharing SLO');
-            res.redirect(row.sessionSharingAsRecipientInfo.logoutUrl || '/session-sharing-setup-error');
+          log(['Logout', req.user], 2)
 
-          } else if(req.user.ssoData) {
-            log('Redirect to SLO');
-            samlStrategy.logout({ user: req.user.ssoData }, function(err2, req2){
-              if (err2) return next(err2);
-
-              log('Back from SLO');
-              //redirect to the IdP Logout URL
-              res.redirect(req2);
-            });
-          } else {
-            log('No call to SLO', 2);
-            res.redirect("/logout/callback");
+          switch(process.env.AUTH_METHOD_OVERRIDE || row.authMethod) {
+            case 'SESSION_SHARING': {
+              log('Redirect to session-sharing SLO')
+              res.redirect(row.sessionSharingAsRecipientInfo.logoutUrl || '/session-sharing-setup-error')
+              break
+            }
+            case 'SHIBBOLETH': {
+              if(req.user.ssoData) {
+                log('Redirect to SLO')
+                samlStrategy.logout({ user: req.user.ssoData }, function(err2, req2){
+                  if (err2) return next(err2);
+    
+                  log('Back from SLO')
+                  //redirect to the IdP Logout URL
+                  res.redirect(req2)
+                });
+              }
+              break
+            }
+            default: {
+              log('No call to SLO', 2)
+              res.redirect("/logout/callback")
+            }
           }
         }
       }
@@ -355,20 +375,18 @@ function ensureAuthenticated(req, res, next) {
   if (req.isAuthenticated()) {
     return next();
 
-  } else if (process.env.SKIP_AUTH) {
-    // log in the user with id=1
-    logIn({ userId: 1, req, next });
-
   } else if(
-    req.method == 'GET'
-    && (
-      req.originalUrl.match(/^\/confirmlogin$/)
-      || (  // TODO: This is temporary, while old apps still active
-        req.headers['app-request']
-        && req.originalUrl.match(/^\/usersetup\.json/)
+    (
+      req.method == 'GET'
+      && (
+        req.originalUrl.match(/^\/confirmlogin$/)
+        || (  // TODO: This is temporary, while old apps still active
+          req.headers['app-request']
+          && req.originalUrl.match(/^\/usersetup\.json/)
+        )
+        || req.originalUrl.match(/^\/(book\/[^\/]*|\?.*)?$/)
       )
-      || req.originalUrl.match(/^\/(book\/[^\/]*|\?.*)?$/)
-    )
+    ) || process.env.AUTH_METHOD_OVERRIDE === 'NONE_OR_EMAIL'  // Shouldn't need this; it is a temporary hack for dev
   ) {  // library or book call
 
     // if(req.query.widget) {
@@ -396,63 +414,84 @@ function ensureAuthenticated(req, res, next) {
 
         } else {
 
-          var idpId = parseInt(idp.id);
-          var sessionSharingAsRecipientInfo = util.parseSessionSharingAsRecipientInfo(idp);
+          const idpId = parseInt(idp.id)
 
-          var expiresAt = idp.demo_expires_at && util.mySQLDatetimeToTimestamp(idp.demo_expires_at);
+          const expiresAt = idp.demo_expires_at && util.mySQLDatetimeToTimestamp(idp.demo_expires_at)
           if(expiresAt && expiresAt < util.getUTCTimeStamp()) {
-            log(['IDP no longer exists (#2)', idpId], 2);
-            return res.redirect('https://' + process.env.APP_URL + '?domain_expired=1');
-
-          } else if(sessionSharingAsRecipientInfo) {
-
-            try {
-
-              var token = jwt.verify(req.cookies[sessionSharingAsRecipientInfo.cookie], sessionSharingAsRecipientInfo.secret);
-
-              const logInSessionSharingUser = userId => {
-                // the IDP does authentication via session-sharing
-                log('Logging in with session-sharing', 2);
-                logIn({ userId, req, next });
-              }
-              
-              if(idp.userInfoEndpoint) {
-
-                getUserInfo({ idp, idpUserId: token.id, next }).then(logInSessionSharingUser);
-            
-              } else {  // old method: get userInfo from meta data
-
-                util.updateUserInfo({
-                  connection,
-                  log,
-                  userInfo: Object.assign(
-                    {},
-                    token,
-                    {
-                      idpUserId: token.id,
-                    },
-                  ),
-                  idpId,
-                  updateLastLoginAt: true,
-                  next,
-                }).then(logInSessionSharingUser);
-
-              }
-
-            } catch(e) {
-              res.redirect(sessionSharingAsRecipientInfo.loginUrl || '/session-sharing-setup-error');
-            }
-
-          } else if(!idp.entryPoint) {
-            // the IDP does not require authentication, so log them in as userId = -idpId
-            log('Logging in without authentication', 2);
-            logIn({ userId: idpId * -1, req, next });
+            log(['IDP no longer exists (#2)', idpId], 2)
+            return res.redirect('https://' + process.env.APP_URL + '?domain_expired=1')
 
           } else {
-            // the IDP does require authentication
-            log('Redirecting to authenticate', 2);
-            req.session.loginRedirect = req.url;
-            return res.redirect('/login/' + idpId);
+
+            switch(process.env.AUTH_METHOD_OVERRIDE || idp.authMethod) {
+
+              case 'SESSION_SHARING': {
+
+                try {
+
+                  const sessionSharingAsRecipientInfo = util.parseSessionSharingAsRecipientInfo(idp)
+                  const token = jwt.verify(req.cookies[sessionSharingAsRecipientInfo.cookie], sessionSharingAsRecipientInfo.secret)
+
+                  const logInSessionSharingUser = userId => {
+                    // the IDP does authentication via session-sharing
+                    log('Logging in with session-sharing', 2)
+                    logIn({ userId, req, next })
+                  }
+
+                  if(idp.userInfoEndpoint) {
+
+                    getUserInfo({ idp, idpUserId: token.id, next }).then(logInSessionSharingUser)
+
+                  } else {  // old method: get userInfo from meta data
+
+                    util.updateUserInfo({
+                      connection,
+                      log,
+                      userInfo: Object.assign(
+                        {},
+                        token,
+                        {
+                          idpUserId: token.id,
+                        },
+                      ),
+                      idpId,
+                      updateLastLoginAt: true,
+                      next,
+                    }).then(logInSessionSharingUser)
+
+                  }
+
+                } catch(e) {
+                  res.redirect(sessionSharingAsRecipientInfo.loginUrl || '/session-sharing-setup-error')
+                }
+
+                break
+              }
+
+              case 'EMAIL': {
+                // TO DO
+                return res.status(403).send({ error: 'Please login' })
+                break
+              }
+
+              case 'NONE_OR_EMAIL': {
+                // the IDP does not require authentication, so log them in as userId = -idpId
+                log('Logging in without authentication', 2)
+                logIn({ userId: idpId * -1, req, next })
+                break
+              }
+
+              case 'SHIBBOLETH': {
+                // the IDP does require authentication
+                log('Redirecting to authenticate', 2)
+                req.session.loginRedirect = req.url
+                return res.redirect('/login/' + idpId)
+              }
+
+              default: {
+                return res.status(403).send({ error: 'Please login' })
+              }
+            }
           }
         }
       }
@@ -477,7 +516,7 @@ app.use(function(req, res, next) {
 })
 app.use(cookieParser());
 app.use(session({
-  store: new RedisStore(redisOptions),
+  store: process.env.IS_DEV ? null : new RedisStore(redisOptions),
   secret: process.env.SESSION_SECRET || 'secret',
   saveUninitialized: false,
   resave: false,
@@ -500,7 +539,7 @@ app.use('*', function(req, res, next) {
   }
 });
 
-require('./routes/routes')(app, s3, connection, passport, authFuncs, ensureAuthenticated, log);
+require('./routes/routes')(app, s3, connection, passport, authFuncs, ensureAuthenticated, logIn, log);
 
 process.on('unhandledRejection', reason => {
   log(['Unhandled node error', reason.stack || reason], 3)
