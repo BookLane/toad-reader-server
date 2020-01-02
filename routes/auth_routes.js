@@ -3,7 +3,16 @@ const cookie = require('cookie-signature')
 const { i18n } = require("inline-i18n")
 const sendEmail = require("../sendEmail")
 
+const getCookie = req => `connect.sid=${encodeURIComponent(`s:${cookie.sign(req.sessionID, process.env.SESSION_SECRET || 'secret')}`)}; expires=Fri, 01 Jan 2100 00:00:00 UTC;`
+
 module.exports = function (app, passport, authFuncs, connection, ensureAuthenticated, logIn, log) {
+
+  app.get('/fixsafari',
+    (req, res) => {
+      res.cookie('safari_fix', 1, { maxAge: 1000*60*60*24*365*100 })
+      res.redirect(`${util.getFrontEndOrigin(req)}${req.query.path || ``}`)
+    }
+  )
 
   app.get('/confirmlogin',
     ensureAuthenticated,
@@ -22,7 +31,7 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
         const message = JSON.stringify({
           identifier: "sendCookiePlus",
           payload: {
-            cookie: document.cookie,
+            cookie: COOKIE,
             userInfo: USERINFO,
             currentServerTime: CURRENTSERVERTIME,
           },
@@ -60,6 +69,7 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
       }
 
       const postStatusToParentFunc = String(postStatusToParent)
+        .replace('COOKIE', JSON.stringify(getCookie(req)))
         .replace('USERINFO', JSON.stringify(userInfo))
         .replace('CURRENTSERVERTIME', JSON.stringify(currentServerTime))
         .replace('DEVNETWORKIP', JSON.stringify(process.env.DEV_NETWORK_IP))
@@ -258,7 +268,7 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
                     isAdmin: req.user.isAdmin,
                   },
                   currentServerTime: Date.now(),
-                  cookie: `connect.sid=${encodeURIComponent(`s:${cookie.sign(req.sessionID, process.env.SESSION_SECRET || 'secret')}`)}; expires=Fri, 01 Jan 2100 00:00:00 UTC;`,
+                  cookie: getCookie(req),
                 })
               }
             })

@@ -44,10 +44,8 @@ var corsOptionsDelegate = (req, callback) => {
 
   if(process.env.IS_DEV) {
     corsOptions.origin = true
-  } else if(process.env.IS_STAGING) {
-    corsOptions.origin = `https://${req.headers.host.replace(/\.data\./, '.')}`
   } else {
-    corsOptions.origin = `https://${util.getIDPDomain(req.headers.host)}`
+    corsOptions.origin = util.getFrontEndOrigin(req)
   }
 
   callback(null, corsOptions)

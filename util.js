@@ -292,6 +292,22 @@ const util = {
 
   getIDPDomain: host => process.env.IS_DEV ? `${process.env.DEV_NETWORK_IP || `localhost`}:19006` : undashifyDomain(host.split('.')[0]),
 
+  getFrontEndOrigin: req => {
+
+    let domain = util.getIDPDomain(req.headers.host)
+
+    if(process.env.IS_DEV) {
+      domain = `${process.env.DEV_NETWORK_IP || `localhost`}:19006`
+    }
+
+    if(process.env.IS_STAGING) {
+      domain = req.headers.host.replace('.data', '')
+    }
+
+    return `${util.getProtocol(req)}://${domain}`
+
+  },
+
   updateUserInfo: ({ connection, log, userInfo, idpId, updateLastLoginAt=false, next }) => new Promise(resolveAll => {
 
     // Payload:
