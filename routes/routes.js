@@ -181,6 +181,22 @@ module.exports = function (app, s3, connection, passport, authFuncs, ensureAuthe
       }
   })
 
+  // serve the static font files
+  app.get('*', function (req, res, next) {
+    var urlWithoutQuery = req.url.replace(/(\?.*)?$/, '').replace(/^\/book/,'').replace(/%20/g, ' ');
+
+    // Cookies do not get sent with web fonts referenced in css. Thus, I have opened access to
+    // fonts. When I get all epub files going through cloudfront, I will no longer need this.
+    const isFontFile = ['eot', 'woff', 'woff2', 'ttf', 'otf'].includes(urlWithoutQuery.toLowerCase().split('.').pop())
+
+    if(isFontFile) {
+      getAssetFromS3(req, res, next);
+    } else {
+      next();
+    }
+
+  })
+
   // serve the static files
   app.get('*', ensureAuthenticated, function (req, res, next) {
     var urlWithoutQuery = req.url.replace(/(\?.*)?$/, '').replace(/^\/book/,'').replace(/%20/g, ' ');
