@@ -7,7 +7,7 @@
 #
 # Host: localhost (MySQL 5.7.27)
 # Database: ToadReader
-# Generation Time: 2020-01-02 05:20:17 +0000
+# Generation Time: 2020-01-03 12:41:33 +0000
 # ************************************************************
 
 
@@ -37,6 +37,24 @@ CREATE TABLE `book` (
   KEY `rootUrl` (`rootUrl`),
   KEY `isbn` (`isbn`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+
+
+
+# Dump of table book_download
+# ------------------------------------------------------------
+
+CREATE TABLE `book_download` (
+  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
+  `book_id` int(11) unsigned NOT NULL,
+  `idp_id` int(11) unsigned NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `downloaded_at` datetime NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `book_id` (`book_id`),
+  KEY `idp_id` (`idp_id`),
+  KEY `user_id` (`user_id`),
+  KEY `downloaded_at` (`downloaded_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 
 

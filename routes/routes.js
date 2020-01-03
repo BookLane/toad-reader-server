@@ -198,50 +198,61 @@ module.exports = function (app, s3, connection, passport, authFuncs, ensureAuthe
   })
 
   // serve the static files
-  app.get('*', ensureAuthenticated, function (req, res, next) {
-    var urlWithoutQuery = req.url.replace(/(\?.*)?$/, '').replace(/^\/book/,'').replace(/%20/g, ' ');
-    var urlPieces = urlWithoutQuery.split('/');
-    var bookId = parseInt((urlPieces[2] || '0').replace(/^book_([0-9]+).*$/, '$1'));
+  app.get('*', ensureAuthenticated, async (req, res, next) => {
+    const urlWithoutQuery = req.url.replace(/(\?.*)?$/, '').replace(/^\/book/,'').replace(/%20/g, ' ')
+    const urlPieces = urlWithoutQuery.split('/')
+    const bookId = parseInt((urlPieces[2] || '0').replace(/^book_([0-9]+).*$/, '$1'))
 
     // check that they have access if this is a book
     if(urlPieces[1] == 'epub_content') {
 
-      util.hasAccess({ bookId, req, connection, log, next }).then(accessInfo => {
+      const accessInfo = util.hasAccess({ bookId, req, connection, log, next })
 
-        if(!accessInfo) {
-          log(['They do not have access to this book', bookId], 2);
-          res.status(403).send({ error: 'Forbidden' });
-  
-        } else {
-          // if it is full epub download and idp has xapi on, create an xapi statement
-          if(req.user.idpXapiOn && urlPieces.length === 4 && urlPieces[3] === 'book.epub' && req.book) {
-            var currentTimestamp = Date.now();
-            var currentMySQLDatetime = util.timestampToMySQLDatetime(currentTimestamp);
-            connection.query('INSERT into `xapiQueue` SET ?',
-              {
-                idp_id: req.user.idpId,
-                statement: util.getDownloadStatement({
-                  req: req,
-                  bookId: bookId,
-                  bookTitle: req.book.title,
-                  bookISBN: req.book.isbn,
-                  timestamp: currentTimestamp,
-                }),
-                unique_tag: Date.now(),  // not worried about dups here
-                created_at: currentMySQLDatetime,
-              },
-              function (err, results) {
-                if (err) return next(err);
-  
-                getAssetFromS3(req, res, next);
-              }
-            );
-          } else {
-            getAssetFromS3(req, res, next);
-          }
+      if(!accessInfo) {
+        log(['They do not have access to this book', bookId], 2)
+        res.status(403).send({ error: 'Forbidden' })
+
+      } else if(urlPieces.length === 4 && urlPieces[3] === 'book.epub' && req.book) {
+
+        const currentTimestamp = Date.now()
+        const currentMySQLDatetime = util.timestampToMySQLDatetime(currentTimestamp)
+
+        const queries = [`INSERT into book_download SET :bookDownloadInfo`]
+        const vars = {
+          bookDownloadInfo: {
+            book_id: bookId,
+            idp_id: req.user.idpId,
+            user_id: req.user.id,
+            downloaded_at: currentMySQLDatetime,
+          },
         }
 
-      })
+        if(req.user.idpXapiOn) {
+
+          queries.push(`INSERT into xapiQueue SET :xapiInfo`)
+          vars.xapiInfo = {
+            idp_id: req.user.idpId,
+            statement: util.getDownloadStatement({
+              req: req,
+              bookId: bookId,
+              bookTitle: req.book.title,
+              bookISBN: req.book.isbn,
+              timestamp: currentTimestamp,
+            }),
+            unique_tag: Date.now(),  // not worried about dups here
+            created_at: currentMySQLDatetime,
+          }
+
+        }
+
+        connection.query(queries.join(';'), vars, (err, results) => {
+          if (err) return next(err)
+          getAssetFromS3(req, res, next)
+        })
+
+      } else {
+        getAssetFromS3(req, res, next)
+      }
 
     } else if(urlPieces[1] == 'enhanced_assets') {
 
