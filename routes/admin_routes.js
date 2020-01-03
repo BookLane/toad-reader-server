@@ -595,28 +595,52 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         const monthSet = monthSets.shift()
 
         connection.query(`
-            SELECT b.id, b.title, b.standardPriceInCents, b.epubSizeInMB, COUNT(*) as numUsers
+            SELECT
+              b.id,
+              b.title,
+              b.standardPriceInCents,
+              b.epubSizeInMB,
+              COUNT(*) as numUsers
             FROM book_instance as bi
               LEFT JOIN book as b ON (b.id = bi.book_id)
-            WHERE bi.idp_id=:idpId AND bi.first_given_access_at>=:fromDate  AND bi.first_given_access_at<:toDate
+            WHERE bi.idp_id=:idpId
+              AND bi.first_given_access_at>=:fromDate
+              AND bi.first_given_access_at<:toDate
             GROUP BY b.id
+            ;
+
+            SELECT b.id, b.title, COUNT(*) as numDownloads
+            FROM book_download as bd
+              LEFT JOIN book as b ON (b.id=bd.book_id)
+            WHERE bd.idp_id=:idpId
+              AND bd.downloaded_at>=:fromDate
+              AND bd.downloaded_at<:toDate
+            GROUP BY b.id
+            ;
+
+            SELECT COUNT(*) as numActiveUsers
+            FROM user as u
+              LEFT JOIN latest_location as ll ON (ll.user_id=u.id)
+            WHERE u.idp_id=:idpId
+              AND ll.updated_at>=:fromDate
+              AND ll.updated_at<:toDate
           `,
           {
             idpId: req.user.idpId,
             ...monthSet,
           },
-          (err, rows) => {
+          (err, results) => {
             if (err) return next(err)
 
-            let total = 0
+            let totalCost = 0
 
-            rows = rows.map(({ id, title, standardPriceInCents, epubSizeInMB, numUsers }) => {
+            rows = results[0].map(({ id, title, standardPriceInCents, epubSizeInMB, numUsers }) => {
               const standardPrice = parseInt(standardPriceInCents || 0) / 100
               epubSizeInMB = parseInt(epubSizeInMB) || 0
               numUsers = parseInt(numUsers)
               const bookInstanceCost = Math.max(Math.round((epubSizeInMB * 0.0015 + standardPrice * 0.015) * 100) / 100, .05)
 
-              total += numUsers * bookInstanceCost
+              totalCost += numUsers * bookInstanceCost
 
               return {
                 "Book": `${title} (id: ${id})`,
@@ -629,9 +653,33 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
             })
       
             reportInfo[idpIndex].data.push({
-              heading: monthSet.heading,
+              heading: `${monthSet.heading} – Usage Cost`,
               rows,
-              summary: `Total usage cost: ${Math.max(total, 100).toFixed(2)}`,
+              summary: `Total usage cost: ${Math.max(totalCost, 100).toFixed(2)}`,
+            })
+
+            let totalDownloads = 0
+
+            rows = results[1].map(({ id, title, numDownloads }) => {
+              numDownloads = parseInt(numDownloads, 10) || 0
+              totalDownloads += numDownloads
+
+              return {
+                "Book": `${title} (id: ${id})`,
+                "Downloads to native apps": numDownloads,
+              }
+            })
+      
+            reportInfo[idpIndex].data.push({
+              heading: `${monthSet.heading} – Book Downloads`,
+              rows,
+              summary: `Total number of downloads: ${totalDownloads}`,
+            })
+
+            reportInfo[idpIndex].data.push({
+              heading: `${monthSet.heading} – Total active users: ${results[2][0].numActiveUsers}`,
+              rows: [],
+              summary: ``,
             })
 
             buildOutMonths()
