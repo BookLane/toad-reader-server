@@ -557,82 +557,91 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
   })
 
   // usage costs
-  app.get('/usage_costs', ensureAuthenticatedAndCheckIDP, function (req, res, next) {
+  app.get('/reportsinfo', ensureAuthenticatedAndCheckIDP, (req, res, next) => {
 
     if(!req.user.isAdmin) {
-      log('No permission to view usage costs', 3);
-      res.status(403).send({ errorType: "biblemesh_no_permission" });
-      return;
+      log('No permission to view usage costs', 3)
+      res.status(403).send({ errorType: "biblemesh_no_permission" })
+      return
     }
 
-    var usageReportTemplate = fs.readFileSync(__dirname + '/../templates/usage-report.html', 'utf8')
-    var usageReportMonthTemplate = fs.readFileSync(__dirname + '/../templates/usage-report-month.html', 'utf8')
-    var usageReportRowTemplate = fs.readFileSync(__dirname + '/../templates/usage-report-row.html', 'utf8')
-    var months = '';
+    const reportInfo = [
+      {
+        tab: req.user.idpName,
+        data: [],
+      },
+    ]
+    let idpIndex = 0
 
-    var now = new Date()
-    now.setMonth(now.getMonth() + 1)
-    var monthSets = [];
+    const date = new Date()
+    date.setMonth(date.getMonth() + 1)
+    const monthSets = []
 
-    for(var i=0; i<(req.query.numMonths || 3); i++) {
-      var toDate = now.getUTCFullYear() + '-' + util.pad(now.getUTCMonth() + 1, 2) + '-01 00:00:00'
-      now.setMonth(now.getMonth() - 1)
-      var fromDate = now.getUTCFullYear() + '-' + util.pad(now.getUTCMonth() + 1, 2) + '-01 00:00:00'
+    for(let i=0; i<(req.query.numMonths || 3); i++) {
+      const toDate = `${date.getUTCFullYear()}-${util.pad(date.getUTCMonth() + 1, 2)}-01 00:00:00`
+      date.setMonth(date.getMonth() - 1)
+      const fromDate = `${date.getUTCFullYear()}-${util.pad(date.getUTCMonth() + 1, 2)}-01 00:00:00`
 
       monthSets.push({
-        fromDate: fromDate,
-        toDate: toDate,
+        fromDate,
+        toDate,
+        heading: date.toLocaleString('default', { month: 'long', year: 'numeric' }),
       })
     }
 
-    var buildOutMonths = function() {
+    const buildOutMonths = () => {
 
       if(monthSets.length > 0) {
-        var monthSet = monthSets.shift();
-        
-        log(['Find books', req.user.idpId, monthSet.fromDate, monthSet.toDate]);
-        connection.query(''
-          + 'SELECT book.id, book.title, book.standardPriceInCents, book.epubSizeInMB, COUNT(*) as numUsers '
-          + 'FROM `book_instance` '
-          + 'LEFT JOIN `book` ON (book.id = book_instance.book_id) '
-          + 'WHERE book_instance.idp_id=? AND book_instance.first_given_access_at>=?  AND book_instance.first_given_access_at<? '
-          + 'GROUP BY book.id',
-          [req.user.idpId, monthSet.fromDate, monthSet.toDate],
-          function (err, rows, fields) {
-            if (err) return next(err);
+        const monthSet = monthSets.shift()
 
-            var total = 0;
-            months += usageReportMonthTemplate
-              .replace(/{{month}}/g, monthSet.fromDate.replace(/^([0-9]+-[0-9]+).*$/, '$1'))
-              .replace(/{{rows}}/g, rows.map(function(row) {
-                var standardPrice = parseInt(row.standardPriceInCents || 0)/100;
-                var epubSizeInMB = parseInt(row.epubSizeInMB) || 0;
-                var numUsers = parseInt(row.numUsers);
-                var bookInstanceCost = Math.max(Math.round((epubSizeInMB * 0.0015 + standardPrice * 0.015) * 100) / 100, .05);
-                total += numUsers * bookInstanceCost
+        connection.query(`
+            SELECT b.id, b.title, b.standardPriceInCents, b.epubSizeInMB, COUNT(*) as numUsers
+            FROM book_instance as bi
+              LEFT JOIN book as b ON (b.id = bi.book_id)
+            WHERE bi.idp_id=:idpId AND bi.first_given_access_at>=:fromDate  AND bi.first_given_access_at<:toDate
+            GROUP BY b.id
+          `,
+          {
+            idpId: req.user.idpId,
+            ...monthSet,
+          },
+          (err, rows) => {
+            if (err) return next(err)
 
-                return usageReportRowTemplate
-                  .replace(/{{title}}/g, row.title)
-                  .replace(/{{id}}/g, row.id)
-                  .replace(/{{standardPrice}}/g, '$' + standardPrice.toFixed(2))
-                  .replace(/{{epubSizeInMB}}/g, epubSizeInMB)
-                  .replace(/{{bookInstanceCost}}/g, '$' + bookInstanceCost.toFixed(2))
-                  .replace(/{{numUsers}}/g, numUsers)
-                  .replace(/{{cost}}/g, '$' + (numUsers * bookInstanceCost).toFixed(2))
-              }).join(''))
-              .replace(/{{total}}/g, '$' + (total == 0 ? 0 : Math.max(total, 100).toFixed(2)))
+            let total = 0
+
+            rows = rows.map(({ id, title, standardPriceInCents, epubSizeInMB, numUsers }) => {
+              const standardPrice = parseInt(standardPriceInCents || 0) / 100
+              epubSizeInMB = parseInt(epubSizeInMB) || 0
+              numUsers = parseInt(numUsers)
+              const bookInstanceCost = Math.max(Math.round((epubSizeInMB * 0.0015 + standardPrice * 0.015) * 100) / 100, .05)
+
+              total += numUsers * bookInstanceCost
+
+              return {
+                "Book": `${title} (id: ${id})`,
+                "Standard price": `$${standardPrice.toFixed(2)}`,
+                "EPUB size in MB": epubSizeInMB,
+                "Instance cost": `$${bookInstanceCost.toFixed(2)}`,
+                "Users granted access": numUsers,
+                "Cost": `$${(numUsers * bookInstanceCost).toFixed(2)}`,
+              }
+            })
+      
+            reportInfo[idpIndex].data.push({
+              heading: monthSet.heading,
+              rows,
+              summary: `Total usage cost: ${Math.max(total, 100).toFixed(2)}`,
+            })
 
             buildOutMonths()
           }
         )
 
       } else {
-        var usageReport = usageReportTemplate
-          .replace(/{{idp_name}}/g, req.user.idpName)
-          .replace(/{{months}}/, months)
 
-        log('Deliver usage report');
-        res.send(usageReport);
+        log('Deliver usage report')
+        res.send(reportInfo)
 
       }
     }
