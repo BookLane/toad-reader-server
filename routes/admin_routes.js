@@ -619,11 +619,15 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
             ;
 
             SELECT COUNT(*) as numActiveUsers
-            FROM user as u
-              LEFT JOIN latest_location as ll ON (ll.user_id=u.id)
-            WHERE u.idp_id=:idpId
-              AND ll.updated_at>=:fromDate
-              AND ll.updated_at<:toDate
+            FROM (
+              SELECT COUNT(*)
+              FROM user as u
+                LEFT JOIN latest_location as ll ON (ll.user_id=u.id)
+              WHERE u.idp_id=:idpId
+                AND ll.updated_at>=:fromDate
+                AND ll.updated_at<:toDate
+              GROUP BY u.id
+            ) as ll_per_u
           `,
           {
             idpId: req.user.idpId,
