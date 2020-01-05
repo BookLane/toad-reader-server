@@ -589,6 +589,39 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
       })
     }
 
+    const buildOutUserList = () => {
+      connection.query(
+        `
+          SELECT
+            u.email as Email,
+            u.fullname as Name,
+            u.created_at as Created
+          FROM user as u
+          WHERE u.idp_id=:idpId
+            AND u.adminLevel!="SUPER_ADMIN"
+        `,
+        {
+          idpId: req.user.idpId,
+        },
+        (err, userRows) => {
+          if (err) return next(err)
+
+          userRows.forEach(userRow => {
+            userRow.Created = userRow.Created.split(" ")[0]
+          })
+
+          reportInfo[idpIndex].data.push({
+            heading: `User List`,
+            rows: userRows,
+            summary: `Total number of users: ${userRows.length}`,
+          })
+
+          log('Deliver the report')
+          res.send(reportInfo)
+        }
+      )
+    }
+
     const buildOutMonths = () => {
 
       if(monthSets.length > 0) {
@@ -636,9 +669,11 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
           (err, results) => {
             if (err) return next(err)
 
+            let [ usageCostRows, bookDownloadRows, activeUsersRows ] = results
+
             let totalCost = 0
 
-            rows = results[0].map(({ id, title, standardPriceInCents, epubSizeInMB, numUsers }) => {
+            usageCostRows = usageCostRows.map(({ id, title, standardPriceInCents, epubSizeInMB, numUsers }) => {
               const standardPrice = parseInt(standardPriceInCents || 0) / 100
               epubSizeInMB = parseInt(epubSizeInMB) || 0
               numUsers = parseInt(numUsers)
@@ -658,13 +693,13 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
       
             reportInfo[idpIndex].data.push({
               heading: `${monthSet.heading} – Usage Cost`,
-              rows,
+              rows: usageCostRows,
               summary: `Total usage cost: ${Math.max(totalCost, 100).toFixed(2)}`,
             })
 
             let totalDownloads = 0
 
-            rows = results[1].map(({ id, title, numDownloads }) => {
+            bookDownloadRows = bookDownloadRows.map(({ id, title, numDownloads }) => {
               numDownloads = parseInt(numDownloads, 10) || 0
               totalDownloads += numDownloads
 
@@ -676,12 +711,12 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
       
             reportInfo[idpIndex].data.push({
               heading: `${monthSet.heading} – Book Downloads`,
-              rows,
+              rows: bookDownloadRows,
               summary: `Total number of downloads: ${totalDownloads}`,
             })
 
             reportInfo[idpIndex].data.push({
-              heading: `${monthSet.heading} – Total active users: ${results[2][0].numActiveUsers}`,
+              heading: `${monthSet.heading} – Total active users: ${activeUsersRows[0].numActiveUsers}`,
               rows: [],
               summary: ``,
             })
@@ -692,8 +727,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
 
       } else {
 
-        log('Deliver usage report')
-        res.send(reportInfo)
+        buildOutUserList()
 
       }
     }

@@ -349,27 +349,27 @@ const util = {
       'SELECT id, adminLevel FROM `user` WHERE idp_id=? AND user_id_from_idp=?',
       [idpId, idpUserId],
       (err, rows) => {
-        if (err) return next(err);
+        if (err) return next(err)
 
-        const userBeforeUpdate = rows[0];
+        const userBeforeUpdate = rows[0]
 
         const cols = {
           user_id_from_idp: idpUserId,
           idp_id: idpId,
           email,
           adminLevel: ([ 'SUPER_ADMIN', 'ADMIN', 'NONE' ].includes(adminLevel) ? adminLevel : (userBeforeUpdate || {}).adminLevel) || 'NONE',
-        };
+        }
 
         if(fullname) {
-          cols.fullname = fullname;
+          cols.fullname = fullname
         }
 
         if(ssoData) {
-          cols.ssoData = JSON.stringify(ssoData);
+          cols.ssoData = JSON.stringify(ssoData)
         }
 
         if(updateLastLoginAt) {
-          cols.last_login_at = now;
+          cols.last_login_at = now
         }
 
         let query, vars;
@@ -377,8 +377,10 @@ const util = {
           query = 'UPDATE `user` SET ? WHERE id=?';
           vars = [ cols, userBeforeUpdate.id ]
         } else {
-          query = 'INSERT INTO `user` SET ?';
-          vars = cols;
+          cols.last_login_at = now
+          cols.created_at = now
+          query = 'INSERT INTO `user` SET ?'
+          vars = cols
         }
 
         connection.query(

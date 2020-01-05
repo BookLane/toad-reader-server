@@ -7,7 +7,7 @@
 #
 # Host: localhost (MySQL 5.7.27)
 # Database: ToadReader
-# Generation Time: 2020-01-03 12:41:33 +0000
+# Generation Time: 2020-01-05 08:51:10 +0000
 # ************************************************************
 
 
@@ -490,13 +490,19 @@ CREATE TABLE `user` (
   `email` varchar(255) CHARACTER SET utf8mb4 NOT NULL DEFAULT '',
   `fullname` varchar(255) CHARACTER SET utf8mb4 NOT NULL DEFAULT '',
   `adminLevel` enum('NONE','ADMIN','SUPER_ADMIN') CHARACTER SET utf8mb4 NOT NULL DEFAULT 'NONE',
+  `created_at` datetime NOT NULL,
   `last_login_at` datetime NOT NULL,
   `xapiConsented` tinyint(1) NOT NULL DEFAULT '0',
   `ssoData` text CHARACTER SET utf8mb4,
   PRIMARY KEY (`id`),
   UNIQUE KEY `user_id_from_idp` (`user_id_from_idp`,`idp_id`),
   KEY `email` (`email`),
-  KEY `xapiConsented` (`xapiConsented`)
+  KEY `xapiConsented` (`xapiConsented`),
+  KEY `idp_id` (`idp_id`),
+  KEY `fullname` (`fullname`),
+  KEY `adminLevel` (`adminLevel`),
+  KEY `created_at` (`created_at`),
+  KEY `last_login_at` (`last_login_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
 
