@@ -171,15 +171,16 @@
         .copy-url-copied {
             position: absolute;
             color: transparent;
-            left: 100%;
-            top: 0;
+            left: 0;
+            top: -20px;
+            width: 100%;
+            text-align: center;
             font-weight: bold;
             -webkit-transition: all .4s ease-in-out;
             -moz-transition: all .4s ease-in-out;
             -ms-transition: all .4s ease-in-out;
             -o-transition: all .4s ease-in-out;
             transition: all .4s ease-in-out;
-            padding-left: 10px;
         }
 
         .copy-url {
@@ -188,6 +189,8 @@
             font-size: 11px;
             line-height: 18px;
             padding: 0 7px;
+            vertical-align: top;
+            margin-bottom: 5px;
         }
 
         .copy-url-copied.show {
@@ -196,6 +199,8 @@
 
         .fb-like {
             display: inline-block;
+            vertical-align: top;
+            margin-bottom: 5px;
         }
 
         .copyel {
@@ -204,6 +209,12 @@
             left: 0;
             width: 10px;
             height: 10px;
+        }
+
+        .twitter-share-button, .share-text {
+            vertical-align: top;
+            margin-bottom: 5px;
+            display: inline-block;
         }
     </style>
 
@@ -260,10 +271,10 @@
 
         <div class="quote">{{quote}}</div>
         <div class="sharing">
-            {{share}}
-            <a class="twitter-share-button" href="https://twitter.com/intent/tweet?text={{note_abridged_escaped}}&url={{url_escaped}}">Tweet</a>
-            <div class="fb-like" data-href="{{url_noquotes}}" data-layout="button" data-action="like" data-show-faces="false" data-share="true"></div>
+            <span class="share-text">{{share}}</span>
             <button class="copy-url" onclick='copyLink("{{url_noquotes}}");'>{{copy_link}}<div class="copy-url-copied">{{copied}}</div></button>
+            <a class="twitter-share-button" href="https://twitter.com/intent/tweet?text={{note_abridged_escaped}}&url={{url_escaped}}">Tweet</a>
+            <div class="fb-like" data-href="{{url_noquotes}}" data-layout="standard" data-action="like" data-show-faces="false" data-share="true" data-width="225px"></div>
         </div>
         <div class="book-cont">
             <div class="book">
@@ -279,7 +290,6 @@
             <div class="sharer-heading">{{comment}}</div>
             <div class="sharer-note">{{sharer_note}}</div>
             <div class="sharer-name">{{sharer_name}}</div>
-            <a class="sharer-remove {{sharer_remove_class}}" href="{{url_nosharer}}">×</div>
         </div>
 
     </div>

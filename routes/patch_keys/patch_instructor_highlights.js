@@ -30,7 +30,7 @@ module.exports = {
     if(instructorHighlightCombos.length > 0) {
 
       preQueries.queries.push(`
-        SELECT h.*, ih.classroom_uid
+        SELECT h.id, h.spineIdRef, h.cfi, ih.classroom_uid
         FROM highlight as h
           LEFT JOIN instructor_highlight as ih ON (ih.highlight_id=h.id)
         WHERE CONCAT(h.spineIdRef, "\\n", h.cfi) IN (?)

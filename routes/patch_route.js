@@ -75,9 +75,9 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
           const containedOldPatch = addPatchQueryResults.some(({ containedOldPatch }) => containedOldPatch);
 
           if(errorsFromAddPatchQueries.length > 0) {
-            log(['Invalid patch', ...errorsFromAddPatchQueries], 3);
-            res.status(400).send();
-            return;
+            log(['Invalid patch', ...errorsFromAddPatchQueries], 3)
+            res.status(400).send(errorsFromAddPatchQueries)
+            return
           }
 
           const runAQuery = function() {

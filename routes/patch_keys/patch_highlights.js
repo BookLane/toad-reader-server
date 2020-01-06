@@ -12,7 +12,7 @@ const getErrorObj = error => ({
   error,
 })
 
-const getHighlightId = ({ spineIdRef, cfi }) => `${spineIdRef} ${cfi}`
+const getHighlightId = ({ spineIdRef, cfi }) => `${spineIdRef}\n${cfi}`
 
 module.exports = {
   
@@ -23,18 +23,44 @@ module.exports = {
   }) => {
 
     if((body.highlights || []).length > 0) {
-      preQueries.queries.push('SELECT spineIdRef, cfi, updated_at, IF(note="", 0, 1) as hasnote FROM `highlight` WHERE user_id=? AND book_id=? AND deleted_at=?');
+      preQueries.queries.push(`
+        SELECT spineIdRef, cfi, updated_at, IF(note="", 0, 1) as hasnote
+        FROM highlight
+        WHERE user_id=?
+          AND book_id=?
+          AND deleted_at=?
+          AND CONCAT(spineIdRef, "\\n", cfi) IN (?)
+      `)
       preQueries.vars = [
         ...preQueries.vars,
         params.userId,
         params.bookId,
         util.NOT_DELETED_AT_TIME,
-      ];
-    } else {
-      preQueries.queries.push('SELECT 1');
-    }
+        body.highlights.map(highlight => getHighlightId(highlight)),
+      ]
 
-    preQueries.resultKeys.push('dbHighlights');
+      const shareCodes = [ '-', ...new Set(
+        body.highlights
+          .map(({ share_code }) => share_code)
+          .filter(Boolean)
+      )]
+      preQueries.queries.push(`
+        SELECT h.user_id, h.book_id, h.spineIdRef, h.cfi, h.share_code
+        FROM highlight as h
+        WHERE h.share_code IN (?)
+      `)
+      preQueries.vars = [
+        ...preQueries.vars,
+        shareCodes,
+      ]
+
+    } else {
+      preQueries.queries.push('SELECT 1')
+      preQueries.queries.push('SELECT 1')
+    }
+    
+    preQueries.resultKeys.push('dbHighlights')
+    preQueries.resultKeys.push('dbHighlightShareCodes')
 
   },
 
@@ -44,6 +70,7 @@ module.exports = {
     userId,
     bookId,
     dbHighlights,
+    dbHighlightShareCodes,
     user,
     books,
     req,
@@ -64,12 +91,24 @@ module.exports = {
       for(let idx in highlights) {
         const highlight = highlights[idx]
         
-        if(!util.paramsOk(highlight, ['updated_at','spineIdRef','cfi'], ['color','note','_delete'])) {
+        if(!util.paramsOk(highlight, ['updated_at','spineIdRef','cfi'], ['color','note','share_code','share_quote','_delete'])) {
           return getErrorObj('invalid parameters');
         }
 
         if(highlight._delete !== undefined && !highlight._delete) {
           return getErrorObj('invalid parameters (_delete)');
+        }
+
+        if(!highlight._delete && highlight.share_code && (dbHighlightShareCodes || []).some(({ user_id, book_id, spineIdRef, cfi, share_code }) => (
+          (
+            userId != user_id
+            || bookId != book_id
+            || highlight.spineIdRef !== spineIdRef
+            || highlight.cfi !== cfi
+          )
+          && highlight.share_code === share_code
+        ))) {
+          return getErrorObj(`duplicate code(s): ${highlight.share_code}`)
         }
 
         highlight.updated_at = util.notLaterThanNow(highlight.updated_at);

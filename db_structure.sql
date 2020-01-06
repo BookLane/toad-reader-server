@@ -7,7 +7,7 @@
 #
 # Host: localhost (MySQL 5.7.27)
 # Database: ToadReader
-# Generation Time: 2020-01-05 08:51:10 +0000
+# Generation Time: 2020-01-05 16:06:35 +0000
 # ************************************************************
 
 
@@ -253,14 +253,18 @@ CREATE TABLE `highlight` (
   `cfi` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
   `color` tinyint(3) unsigned NOT NULL,
   `note` text CHARACTER SET utf8mb4 NOT NULL,
+  `share_code` varchar(10) CHARACTER SET utf8mb4 DEFAULT NULL,
+  `share_quote` text CHARACTER SET utf8mb4,
   `updated_at` datetime(3) NOT NULL,
   `deleted_at` datetime NOT NULL DEFAULT '0000-01-01 00:00:00',
   PRIMARY KEY (`user_id`,`book_id`,`spineIdRef`,`cfi`,`deleted_at`),
   UNIQUE KEY `id` (`id`),
+  UNIQUE KEY `share_code_2` (`share_code`,`deleted_at`),
   KEY `user_id` (`user_id`,`book_id`),
   KEY `deleted_at` (`deleted_at`),
   KEY `updated_at` (`updated_at`),
-  KEY `user_id_2` (`user_id`)
+  KEY `user_id_2` (`user_id`),
+  KEY `share_code` (`share_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
 
 
@@ -514,7 +518,7 @@ CREATE TABLE `xapiQueue` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `idp_id` int(11) NOT NULL,
   `statement` text CHARACTER SET utf8mb4 NOT NULL,
-  `unique_tag` varchar(30) CHARACTER SET utf8mb4 NOT NULL DEFAULT '',
+  `unique_tag` varchar(40) CHARACTER SET utf8mb4 NOT NULL DEFAULT '',
   `created_at` datetime NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `unique_tag` (`unique_tag`),

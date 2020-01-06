@@ -72,13 +72,37 @@ module.exports = {
         `${user.idpId}-${params.bookId}`,
       ];
 
+      const accessCodes = [ '-', ...new Set(
+        body.classrooms
+          .map(({ access_code, instructor_access_code }) => ([ access_code, instructor_access_code ]))
+          .flat()
+          .filter(Boolean)
+      )]
+      preQueries.queries.push(`
+        SELECT c.uid, c.access_code, c.instructor_access_code
+        FROM classroom as c
+        WHERE c.idp_id=?
+          AND (
+            c.access_code IN (?)
+            OR c.instructor_access_code IN (?)
+          )
+      `)
+      preQueries.vars = [
+        ...preQueries.vars,
+        user.idpId,
+        accessCodes,
+        accessCodes,
+      ]
+
     } else {
+      preQueries.queries.push('SELECT 1');
       preQueries.queries.push('SELECT 1');
       preQueries.queries.push('SELECT 1');
     }
 
     preQueries.resultKeys.push('dbComputedBookAccess');
     preQueries.resultKeys.push('dbClassrooms');
+    preQueries.resultKeys.push('dbClassroomAccessCodes');
 
     patchClassroomMembers.addPreQueries({
       classrooms: body.classrooms || [],
@@ -103,6 +127,7 @@ module.exports = {
     classrooms,
     dbComputedBookAccess,
     dbClassrooms,
+    dbClassroomAccessCodes,
     dbClassroomMembers,
     dbTools,
     dbHighlightsWithInstructorHighlight,
@@ -154,6 +179,17 @@ module.exports = {
           if(dbClassroom && dbClassroom.role !== 'INSTRUCTOR') {
             return getErrorObj('invalid permissions: user not INSTRUCTOR of this classroom');
           }
+        }
+
+        const accessCodesToSet = [ classroom.access_code, classroom.instructor_access_code ].filter(Boolean)
+        if(accessCodesToSet.length > 0 && (dbClassroomAccessCodes || []).some(({ uid, access_code, instructor_access_code }) => (
+          uid !== classroom.uid
+          && (
+            accessCodesToSet.includes(access_code)
+            || accessCodesToSet.includes(instructor_access_code)
+          )
+        ))) {
+          return getErrorObj(`duplicate code(s): ${accessCodesToSet.join(' ')}`);
         }
 
         if(!dbClassroom && (classroom.members || []).filter(({ user_id, role }) => (user_id === user.id && role === 'INSTRUCTOR')).length === 0) {

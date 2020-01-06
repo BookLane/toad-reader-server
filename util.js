@@ -735,14 +735,12 @@ const util = {
     })
   },
 
-  createAccessCode: () => {
-    const digitOptions = `ABCDEFGHJKMNPQRSTUVWXYZ23456789`
-  
-    return Array(6)
+  createAccessCode: ({ digitOptions=`ABCDEFGHJKMNPQRSTUVWXYZ23456789`, codeLength=6 }={}) => (
+    Array(codeLength)
       .fill(0)
       .map(() => digitOptions[parseInt(Math.random() * digitOptions.length, 10)])
       .join('')
-  },
+  ),
 
   getLoginInfoByAccessCode: ({ accessCode, destroyAfterGet, next }) => new Promise(resolve => {
     util.redisStore.get(`login access code: ${accessCode}`, (err, value) => {
@@ -776,6 +774,26 @@ const util = {
   isValidEmail: email => {
     const re = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/
     return re.test(email)
+  },
+
+  runQuery: ({ query, vars, connection, next }) => (
+    new Promise(resolve => {
+      connection.query(
+        query,
+        vars,
+        (err, result) => {
+          if(err) return next(err)
+          resolve(result)
+        }
+      )
+    })
+  ),
+
+  latestLocationToStr: ({ spineIdRef, cfi }) => {
+    return JSON.stringify({
+      idref: spineIdRef,
+      ...(cfi != null ? { elementCfi: cfi } : {}),
+    })
   },
 
 }

@@ -64,10 +64,107 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
     res.send(returnData);
   })
 
-  // get shared quotation
-  app.get('/book/:bookId', setIdpLang, function (req, res, next) {
+  const sendSharePage = async ({ share_quote, note, title, author, fullname, coverHref, goto, spineIdRef, cfi, req, res, next }) => {
+
+    if(!share_quote) {
+      return res.send("Not found.")
+    }
 
     const locale = req.idpLang
+
+    const frontendBaseUrl = util.getFrontendBaseUrl(req)
+    const backendBaseUrl = util.getBackendBaseUrl(req)
+    const urlWithEditing = backendBaseUrl + req.originalUrl.replace(/([\?&])editing=1&?/, '$1')
+    let abridgedNote = note || ' '
+    if(abridgedNote.length > 116) {
+      abridgedNote = abridgedNote.substring(0, 113) + '...'
+    }
+
+    const accessInfo = await util.hasAccess({ bookId: req.params.bookId, req, connection, log, next })
+
+    let sharePage = fs.readFileSync(__dirname + '/../templates/share-page.html', 'utf8')
+      .replace(/{{page_title}}/g, i18n("Quote from {{title}}", { title: title }, { locale }))
+      .replace(/{{favicon_url}}/g, frontendBaseUrl + '/favicon.ico')
+      .replace(/{{quote}}/g, share_quote)
+      .replace(/{{quote_noquotes}}/g, share_quote.replace(/"/g, '&quot;'))
+      .replace(/{{note_abridged_escaped}}/g, encodeURIComp(abridgedNote))
+      .replace(/{{url_noquotes}}/g, urlWithEditing.replace(/"/g, '&quot;'))
+      .replace(/{{url_escaped}}/g, encodeURIComp(urlWithEditing))
+      .replace(/{{read_here_url}}/g, frontendBaseUrl + req.originalUrl.replace(/\?.*$/, '') + '?goto=' + encodeURIComp(goto || util.latestLocationToStr({ spineIdRef, cfi })))
+      .replace(/{{book_image_url}}/g, backendBaseUrl + '/' + coverHref)
+      .replace(/{{book_title}}/g, title)
+      .replace(/{{book_author}}/g, author)
+      .replace(/{{comment}}/g, i18n("Comment", {}, { locale }))
+      .replace(/{{share}}/g, i18n("Share:", {}, { locale }))
+      .replace(/{{copy_link}}/g, i18n("Copy link", {}, { locale }))
+      .replace(/{{copied}}/g, i18n("Copied", {}, { locale }))
+
+    if(req.isAuthenticated()) {
+      if(!accessInfo) {
+        sharePage = sharePage
+          .replace(/{{read_class}}/g, 'hidden')
+      } else {
+        sharePage = sharePage
+          .replace(/{{read_here}}/g, i18n("Read at the quote", {}, { locale }))
+          .replace(/{{read_class}}/g, '')
+      }
+    } else {
+      sharePage = sharePage
+        .replace(/{{read_here}}/g, i18n("Login to the Reader", {}, { locale }))
+        .replace(/{{read_class}}/g, '')
+    }
+
+    if(note) {
+      sharePage = sharePage
+        .replace(/{{sharer_class}}/g, '')
+        .replace(/{{sharer_name}}/g, fullname || '')
+        .replace(/{{sharer_note}}/g, note)
+    } else {
+      sharePage = sharePage
+        .replace(/{{sharer_class}}/g, 'hidden')
+    }
+
+    log('Deliver share page')
+    res.send(sharePage)
+
+  }
+
+  // get shared quotation
+  app.get('/q/:shareCode', setIdpLang, async (req, res, next) => {
+
+    log(['Find info for share page', req.params.shareCode]);
+    const highlight = (await util.runQuery({
+      query: `
+        SELECT h.share_quote, h.note, h.spineIdRef, h.cfi, b.title, b.author, b.coverHref, u.fullname
+        FROM highlight as h
+          LEFT JOIN book as b ON (b.id=h.book_id)
+          LEFT JOIN user as u ON (u.id=h.user_id)
+        WHERE h.share_code=:shareCode
+          AND h.deleted_at=:notDeletedAtTime
+      `,
+      vars: {
+        shareCode: req.params.shareCode,
+        notDeletedAtTime: util.NOT_DELETED_AT_TIME,
+      },
+      connection,
+      next,
+    }))[0]
+
+    if(!highlight) {
+      return res.send("Not found.")
+    }
+
+    await sendSharePage({
+      ...highlight,
+      req,
+      res,
+      next,
+    })
+
+  })
+
+  // get shared quotation (legacy version)
+  app.get('/book/:bookId', setIdpLang, (req, res, next) => {
 
     if(req.query.highlight) {
       // If "creating" query parameter is present, then they can get rid of their name and/or note (and change their note?) 
@@ -75,77 +172,24 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
       log(['Find book for share page', req.params.bookId]);
       connection.query('SELECT * FROM `book` WHERE id=?',
         [req.params.bookId],
-        function (err, rows, fields) {
-          if (err) return next(err);
+        async (err, rows) => {
+          if(err) return next(err)
 
-          var frontendBaseUrl = util.getFrontendBaseUrl(req);
-          var backendBaseUrl = util.getBackendBaseUrl(req);
-          var urlWithEditing = backendBaseUrl + req.originalUrl.replace(/([\?&])editing=1&?/, '$1');
-          var abridgedNote = req.query.note || ' ';
-          if(abridgedNote.length > 116) {
-            abridgedNote = abridgedNote.substring(0, 113) + '...';
-          }
-
-          util.hasAccess({ bookId: req.params.bookId, req, connection, log, next }).then(accessInfo => {
-
-            var sharePage = fs.readFileSync(__dirname + '/../templates/share-page.html', 'utf8')
-              .replace(/{{page_title}}/g, i18n("Quote from {{title}}", { title: rows[0].title }, { locale }))
-              .replace(/{{favicon_url}}/g, frontendBaseUrl + '/favicon.ico')
-              .replace(/{{quote}}/g, req.query.highlight)
-              .replace(/{{quote_noquotes}}/g, req.query.highlight.replace(/"/g, '&quot;'))
-              .replace(/{{note_abridged_escaped}}/g, encodeURIComp(abridgedNote))
-              .replace(/{{url_noquotes}}/g, urlWithEditing.replace(/"/g, '&quot;'))
-              .replace(/{{url_escaped}}/g, encodeURIComp(urlWithEditing))
-              .replace(/{{url_nosharer}}/g, 
-                backendBaseUrl +
-                req.originalUrl
-                  .replace(/([\?&])note=[^&]*&?/g, '$1')
-                  .replace(/([\?&])sharer=[^&]*&?/g, '$1')
-              )
-              .replace(/{{read_here_url}}/g, frontendBaseUrl + req.originalUrl.replace(/\?.*$/, '') + '?goto=' + encodeURIComp(req.query.goto))
-              .replace(/{{book_image_url}}/g, backendBaseUrl + '/' + rows[0].coverHref)
-              .replace(/{{book_title}}/g, rows[0].title)
-              .replace(/{{book_author}}/g, rows[0].author)
-              .replace(/{{comment}}/g, i18n("Comment", {}, { locale }))
-              .replace(/{{share}}/g, i18n("Share:", {}, { locale }))
-              .replace(/{{copy_link}}/g, i18n("Copy link", {}, { locale }))
-              .replace(/{{copied}}/g, i18n("Copied", {}, { locale }))
-              .replace(/{{sharer_remove_class}}/g, req.query.editing ? '' : 'hidden');
-
-            if(req.isAuthenticated()) {
-              if(!accessInfo) {
-                sharePage = sharePage
-                  .replace(/{{read_class}}/g, 'hidden');
-              } else {
-                sharePage = sharePage
-                  .replace(/{{read_here}}/g, i18n("Read at the quote", {}, { locale }))
-                  .replace(/{{read_class}}/g, '');
-              }
-            } else {
-              sharePage = sharePage
-                .replace(/{{read_here}}/g, i18n("Login to the Reader", {}, { locale }))
-                .replace(/{{read_class}}/g, '');
-            }
-
-            if(req.query.note) {
-              sharePage = sharePage
-                .replace(/{{sharer_class}}/g, '')
-                .replace(/{{sharer_name}}/g, req.query.sharer || '')
-                .replace(/{{sharer_note}}/g, req.query.note);
-            } else {
-              sharePage = sharePage
-                .replace(/{{sharer_class}}/g, 'hidden');
-            }
-
-            log('Deliver share page');
-            res.send(sharePage);
-
+          await sendSharePage({
+            ...req.query,
+            ...rows[0],
+            share_quote: req.query.highlight,
+            fullname: req.query.sharer,
+            req,
+            res,
+            next,
           })
+
         }
       )
 
     } else {
-      next();
+      next()
     }
 
   })
@@ -230,9 +274,9 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
             AND book_id=:bookId
         `)
 
-        // highlight query
+        // highlight query (share_quote left out because it is not needed on the frontend)
         queries.push(`
-          SELECT spineIdRef, cfi, color, note, updated_at
+          SELECT spineIdRef, cfi, color, note, share_code, share_quote, updated_at
           FROM highlight
           WHERE user_id=:userId
             AND book_id=:bookId
