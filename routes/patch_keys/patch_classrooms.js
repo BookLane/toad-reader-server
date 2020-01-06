@@ -232,7 +232,7 @@ module.exports = {
               classroom.book_id = bookId;
               classroom.created_at = classroom.updated_at;
               queriesToRun.push({
-                query: 'INSERT into `classroom` SET ?',
+                query: 'INSERT INTO `classroom` SET ?',
                 vars: [ classroom ],
               })
 

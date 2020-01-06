@@ -217,7 +217,7 @@ module.exports = function (app, s3, connection, passport, authFuncs, ensureAuthe
         const currentTimestamp = Date.now()
         const currentMySQLDatetime = util.timestampToMySQLDatetime(currentTimestamp)
 
-        const queries = [`INSERT into book_download SET :bookDownloadInfo`]
+        const queries = [`INSERT INTO book_download SET :bookDownloadInfo`]
         const vars = {
           bookDownloadInfo: {
             book_id: bookId,
@@ -229,7 +229,7 @@ module.exports = function (app, s3, connection, passport, authFuncs, ensureAuthe
 
         if(req.user.idpXapiOn) {
 
-          queries.push(`INSERT into xapiQueue SET :xapiInfo`)
+          queries.push(`INSERT INTO xapiQueue SET :xapiInfo`)
           vars.xapiInfo = {
             idp_id: req.user.idpId,
             statement: util.getDownloadStatement({

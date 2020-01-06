@@ -142,12 +142,12 @@ module.exports = {
           highlight.user_id = userId;
           highlight.book_id = bookId;
           queriesToRun.push({
-            query: 'INSERT into `highlight` SET ?',
+            query: 'INSERT INTO `highlight` SET ?',
             vars: highlight
           });
           if(user.idpXapiOn && books.length > 0) {
             queriesToRun.push({
-              query: 'INSERT into `xapiQueue` SET ?',
+              query: 'INSERT INTO `xapiQueue` SET ?',
               vars: {
                 idp_id: user.idpId,
                 statement: util.getAnnotateStatement({

@@ -90,7 +90,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
               }
 
             } else {
-              insertOrUpdate = 'INSERT into `classroom_member` SET ?';
+              insertOrUpdate = 'INSERT INTO `classroom_member` SET ?';
               insertOrUpdateValues.created_at = now;
             }
 

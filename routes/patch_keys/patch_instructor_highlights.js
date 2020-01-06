@@ -106,7 +106,7 @@ module.exports = {
             util.convertTimestampsToMySQLDatetimes(newInstructorHighlight)
   
             queriesToRun.push({
-              query: 'INSERT into `instructor_highlight` SET ?',
+              query: 'INSERT INTO `instructor_highlight` SET ?',
               vars: [ newInstructorHighlight ],
             })
   

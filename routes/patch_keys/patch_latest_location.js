@@ -70,7 +70,7 @@ module.exports = {
           fields.user_id = userId;
           fields.book_id = bookId;
           queriesToRun.push({
-            query: 'INSERT into `latest_location` SET ?',
+            query: 'INSERT INTO `latest_location` SET ?',
             vars: [fields]
           });
         }

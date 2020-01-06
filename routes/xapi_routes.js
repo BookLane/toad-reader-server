@@ -41,7 +41,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
           var book = books[reading.bookId];
 
           queriesToRun.push({
-            query: 'INSERT into `xapiQueue` SET ?',
+            query: 'INSERT INTO `xapiQueue` SET ?',
             vars: {
               idp_id: req.user.idpId,
               statement: util.getReadStatement({
