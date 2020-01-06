@@ -443,7 +443,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
               };
 
               connection.query(
-                `INSERT into classroom SET ?`,
+                `INSERT INTO classroom SET ?`,
                 defaultClassroom,
                 (err, result) => {
                   if (err) return next(err);
@@ -479,11 +479,25 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
         b.author,
         b.coverHref,
         b.epubSizeInMB,
+        b.isbn,
         bi.link_href,
         bi.link_label,
         cba.version,
         cba.expires_at,
-        cba.enhanced_tools_expire_at
+        cba.enhanced_tools_expire_at,
+        (
+          SELECT GROUP_CONCAT(CONCAT(sb.subscription_id, " ", sb.version) SEPARATOR "\n")
+          FROM \`subscription-book\` as sb
+            LEFT JOIN subscription as s ON (s.id=sb.subscription_id)
+          WHERE sb.book_id=b.id
+            AND (
+              sb.subscription_id=:negativeIdpId
+              OR (
+                s.idp_id=:idpId
+                AND s.deleted_at IS NULL
+              )
+            )
+        ) as subscriptions
       FROM book as b
         LEFT JOIN \`book-idp\` as bi ON (bi.book_id=b.id)
         LEFT JOIN computed_book_access as cba ON (
@@ -504,6 +518,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
       {
         userId: req.user.id,
         idpId: req.user.idpId,
+        negativeIdpId: req.user.idpId * -1,
         now,
       },
       function (err, rows) {
@@ -512,13 +527,23 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
         rows.forEach(row => {
           for(let key in row) {
             if(row[key] === null) {
-              delete row[key];
+              delete row[key]
+
+            } else if(key === 'subscriptions') {
+              row[key] = row[key].split("\n").map(sub => {
+                let [ id, version ] = sub.split(" ")
+                id = parseInt(id, 10)
+                return {
+                  id,
+                  version,
+                }
+              })
             }
           }
-        });
+        })
 
-        log(['Deliver library', rows]);
-        res.send(rows);
+        log(['Deliver library', rows])
+        res.send(rows)
 
       }
     )

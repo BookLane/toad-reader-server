@@ -556,6 +556,129 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
   
   })
 
+  // update subscription-book rows
+  app.post('/setsubscriptions/:bookId', ensureAuthenticatedAndCheckIDP, async (req, res, next) => {
+
+    if(!req.user.isAdmin) {
+      log('No permission to modify subscriptions', 3)
+      res.status(403).send({ errorType: "biblemesh_no_permission" })
+      return
+    }
+
+    if(
+      !util.paramsOk(req.body, ['subscriptions'])
+      || req.body.subscriptions.some(subscription => !util.paramsOk(subscription, ['id', 'version']))
+    ) {
+      log(['Invalid parameter(s)', req.body], 3)
+      res.status(400).send()
+      return
+    }
+
+    const [ currentSubscriptionBookRows, bookOnIdp, subscriptionOnIdp ] = await util.runQuery({
+      query: `
+        SELECT sb.subscription_id, sb.version
+        FROM \`subscription-book\` as sb
+          LEFT JOIN subscription as s ON (s.id=sb.subscription_id)
+          LEFT JOIN \`book-idp\` as bi ON (bi.book_id=sb.book_id)
+        WHERE bi.book_id=:bookId
+          AND bi.idp_id=:idpId
+          AND (
+            sb.subscription_id=:negativeIdpId
+            OR (
+              s.idp_id=:idpId
+              AND s.deleted_at IS NULL
+            )
+          )
+        ;
+
+        SELECT bi.book_id
+        FROM \`book-idp\` as bi
+        WHERE bi.book_id=:bookId
+          AND bi.idp_id=:idpId
+        ;
+
+        SELECT s.id
+        FROM subscription as s
+        WHERE s.idp_id=:idpId
+          AND s.deleted_at IS NULL
+      `,
+      vars: {
+        bookId: req.params.bookId,
+        idpId: req.user.idpId,
+        negativeIdpId: req.user.idpId * -1,
+      },
+      connection,
+      next,
+    })
+
+    if(bookOnIdp.length === 0) {
+      log('No permission to modify subscriptions on this book', 3)
+      res.status(403).send({ errorType: "biblemesh_no_permission" })
+      return
+    }
+
+    const subscriptionIdOptions = subscriptionOnIdp.map(({ id }) => id)
+    let { subscriptions } = req.body
+    const queries = []
+    const vars = []
+
+    // delete old
+    currentSubscriptionBookRows.forEach(({ subscription_id }) => {
+      if(!subscriptions.some(({ id }) => id === subscription_id)) {
+        queries.push(`DELETE FROM \`subscription-book\` WHERE subscription_id=? AND book_id=?`)
+        vars.push(subscription_id)
+        vars.push(req.params.bookId)
+      }
+    })
+
+    // update existing
+    subscriptions = subscriptions.filter(subscription => (
+      !currentSubscriptionBookRows.some(({ subscription_id, version }) => {
+        if(subscription_id === subscription.id) {
+          if(subscription.version !== version) {
+            queries.push(`UPDATE \`subscription-book\` SET version=? WHERE subscription_id=? AND book_id=?`)
+            vars.push(version)
+            vars.push(subscription_id)
+            vars.push(req.params.bookId)
+          }
+          return true
+        }
+      })
+    ))
+
+    // add new
+    if(subscriptions.some(({ id, version }) => {
+      if(
+        id !== req.user.idpId * -1
+        && !subscriptionIdOptions.includes(id)
+      ) {
+        return true
+      }
+      queries.push(`INSERT INTO \`subscription-book\` SET ?`)
+      vars.push({
+        subscription_id: id,
+        version,
+        book_id: req.params.bookId,
+      })
+    })) {
+      log('No permission to add requested subscription', 3)
+      res.status(403).send({ errorType: "biblemesh_no_permission" })
+      return
+    }
+
+    await util.runQuery({
+      queries,
+      vars,
+      connection,
+      next,
+    })
+
+    await util.updateComputedBookAccess({ idpId: req.user.idpId, bookId: req.params.bookId, connection, log })
+
+    res.send({ success: true })
+
+  })
+
   // usage costs
   app.get('/reportsinfo', ensureAuthenticatedAndCheckIDP, (req, res, next) => {
 

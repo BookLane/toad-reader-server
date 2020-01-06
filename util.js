@@ -776,10 +776,10 @@ const util = {
     return re.test(email)
   },
 
-  runQuery: ({ query, vars, connection, next }) => (
+  runQuery: ({ query, queries, vars, connection, next }) => (
     new Promise(resolve => {
       connection.query(
-        query,
+        query || queries.join(';'),
         vars,
         (err, result) => {
           if(err) return next(err)
