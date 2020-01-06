@@ -6,7 +6,6 @@ var app = express();
 var http = require('http');
 var bodyParser = require('body-parser');
 var cookieParser = require('cookie-parser');
-var path = require('path');
 var mysql = require('mysql');
 var SqlString = require('mysql/lib/protocol/SqlString')
 var AWS = require('aws-sdk');
