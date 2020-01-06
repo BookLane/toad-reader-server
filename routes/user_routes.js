@@ -72,13 +72,14 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
 
     const locale = language || req.idpLang || 'en'
 
+    const urlWithoutEditing = `${util.getProtocol(req)}://${req.headers.host}${req.originalUrl.replace(/([\?&])editing=1&?/, '$1').replace(/iniframe=1&?/, '').replace(/[\?&]$/, '')}`
+
     if(domain) {
       req.headers.host = util.getDataDomain(domain)
     }
 
     const frontendBaseUrl = util.getFrontendBaseUrl(req)
     const backendBaseUrl = util.getBackendBaseUrl(req)
-    const urlWithoutEditing = backendBaseUrl + req.originalUrl.replace(/([\?&])editing=1&?/, '$1').replace(/iniframe=1&?/, '').replace(/[\?&]$/, '')
     let abridgedNote = note || ' '
     if(abridgedNote.length > 116) {
       abridgedNote = abridgedNote.substring(0, 113) + '...'
