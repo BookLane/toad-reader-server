@@ -789,13 +789,6 @@ const util = {
     })
   ),
 
-  latestLocationToStr: ({ spineIdRef, cfi }) => {
-    return JSON.stringify({
-      idref: spineIdRef,
-      ...(cfi != null ? { elementCfi: cfi } : {}),
-    })
-  },
-
 }
 
 module.exports = util;
