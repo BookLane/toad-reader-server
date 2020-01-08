@@ -1,24 +1,24 @@
 ////////////// REQUIRES //////////////
 
-var express = require('express');
-var cors = require('cors');
-var app = express();
-var http = require('http');
-var bodyParser = require('body-parser');
-var cookieParser = require('cookie-parser');
-var mysql = require('mysql');
+var express = require('express')
+var cors = require('cors')
+var app = express()
+var http = require('http')
+var bodyParser = require('body-parser')
+var cookieParser = require('cookie-parser')
+var mysql = require('mysql')
 var SqlString = require('mysql/lib/protocol/SqlString')
-var AWS = require('aws-sdk');
-var session = require('express-session');
-var RedisStore = require('connect-redis')(session);
-var passport = require('passport');
-var saml = require('passport-saml');
-require('dotenv').load();  //loads the local environment
-var util = require('./util');
-const jwt = require('jsonwebtoken');
+var AWS = require('aws-sdk')
+var session = require('express-session')
+var RedisStore = require('connect-redis')(session)
+var passport = require('passport')
+var saml = require('passport-saml')
+require('dotenv').load()  //loads the local environment
+var util = require('./util')
+const jwt = require('jsonwebtoken')
 const { i18nSetup } = require("inline-i18n")
-const fs = require('fs');
-
+const fs = require('fs')
+require("array-flat-polyfill")  // Array.flat function
 
 ////////////// SETUP SERVER //////////////
 
