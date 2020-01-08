@@ -258,7 +258,7 @@ module.exports = function (app, s3, connection, passport, authFuncs, ensureAuthe
 
       const classroomUid = urlPieces[2]
       const isDefaultClassroomUid = /^[0-9]+-[0-9]+$/.test(classroomUid)
-      const now = util.timestampToMySQLDatetime(null, true)
+      const now = util.timestampToMySQLDatetime()
 
       connection.query(
         `

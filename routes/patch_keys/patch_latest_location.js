@@ -59,7 +59,7 @@ module.exports = {
       } else {
         var fields = {
           cfi: latest_location,
-          updated_at: util.timestampToMySQLDatetime(updated_at, true)
+          updated_at: util.timestampToMySQLDatetime(updated_at)
         };
         if(dbLatestLocations.length > 0) {
           queriesToRun.push({

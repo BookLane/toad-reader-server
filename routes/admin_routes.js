@@ -160,6 +160,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         // prep to insert the book row
         bookRow.author = bookRow.creator || bookRow.publisher || '';
         bookRow.isbn = bookRow.identifier || '';
+        bookRow.updated_at = util.timestampToMySQLDatetime();
         delete bookRow.creator;
         delete bookRow.publisher;
         delete bookRow.identifier;
@@ -451,7 +452,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
 
     const { classroomUid } = req.params
     const isDefaultClassroomUid = /^[0-9]+-[0-9]+$/.test(classroomUid)
-    const now = util.timestampToMySQLDatetime(null, true)
+    const now = util.timestampToMySQLDatetime()
 
     connection.query(
       `

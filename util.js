@@ -142,7 +142,7 @@ const util = {
     return d.getTime();
   },
 
-  timestampToMySQLDatetime: function(timestamp, doMilliseconds) {
+  timestampToMySQLDatetime: timestamp => {
     var specifyDigits = function(number, digits) {
       return ('0000000000000' + number).substr(digits * -1);
     }
@@ -154,11 +154,8 @@ const util = {
       + specifyDigits(date.getUTCDate(), 2) + " "
       + specifyDigits(date.getUTCHours(), 2) + ":"
       + specifyDigits(date.getUTCMinutes(), 2) + ":"
-      + specifyDigits(date.getUTCSeconds(), 2);
-    
-    if(doMilliseconds) {
-      formatted += "." + specifyDigits(date.getMilliseconds(), 3);
-    }
+      + specifyDigits(date.getUTCSeconds(), 2) + "."
+      + specifyDigits(date.getMilliseconds(), 3);
 
     return formatted;
   },
@@ -169,7 +166,7 @@ const util = {
     } else {
       Object.keys(objOrAry).forEach(key => {
         if(/_at$/.test(key) && typeof objOrAry[key] === 'number') {
-          objOrAry[key] = util.timestampToMySQLDatetime(objOrAry[key], true);
+          objOrAry[key] = util.timestampToMySQLDatetime(objOrAry[key]);
         }
       })
     }

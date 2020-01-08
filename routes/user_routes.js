@@ -433,7 +433,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
             if(!classrooms.some(({ uid }) => uid === defaultClassroomUid)) {
               // no default classroom
 
-              const now = util.timestampToMySQLDatetime(null, true);
+              const now = util.timestampToMySQLDatetime();
               const defaultClassroom = {
                 uid: defaultClassroomUid,
                 idp_id: req.user.idpId,
@@ -468,7 +468,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
   // get epub_library.json with library listing for given user
   app.get('/epub_content/epub_library.json', ensureAuthenticatedAndCheckIDP, function (req, res, next) {
 
-    const now = util.timestampToMySQLDatetime(null, true);
+    const now = util.timestampToMySQLDatetime();
 
     // look those books up in the database and form the library
     log('Lookup library');

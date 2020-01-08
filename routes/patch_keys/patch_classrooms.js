@@ -24,7 +24,7 @@ module.exports = {
     preQueries,
   }) => {
 
-    const now = util.timestampToMySQLDatetime(null, true);
+    const now = util.timestampToMySQLDatetime();
 
     if((body.classrooms || []).length > 0) {
 

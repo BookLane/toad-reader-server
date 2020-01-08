@@ -11,7 +11,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
     }
 
     const { code } = req.body
-    const now = util.timestampToMySQLDatetime(null, true);
+    const now = util.timestampToMySQLDatetime();
 
     connection.query(
       `

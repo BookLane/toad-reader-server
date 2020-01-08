@@ -76,7 +76,7 @@ module.exports = {
     req,
   }) => {
 
-    const now = util.timestampToMySQLDatetime(null, true);
+    const now = util.timestampToMySQLDatetime();
     let containedOldPatch = false;
 
     if((highlights || []).length > 0) {
