@@ -7,7 +7,7 @@
 #
 # Host: localhost (MySQL 5.7.27)
 # Database: ToadReader
-# Generation Time: 2020-01-05 16:06:35 +0000
+# Generation Time: 2020-01-08 09:15:39 +0000
 # ************************************************************
 
 
@@ -423,7 +423,7 @@ CREATE TABLE `tool` (
   `updated_at` datetime NOT NULL,
   `published_at` datetime DEFAULT NULL,
   `deleted_at` datetime DEFAULT NULL,
-  `currently_published_tool_id` int(10) unsigned DEFAULT NULL,
+  `currently_published_tool_uid` varchar(36) DEFAULT NULL,
   PRIMARY KEY (`uid`),
   KEY `classroom_id` (`classroom_uid`),
   KEY `classroom_group_id` (`classroom_group_uid`),
@@ -437,7 +437,7 @@ CREATE TABLE `tool` (
   KEY `updated_at` (`updated_at`),
   KEY `published_at` (`published_at`),
   KEY `deleted_at` (`deleted_at`),
-  KEY `currently_published_tool_id` (`currently_published_tool_id`)
+  KEY `currently_published_tool_uid` (`currently_published_tool_uid`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 
