@@ -7,7 +7,7 @@
 #
 # Host: localhost (MySQL 5.7.27)
 # Database: ToadReader
-# Generation Time: 2020-01-08 11:50:11 +0000
+# Generation Time: 2020-01-10 13:20:49 +0000
 # ************************************************************
 
 
@@ -110,7 +110,9 @@ CREATE TABLE `classroom` (
   `introduction` text,
   `classroom_highlights_mode` enum('OFF','CLASSROOM','GROUP') NOT NULL DEFAULT 'CLASSROOM',
   `closes_at` datetime(3) DEFAULT NULL,
+  `draftData` text,
   `created_at` datetime(3) NOT NULL,
+  `published_at` datetime(3) DEFAULT NULL,
   `updated_at` datetime(3) NOT NULL,
   `deleted_at` datetime(3) DEFAULT NULL,
   PRIMARY KEY (`uid`),
@@ -152,7 +154,7 @@ CREATE TABLE `classroom_group` (
 
 CREATE TABLE `classroom_member` (
   `classroom_uid` varchar(36) NOT NULL DEFAULT '',
-  `user_id` int(11) unsigned NOT NULL,
+  `user_id` int(11) NOT NULL,
   `classroom_group_uid` varchar(36) DEFAULT NULL,
   `role` enum('STUDENT','INSTRUCTOR') NOT NULL DEFAULT 'STUDENT',
   `created_at` datetime(3) NOT NULL,
