@@ -100,7 +100,7 @@ const undashifyDomain = dashedDomain => dashedDomain
 
 const jsonCols = {
   tool: [ 'data', 'undo_array' ],
-  classroom: [ 'syllabus' ],
+  classroom: [ 'syllabus', 'draftData' ],
 }
 
 const util = {

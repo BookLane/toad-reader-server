@@ -144,7 +144,9 @@ module.exports = {
         if(!util.paramsOk(
           classroom,
           ['uid'],
-          ['updated_at','name','access_code','instructor_access_code','syllabus','introduction','classroom_highlights_mode','closes_at','members','tools','instructorHighlights','_delete']
+          ['updated_at','name','access_code','instructor_access_code','syllabus',
+           'introduction','classroom_highlights_mode','closes_at','draftData',
+           'published_at','members','tools','instructorHighlights','_delete']
         )) {
           return getErrorObj('invalid parameters');
         }
