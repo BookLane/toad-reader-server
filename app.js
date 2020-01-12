@@ -121,17 +121,16 @@ fs.readdir(translationsDir, (err, files) => {
 ////////////// SETUP PASSPORT //////////////
 
 passport.serializeUser((user, done) => {
-  done(null, user.id);
-});
+  done(null, { userId: user.id, ssoData: user.ssoData })
+})
 
-const deserializeUser = ({ userId, next }) => new Promise(resolve => {
+const deserializeUser = ({ userId, ssoData, next }) => new Promise(resolve => {
   
   const fields = `
     user.id,
     user.email,
     user.fullname,
     user.adminLevel,
-    user.ssoData,
     user.idp_id,
     idp.name,
     idp.useReaderTxt,
@@ -158,17 +157,12 @@ const deserializeUser = ({ userId, next }) => new Promise(resolve => {
 
       var row = rows[0];
 
-      let ssoData = null
-      try {
-        ssoData = JSON.parse(row.ssoData);
-      } catch (e) {}
-
       const user = {
         id: row.id,
         email: row.email,
         fullname: row.fullname,
         isAdmin: [ 'SUPER_ADMIN', 'ADMIN' ].includes(row.adminLevel),
-        ssoData: ssoData,
+        ssoData,
         idpId: row.idp_id,
         idpName: row.name,
         idpUseReaderTxt: row.useReaderTxt,
@@ -185,8 +179,8 @@ const deserializeUser = ({ userId, next }) => new Promise(resolve => {
 
 })
 
-passport.deserializeUser((userId, done) => {
-  deserializeUser({ userId, next: done }).then(user => {
+passport.deserializeUser((partialUser, done) => {
+  deserializeUser({ ...partialUser, next: done }).then(user => {
     done(null, user)
   })
 })
@@ -214,8 +208,8 @@ var strategyCallback = function(idp, profile, done) {
     return;
   }
 
-  const returnUser = userId => (
-    deserializeUser({ userId, next: done })
+  const returnUser = loginInfo => (
+    deserializeUser({ ...loginInfo, next: done })
       .then(user => done(null, user))
   )
 

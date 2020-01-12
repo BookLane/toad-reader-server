@@ -367,7 +367,7 @@ const util = {
 
     const finishUp = async userId => {
       await util.updateComputedBookAccess({ idpId, userId, connection, log })
-      resolveAll(userId)
+      resolveAll({ userId, ssoData })
     }
 
     // dedup books
@@ -398,10 +398,6 @@ const util = {
 
         if(fullname) {
           cols.fullname = fullname
-        }
-
-        if(ssoData) {
-          cols.ssoData = JSON.stringify(ssoData)
         }
 
         if(updateLastLoginAt) {
