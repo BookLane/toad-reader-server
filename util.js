@@ -149,9 +149,9 @@ const util = {
       return ('0000000000000' + number).substr(digits * -1)
     }
 
-    timestamp = parseInt(timestamp, 10)
+    var date = timestamp != null ? new Date(parseInt(timestamp, 10)) : new Date()
 
-    var date = timestamp ? new Date(timestamp) : new Date()
+    if(isNaN(date.getTime())) return null
 
     var formatted = date.getUTCFullYear() + "-"
       + specifyDigits(1 + date.getUTCMonth(), 2) + "-"
@@ -370,6 +370,8 @@ const util = {
     //   ]
     // }
 
+    log(['Attempt to update userInfo', userInfo], 1)
+
     const { idpUserId, email, fullname, adminLevel, forceResetLoginBefore, ssoData } = userInfo
 
     const finishUp = async userId => {
@@ -422,6 +424,8 @@ const util = {
           vars = cols
         }
 
+        log(['Update/insert user row', query, vars], 1)
+
         connection.query(
           query,
           vars,
@@ -438,10 +442,9 @@ const util = {
               function (err, rows, fields) {
                 if (err) return next(err);
       
-                // const bookIds = books.map(({ id }) => id);
                 const idpBookIds = rows.map(({ book_id }) => parseInt(book_id));
           
-                const filteredAndFilledOutBooks = books.filter(({ id }) => idpBookIds.includes(id))
+                const filteredAndFilledOutBooks = books.filter(({ id }) => idpBookIds.includes(parseInt(id)))
 
                 // fill out admins with base version of missing books 
                 // if(isAdmin) {
@@ -456,8 +459,6 @@ const util = {
             
                 log(['filter bookIds by the book-idp', filteredAndFilledOutBooks]);
 
-                const bookIds = filteredAndFilledOutBooks.map(({ bookId }) => bookId)
-
                 const updateBookInstance = ({ id, version, expiration, enhancedToolsExpiration }) => new Promise(resolve => {
                   enhancedToolsExpiration = enhancedToolsExpiration || expiration
 
@@ -465,12 +466,14 @@ const util = {
                     idp_id: idpId,  // there needs to be at least one column, so this one is here, though it will not change on update
                   }
 
-                  if(expiration) {
-                    updateCols.expires_at = util.timestampToMySQLDatetime(expiration)
+                  const expiresAt = util.timestampToMySQLDatetime(expiration)
+                  if(expiration && expiresAt) {
+                    updateCols.expires_at = expiresAt
                   }
 
-                  if(enhancedToolsExpiration) {
-                    updateCols.enhanced_tools_expire_at = util.timestampToMySQLDatetime(enhancedToolsExpiration)
+                  const enhancedToolsExpiresAt = util.timestampToMySQLDatetime(enhancedToolsExpiration)
+                  if(enhancedToolsExpiration && enhancedToolsExpiresAt) {
+                    updateCols.enhanced_tools_expire_at = enhancedToolsExpiresAt
                   }
 
                   if(version) {
