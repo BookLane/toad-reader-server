@@ -146,10 +146,12 @@ const util = {
 
   timestampToMySQLDatetime: timestamp => {
     var specifyDigits = function(number, digits) {
-      return ('0000000000000' + number).substr(digits * -1);
+      return ('0000000000000' + number).substr(digits * -1)
     }
 
-    var date = timestamp ? new Date(timestamp) : new Date();
+    timestamp = parseInt(timestamp, 10)
+
+    var date = timestamp ? new Date(timestamp) : new Date()
 
     var formatted = date.getUTCFullYear() + "-"
       + specifyDigits(1 + date.getUTCMonth(), 2) + "-"
@@ -157,9 +159,9 @@ const util = {
       + specifyDigits(date.getUTCHours(), 2) + ":"
       + specifyDigits(date.getUTCMinutes(), 2) + ":"
       + specifyDigits(date.getUTCSeconds(), 2) + "."
-      + specifyDigits(date.getMilliseconds(), 3);
+      + specifyDigits(date.getMilliseconds(), 3)
 
-    return formatted;
+    return formatted
   },
 
   convertTimestampsToMySQLDatetimes: objOrAry => {
@@ -195,6 +197,7 @@ const util = {
   },
 
   timestampToISO: function(timestamp) {
+    timestamp = parseInt(timestamp, 10)
     var date = timestamp ? new Date(timestamp) : new Date();
 
     return date.toISOString();
@@ -330,9 +333,13 @@ const util = {
       }
 
       const jwtStr = await response.text()
+      const jwtObj = jwt.verify(jwtStr, idp.userInfoJWT)
+
+      log(['Response from userInfoEndpoint', jwtObj], 1)
+
       userInfo = {
         ...userInfo,
-        ...jwt.verify(jwtStr, idp.userInfoJWT),
+        ...jwtObj,
       }
 
     } catch (err) {

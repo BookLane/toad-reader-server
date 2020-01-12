@@ -152,7 +152,7 @@ const deserializeUser = ({ userId, ssoData, next }) => new Promise(resolve => {
       if (err) return next(err);
 
       if(rows.length !== 1) {
-        return next('User record not found');
+        return next(`User record not found: ${userId}`);
       }
 
       var row = rows[0];
@@ -180,6 +180,10 @@ const deserializeUser = ({ userId, ssoData, next }) => new Promise(resolve => {
 })
 
 passport.deserializeUser((partialUser, done) => {
+  if(typeof partialUser !== 'object') {
+    // to support old way of serializing users
+    partialUser = { userId: partialUser }
+  }
   deserializeUser({ ...partialUser, next: done }).then(user => {
     done(null, user)
   })
