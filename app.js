@@ -120,39 +120,6 @@ fs.readdir(translationsDir, (err, files) => {
 
 ////////////// SETUP PASSPORT //////////////
 
-const getUserInfo = ({
-  idp,
-  idpUserId,
-  next,
-}) => new Promise(resolve => {
-
-  var options = {
-    method: 'get',
-    body: JSON.stringify({
-      payload: jwt.sign({ idpUserId }, idp.userInfoJWT),
-    }),
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  };
-
-  // post the xapi statements
-  fetch(idp.userInfoEndpoint, options)
-    .then(res => {
-      if(res.status !== 200) {
-        log(['Invalid response from userInfoEndpoint'], 3);
-        next('Bad login.');
-        return;
-      }
-
-      res.json().then(userInfo => {
-        util.updateUserInfo({ connection, log, userInfo, idpId: idp.id, updateLastLoginAt: true, next }).then(resolve);
-      })
-    });
-
-});
-
-
 passport.serializeUser((user, done) => {
   done(null, user.id);
 });
@@ -254,7 +221,12 @@ var strategyCallback = function(idp, profile, done) {
 
   if(idp.userInfoEndpoint) {
 
-    getUserInfo({ idp, idpUserId, next: done }).then(returnUser)
+    const userInfo = {
+      ssoData: profile,
+      idpUserId,
+    }
+
+    util.getUserInfo({ idp, idpUserId, next: done, connection, log, userInfo }).then(returnUser)
 
   } else {  // old method: get userInfo from meta data
 
@@ -437,7 +409,7 @@ function ensureAuthenticated(req, res, next) {
 
                   if(idp.userInfoEndpoint) {
 
-                    getUserInfo({ idp, idpUserId: token.id, next }).then(logInSessionSharingUser)
+                    util.getUserInfo({ idp, idpUserId: token.id, next, connection, log }).then(logInSessionSharingUser)
 
                   } else {  // old method: get userInfo from meta data
 

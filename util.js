@@ -1,5 +1,7 @@
 const moment = require('moment')
 const redis = require('redis')
+const jwt = require('jsonwebtoken')
+var fetch = require('node-fetch')
 
 const fakeRedisClient = {}
 
@@ -302,6 +304,43 @@ const util = {
     }
 
     return `${util.getProtocol(req)}://${domain}`
+
+  },
+
+  getUserInfo: async ({
+    idp,
+    idpUserId,
+    next,
+    connection,
+    log,
+    userInfo={},
+  }) => {
+
+    const version = '1.0'
+    const payload = jwt.sign({ idpUserId }, idp.userInfoJWT)
+    const connectorCharacter = /\?/.test(idp.userInfoEndpoint) ? `&` : `?`
+
+    try {
+
+      const response = await fetch(`${idp.userInfoEndpoint}${connectorCharacter}version=${version}&payload=${payload}`)
+
+      if(response.status !== 200) {
+        log(['Invalid response from userInfoEndpoint'], 3)
+        // next('Bad login.')
+      }
+
+      const jwtStr = await response.text()
+      userInfo = {
+        ...userInfo,
+        ...jwt.verify(jwtStr, idp.userInfoJWT),
+      }
+
+    } catch (err) {
+      log(['Fetch to userInfoEndpoint failed', err.message], 3)
+      // next('Bad login.')
+    }
+
+    return await util.updateUserInfo({ connection, log, userInfo, idpId: idp.id, updateLastLoginAt: true, next })
 
   },
 

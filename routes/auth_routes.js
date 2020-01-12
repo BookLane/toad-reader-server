@@ -252,7 +252,7 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
 
             if(idp.userInfoEndpoint) {
               // get user info, if endpoint provided
-              userId = await getUserInfo({ idp, idpUserId: email, next })
+              userId = await util.getUserInfo({ idp, idpUserId: email, next, connection, log })
               
             } else {
               // create the user if they do not exist
