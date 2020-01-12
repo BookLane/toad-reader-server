@@ -469,11 +469,11 @@ function ensureAuthenticated(req, res, next) {
 
 // see http://stackoverflow.com/questions/14014446/how-to-save-and-retrieve-session-from-redis
 
-app.use(bodyParser.json()); // for parsing application/json
+app.use(bodyParser.json()) // for parsing application/json
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(function(req, res, next) {
   if(req.headers['x-cookie-override']) {
-    req.headers.cookie = req.headers['x-cookie-override'];
+    req.headers.cookie = req.headers['x-cookie-override']
   }
   next();
 })
@@ -483,10 +483,14 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'secret',
   saveUninitialized: false,
   resave: false,
-  cookie : { httpOnly: false }
-}));
-app.use(passport.initialize());
-app.use(passport.session());
+  cookie : {
+    httpOnly: false,
+    maxAge: 1000 * 60 * 60 * 24 * 30 * 3,
+    // if they use this session at least once/3 months, it will never expire
+  },
+}))
+app.use(passport.initialize())
+app.use(passport.session())
 
 
 ////////////// ROUTES //////////////
