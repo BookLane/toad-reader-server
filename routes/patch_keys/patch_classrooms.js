@@ -157,11 +157,19 @@ module.exports = {
 
         const dbClassroom = dbClassrooms.filter(({ uid }) => uid === classroom.uid)[0]
 
-        if(!dbComputedBookAccess[0]) {
-          return getErrorObj('invalid permissions: user lacks INSTRUCTOR/PUBLISHER computed_book_access');
-        }
-
-        if(dbComputedBookAccess[0].version === 'PUBLISHER') {
+        if(!dbComputedBookAccess[0]) {  // STUDENT
+          const onlyLeavingClassroom = (
+            util.paramsOk(classroom, ['uid', 'members'])
+            && classroom.members.length === 1
+            && util.paramsOk(classroom.members[0], ['user_id', 'updated_at', '_delete'])
+            && classroom.members[0].user_id === user.id
+          )
+          if(!onlyLeavingClassroom) {
+            return getErrorObj('invalid permissions: user lacks INSTRUCTOR/PUBLISHER computed_book_access');
+          } else if(classroom.uid === `${user.idpId}-${bookId}`) {
+            return getErrorObj('invalid permissions: user cannot leave the default version');
+          }
+        } else if(dbComputedBookAccess[0].version === 'PUBLISHER') {  // PUBLISHER
           if(classroom.uid !== `${user.idpId}-${bookId}`) {
             return getErrorObj('invalid permissions: user with PUBLISHER computed_book_access can only edit the default version');
           }
