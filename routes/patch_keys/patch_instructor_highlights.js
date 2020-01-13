@@ -22,26 +22,24 @@ module.exports = {
 
     const instructorHighlightCombos = []
     classrooms.forEach(({ instructorHighlights }) => {
-      ;(instructorHighlights || []).forEach(({ spineIdRef, cfi }) => {
-        instructorHighlightCombos.push(`${spineIdRef}\n${cfi}`)
+      ;(instructorHighlights || []).forEach(({ spineIdRef, cfi, author_id }) => {
+        instructorHighlightCombos.push(`${spineIdRef}\n${cfi}\n${author_id || params.userId}`)
       })
     })
 
     if(instructorHighlightCombos.length > 0) {
 
       preQueries.queries.push(`
-        SELECT h.id, h.spineIdRef, h.cfi, ih.classroom_uid
+        SELECT h.id, h.spineIdRef, h.cfi, h.user_id, ih.classroom_uid
         FROM highlight as h
           LEFT JOIN instructor_highlight as ih ON (ih.highlight_id=h.id)
-        WHERE CONCAT(h.spineIdRef, "\\n", h.cfi) IN (?)
-          AND h.user_id=?
+        WHERE CONCAT(h.spineIdRef, "\\n", h.cfi, "\\n", h.user_id) IN (?)
           AND h.book_id=?
           AND h.deleted_at=?
       `)
       preQueries.vars = [
         ...preQueries.vars,
         instructorHighlightCombos,
-        params.userId,
         params.bookId,
         util.NOT_DELETED_AT_TIME
       ]
@@ -59,6 +57,7 @@ module.exports = {
     instructorHighlights,
     classroomUid,
     dbHighlightsWithInstructorHighlight,
+    user,
   }) => {
 
     let containedOldPatch = false
@@ -67,7 +66,7 @@ module.exports = {
       for(let idx in instructorHighlights) {
         const instructorHighlight = instructorHighlights[idx]
 
-        if(!util.paramsOk(instructorHighlight, ['spineIdRef', 'cfi'], ['created_at', '_delete'])) {
+        if(!util.paramsOk(instructorHighlight, ['spineIdRef', 'cfi'], ['created_at', 'author_id', '_delete'])) {
           return getErrorObj('invalid parameters')
         }
 
@@ -79,7 +78,14 @@ module.exports = {
           return getErrorObj('invalid parameters: either created_at or _delete must be provided, and not both')
         }
 
-        const dbHighlightId = (dbHighlightsWithInstructorHighlight.filter(({ spineIdRef, cfi }) => (spineIdRef === instructorHighlight.spineIdRef && cfi === instructorHighlight.cfi))[0] || {}).id
+        const dbHighlightId = (
+          dbHighlightsWithInstructorHighlight
+            .filter(({ spineIdRef, cfi, user_id }) => (
+              spineIdRef === instructorHighlight.spineIdRef
+              && cfi === instructorHighlight.cfi
+              && user_id == (instructorHighlight.author_id || user.id)
+            ))[0] || {}
+        ).id
 
         if(!dbHighlightId) {
           containedOldPatch = true

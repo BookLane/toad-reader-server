@@ -276,6 +276,7 @@ module.exports = {
           tools,
           classroomUid: classroom.uid,
           dbTools,
+          isNewClassroomCreation: !dbClassroom,
         })
 
         if(!patchToolsResult.success) {
@@ -290,6 +291,7 @@ module.exports = {
           instructorHighlights,
           classroomUid: classroom.uid,
           dbHighlightsWithInstructorHighlight,
+          user,
         })
 
         if(!patchInstructorHighlightsResult.success) {

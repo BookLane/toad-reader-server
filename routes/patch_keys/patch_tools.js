@@ -52,6 +52,7 @@ module.exports = {
     tools,
     classroomUid,
     dbTools,
+    isNewClassroomCreation,
   }) => {
 
     let containedOldPatch = false;
@@ -79,7 +80,7 @@ module.exports = {
           util.convertMySQLDatetimesToTimestamps(dbTool)
         }
 
-        if(tool.published_at && !dbTool) {
+        if(tool.published_at && !dbTool && !isNewClassroomCreation) {
           return getErrorObj('invalid data: cannot published a new tool')
         }
 
@@ -92,7 +93,7 @@ module.exports = {
           }
         }
 
-        if(tool.published_at) {
+        if(tool.published_at && !isNewClassroomCreation) {
           if(Object.keys(tool).some(key => (
             !['updated_at','uid','spineIdRef','cfi','ordering','published_at','currently_published_tool_uid','_delete'].includes(key)
             && JSON.stringify(tool[key]) !== JSON.stringify(dbTool[key])
@@ -107,7 +108,7 @@ module.exports = {
             tool.currently_published_tool_uid === null
             || (
               tool.currently_published_tool_uid === undefined
-              && dbTool.currently_published_tool_uid === null
+              && (dbTool || {}).currently_published_tool_uid === null
             )
           )
         ) {
@@ -166,7 +167,7 @@ module.exports = {
           }
 
           // additional new publish updates
-          if(tool.published_at && !dbTool.published_at && dbTool.currently_published_tool_uid) {
+          if(!isNewClassroomCreation && tool.published_at && !dbTool.published_at && dbTool.currently_published_tool_uid) {
 
             // update the last version
             const updates1 = {
