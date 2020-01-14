@@ -7,7 +7,7 @@
 #
 # Host: localhost (MySQL 5.7.27)
 # Database: ToadReader
-# Generation Time: 2020-01-12 06:05:45 +0000
+# Generation Time: 2020-01-14 06:15:59 +0000
 # ************************************************************
 
 
@@ -473,12 +473,10 @@ CREATE TABLE `tool_engagement` (
 # ------------------------------------------------------------
 
 CREATE TABLE `tool_engagement_answer` (
-  `uid` varchar(36) NOT NULL DEFAULT '',
   `tool_engagement_uid` varchar(36) NOT NULL DEFAULT '',
   `question_index` int(10) unsigned NOT NULL,
   `choice_index` int(10) unsigned NOT NULL,
-  PRIMARY KEY (`uid`),
-  UNIQUE KEY `tool_engagement_uid` (`tool_engagement_uid`,`question_index`),
+  PRIMARY KEY (`tool_engagement_uid`,`question_index`),
   KEY `tool_engagement_id` (`tool_engagement_uid`),
   KEY `question_index` (`question_index`),
   KEY `choice_index` (`choice_index`)
