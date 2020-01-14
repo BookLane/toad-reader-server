@@ -473,8 +473,8 @@ function ensureAuthenticated(req, res, next) {
 
 // see http://stackoverflow.com/questions/14014446/how-to-save-and-retrieve-session-from-redis
 
-app.use(bodyParser.json()) // for parsing application/json
-app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.json({ limit: '50mb' })) // for parsing application/json
+app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }))
 app.use(function(req, res, next) {
   if(req.headers['x-cookie-override']) {
     req.headers.cookie = req.headers['x-cookie-override']
