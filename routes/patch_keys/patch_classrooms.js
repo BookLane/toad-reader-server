@@ -1,6 +1,7 @@
 const util = require('../../util');
 const patchClassroomMembers = require('./patch_classroom_members');
 const patchTools = require('./patch_tools');
+const patchToolEngagments = require('./patch_tool_engagements');
 const patchInstructorHighlights = require('./patch_instructor_highlights');
 
 const getSuccessObj = containedOldPatch => ({
@@ -114,6 +115,12 @@ module.exports = {
       preQueries,
     })
 
+    patchToolEngagments.addPreQueries({
+      params,
+      classrooms: body.classrooms || [],
+      preQueries,
+    })
+
     patchInstructorHighlights.addPreQueries({
       params,
       classrooms: body.classrooms || [],
@@ -130,6 +137,7 @@ module.exports = {
     dbClassroomAccessCodes,
     dbClassroomMembers,
     dbTools,
+    dbToolEngagements,
     dbHighlightsWithInstructorHighlight,
     user,
     bookId,
@@ -146,7 +154,7 @@ module.exports = {
           ['uid'],
           ['updated_at','name','access_code','instructor_access_code','syllabus',
            'introduction','classroom_highlights_mode','closes_at','draftData',
-           'published_at','members','tools','instructorHighlights','_delete']
+           'published_at','members','tools','toolEngagements','instructorHighlights','_delete']
         )) {
           return getErrorObj('invalid parameters');
         }
@@ -158,15 +166,19 @@ module.exports = {
         const dbClassroom = dbClassrooms.filter(({ uid }) => uid === classroom.uid)[0]
 
         if(!dbComputedBookAccess[0]) {  // STUDENT
-          const onlyLeavingClassroom = (
-            util.paramsOk(classroom, ['uid', 'members'])
+          const leavingClassroomAndMaybeEngaging = (
+            util.paramsOk(classroom, ['uid', 'members'], ['toolEngagements'])
             && classroom.members.length === 1
             && util.paramsOk(classroom.members[0], ['user_id', 'updated_at', '_delete'])
             && classroom.members[0].user_id === user.id
           )
-          if(!onlyLeavingClassroom) {
+          const onlyLeavingClassroomOrEngaging = (
+            leavingClassroomAndMaybeEngaging
+            || util.paramsOk(classroom, ['uid', 'toolEngagements'])
+          )
+          if(!onlyLeavingClassroomOrEngaging) {
             return getErrorObj('invalid permissions: user lacks INSTRUCTOR/PUBLISHER computed_book_access');
-          } else if(classroom.uid === `${user.idpId}-${bookId}`) {
+          } else if(leavingClassroomAndMaybeEngaging && classroom.uid === `${user.idpId}-${bookId}`) {
             return getErrorObj('invalid permissions: user cannot leave the default version');
           }
         } else if(dbComputedBookAccess[0].version === 'PUBLISHER') {  // PUBLISHER
@@ -206,9 +218,10 @@ module.exports = {
           return getErrorObj('invalid parameters: when creating a classroom, must also be making yourself an INSTRUCTOR');
         }
 
-        const { members, tools, instructorHighlights } = classroom;
+        const { members, tools, toolEngagements, instructorHighlights } = classroom;
         delete classroom.members;
         delete classroom.tools;
+        delete classroom.toolEngagements;
         delete classroom.instructorHighlights;
 
         if(classroom.updated_at) {
@@ -240,7 +253,6 @@ module.exports = {
             } else if(!dbClassroom) {
               classroom.idp_id = user.idpId;
               classroom.book_id = bookId;
-              classroom.created_at = classroom.updated_at;
               queriesToRun.push({
                 query: 'INSERT INTO `classroom` SET ?',
                 vars: [ classroom ],
@@ -265,7 +277,7 @@ module.exports = {
         })
 
         if(!patchClassroomMembersResult.success) {
-          return getErrorObj(patchClassroomMembersResult.error);
+          return patchClassroomMembersResult
         }
 
         containedOldPatch = containedOldPatch || patchClassroomMembersResult.containedOldPatch
@@ -280,10 +292,25 @@ module.exports = {
         })
 
         if(!patchToolsResult.success) {
-          return getErrorObj(patchToolsResult.error);
+          return patchToolsResult
         }
 
         containedOldPatch = containedOldPatch || patchToolsResult.containedOldPatch
+
+        // do tool engagements
+        const patchToolEngagmentsResult = patchToolEngagments.addPatchQueries({
+          queriesToRun,
+          toolEngagements,
+          classroomUid: classroom.uid,
+          dbToolEngagements,
+          user,
+        })
+
+        if(!patchToolEngagmentsResult.success) {
+          return patchToolEngagmentsResult
+        }
+
+        containedOldPatch = containedOldPatch || patchToolEngagmentsResult.containedOldPatch
 
         // do instructor highlights
         const patchInstructorHighlightsResult = patchInstructorHighlights.addPatchQueries({
@@ -295,7 +322,7 @@ module.exports = {
         })
 
         if(!patchInstructorHighlightsResult.success) {
-          return getErrorObj(patchInstructorHighlightsResult.error);
+          return patchInstructorHighlightsResult
         }
 
         containedOldPatch = containedOldPatch || patchInstructorHighlightsResult.containedOldPatch

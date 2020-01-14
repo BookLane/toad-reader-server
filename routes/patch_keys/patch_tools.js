@@ -153,7 +153,6 @@ module.exports = {
 
           } else if(!dbTool) {
             tool.classroom_uid = classroomUid;
-            tool.created_at = tool.updated_at;
             queriesToRun.push({
               query: 'INSERT INTO `tool` SET ?',
               vars: [ tool ],

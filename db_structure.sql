@@ -7,7 +7,7 @@
 #
 # Host: localhost (MySQL 5.7.27)
 # Database: ToadReader
-# Generation Time: 2020-01-14 06:15:59 +0000
+# Generation Time: 2020-01-14 11:00:37 +0000
 # ************************************************************
 
 
@@ -449,10 +449,10 @@ CREATE TABLE `tool` (
 
 CREATE TABLE `tool_engagement` (
   `uid` varchar(36) NOT NULL DEFAULT '',
-  `user_id` int(11) unsigned NOT NULL,
+  `user_id` int(11) NOT NULL,
   `tool_uid` varchar(36) NOT NULL DEFAULT '',
   `text` text,
-  `create_at` datetime(3) NOT NULL,
+  `created_at` datetime(3) NOT NULL,
   `updated_at` datetime(3) NOT NULL,
   `submitted_at` datetime(3) DEFAULT NULL,
   `deleted_at` datetime(3) DEFAULT NULL,
@@ -460,7 +460,7 @@ CREATE TABLE `tool_engagement` (
   PRIMARY KEY (`uid`),
   KEY `user_id` (`user_id`),
   KEY `tool_id` (`tool_uid`),
-  KEY `create_at` (`create_at`),
+  KEY `create_at` (`created_at`),
   KEY `updated_at` (`updated_at`),
   KEY `submitted_at` (`submitted_at`),
   KEY `deleted_at` (`deleted_at`),

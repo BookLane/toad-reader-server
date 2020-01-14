@@ -294,11 +294,26 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
 
           // tools query
           queries.push(`
-            SELECT t.*
+            SELECT
+              t.*,
+              te.uid as te_uid,
+              te.text as te_text,
+              te.created_at as te_created_at,
+              te.updated_at as te_updated_at,
+              te.submitted_at as te_submitted_at,
+              te.score as te_score,
+              tea.question_index as tea_question_index,
+              tea.choice_index as tea_choice_index
             FROM tool as t
+              LEFT JOIN tool_engagement as te ON (te.tool_uid=t.uid AND te.deleted_at IS NULL AND te.user_id=:userId)
+              LEFT JOIN tool_engagement_answer as tea ON (tea.tool_engagement_uid=te.uid)
             WHERE t.classroom_uid IN (:classroomUids)
               AND t.deleted_at IS NULL
-            ORDER BY t.ordering
+              AND (
+                t.classroom_uid IN (:instructorClassroomUids)
+                OR t.published_at IS NOT NULL
+              )
+            ORDER BY t.ordering, te_submitted_at
           `)
 
           // instructor highlights query
@@ -322,7 +337,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
           (err, results) => {
             if (err) return next(err)
 
-            const [ latestLocations, highlights, members, tools, instructorHighlights ] = results
+            let [ latestLocations, highlights, members, tools, instructorHighlights ] = results
             const bookUserData = {}
 
             // get latest_location
@@ -336,6 +351,64 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
             bookUserData.highlights = highlights
 
             if(hasAccessToEnhancedTools || isPublisher) {
+
+              const toolsByUid = {}
+        
+              // compile engagements under each tool, and answers under each engagement
+              tools = tools.filter(tool => {
+                const { uid, toolType, te_uid, tea_question_index, tea_choice_index } = tool
+
+                const toolFilterReturn = !toolsByUid[uid]
+                if(!toolsByUid[uid]) {
+                  toolsByUid[uid] = tool
+                }
+
+                if(te_uid) {
+                  const isUpdateEngagementToolType = [ 'REFLECTION_QUESTION', 'POLL' ].includes(toolType)
+
+                  const toolEngagement = { ...tool }
+                  for(let key in toolEngagement) {
+                    if(/^te_/.test(key)) {
+                      toolEngagement[key.substr(3)] = toolEngagement[key]
+                    }
+                    delete toolEngagement[key]
+                  }
+
+                  if(isUpdateEngagementToolType) {
+                    if(toolsByUid[uid].engagement) {
+                      // should not get here
+                      log(['Unexpected duplicate entires for update engagement tool type', toolType, uid, req.params.userId], 3)
+                    } else {
+                      delete toolEngagement.uid
+                      toolsByUid[uid].engagement = toolEngagement
+                    }
+
+                  } else {
+                    if(!toolsByUid[uid].engagements) {
+                      toolsByUid[uid].engagements = []
+                    }
+                    toolsByUid[uid].engagements.push(toolEngagement)
+                  }
+
+                  if(tea_question_index != null) {
+                    if(!toolEngagement.answers) {
+                      toolEngagement.answers = []
+                    }
+                    toolEngagement.answers[parseInt(tea_question_index)] = parseInt(tea_choice_index)
+                  }
+  
+                }
+
+                if(toolsByUid[uid] === tool) {
+                  for(let key in tool) {
+                    if(/^tea?_/.test(key)) {
+                      delete tool[key]
+                    }
+                  }
+                }
+
+                return toolFilterReturn
+              })
 
               // get classrooms
               const classroomsByUid = {};

@@ -36,6 +36,7 @@
     "passport": "0.3.2",
     "passport-saml": "1.2.0",
     "redis": "^2.8.0",
-    "sharp": "0.23.1"
+    "sharp": "0.23.1",
+    "uuid": "3.3.3"
   }
 }
