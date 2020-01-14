@@ -165,42 +165,44 @@ module.exports = {
 
         const dbClassroom = dbClassrooms.filter(({ uid }) => uid === classroom.uid)[0]
 
-        if(!dbComputedBookAccess[0]) {  // STUDENT
-          const leavingClassroomAndMaybeEngaging = (
-            util.paramsOk(classroom, ['uid', 'members'], ['toolEngagements'])
-            && classroom.members.length === 1
-            && util.paramsOk(classroom.members[0], ['user_id', 'updated_at', '_delete'])
-            && classroom.members[0].user_id === user.id
-          )
-          const onlyLeavingClassroomOrEngaging = (
-            leavingClassroomAndMaybeEngaging
-            || util.paramsOk(classroom, ['uid', 'toolEngagements'])
-          )
-          if(!onlyLeavingClassroomOrEngaging) {
-            return getErrorObj('invalid permissions: user lacks INSTRUCTOR/PUBLISHER computed_book_access');
-          } else if(leavingClassroomAndMaybeEngaging && classroom.uid === `${user.idpId}-${bookId}`) {
-            return getErrorObj('invalid permissions: user cannot leave the default version');
+        const onlyEngaging = util.paramsOk(classroom, ['uid', 'toolEngagements'])
+
+        if(!onlyEngaging) {
+
+          if(!dbComputedBookAccess[0]) {  // STUDENT
+            const leavingClassroomAndMaybeEngaging = (
+              util.paramsOk(classroom, ['uid', 'members'], ['toolEngagements'])
+              && classroom.members.length === 1
+              && util.paramsOk(classroom.members[0], ['user_id', 'updated_at', '_delete'])
+              && classroom.members[0].user_id === user.id
+            )
+            if(!leavingClassroomAndMaybeEngaging) {
+              return getErrorObj('invalid permissions: user lacks INSTRUCTOR/PUBLISHER computed_book_access');
+            } else if(leavingClassroomAndMaybeEngaging && classroom.uid === `${user.idpId}-${bookId}`) {
+              return getErrorObj('invalid permissions: user cannot leave the default version');
+            }
+          } else if(dbComputedBookAccess[0].version === 'PUBLISHER') {  // PUBLISHER
+            if(classroom.uid !== `${user.idpId}-${bookId}`) {
+              return getErrorObj('invalid permissions: user with PUBLISHER computed_book_access can only edit the default version');
+            }
+            if(!util.paramsOk(classroom, ['uid'], ['tools'])) {
+              return getErrorObj('invalid permissions: user with PUBLISHER computed_book_access can only edit tools related to the default version');
+            }
+            if(!dbClassroom) {
+              return getErrorObj('invalid data: user with PUBLISHER computed_book_access attempting to edit non-existent default version');
+            }
+            if(classroom.instructorHighlights) {
+              return getErrorObj('invalid data: user with PUBLISHER book_instance attempting to edit instructor highlights');
+            }
+          } else {  // INSTRUCTOR
+            if(classroom.uid === `${user.idpId}-${bookId}`) {
+              return getErrorObj('invalid permissions: user with INSTRUCTOR computed_book_access cannot edit the default version');
+            }
+            if(dbClassroom && dbClassroom.role !== 'INSTRUCTOR') {
+              return getErrorObj('invalid permissions: user not INSTRUCTOR of this classroom');
+            }
           }
-        } else if(dbComputedBookAccess[0].version === 'PUBLISHER') {  // PUBLISHER
-          if(classroom.uid !== `${user.idpId}-${bookId}`) {
-            return getErrorObj('invalid permissions: user with PUBLISHER computed_book_access can only edit the default version');
-          }
-          if(!util.paramsOk(classroom, ['uid'], ['tools'])) {
-            return getErrorObj('invalid permissions: user with PUBLISHER computed_book_access can only edit tools related to the default version');
-          }
-          if(!dbClassroom) {
-            return getErrorObj('invalid data: user with PUBLISHER computed_book_access attempting to edit non-existent default version');
-          }
-          if(classroom.instructorHighlights) {
-            return getErrorObj('invalid data: user with PUBLISHER book_instance attempting to edit instructor highlights');
-          }
-        } else {  // INSTRUCTOR
-          if(classroom.uid === `${user.idpId}-${bookId}`) {
-            return getErrorObj('invalid permissions: user with INSTRUCTOR computed_book_access cannot edit the default version');
-          }
-          if(dbClassroom && dbClassroom.role !== 'INSTRUCTOR') {
-            return getErrorObj('invalid permissions: user not INSTRUCTOR of this classroom');
-          }
+
         }
 
         const accessCodesToSet = [ classroom.access_code, classroom.instructor_access_code ].filter(Boolean)
