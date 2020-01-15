@@ -248,15 +248,15 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
             if(err2) return next(err2)
 
             const idp = row2[0]
-            let userId
+            let loginInfo
 
             if(idp.userInfoEndpoint) {
               // get user info, if endpoint provided
-              userId = await util.getUserInfo({ idp, idpUserId: email, next, connection, log })
+              loginInfo = await util.getUserInfo({ idp, idpUserId: email, next, connection, log })
               
             } else {
               // create the user if they do not exist
-              userId = await util.updateUserInfo({
+              loginInfo = await util.updateUserInfo({
                 connection,
                 log,
                 userInfo: {
@@ -271,7 +271,7 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
 
             // log them in
             await logIn({
-              userId,
+              ...loginInfo,
               req,
               next: err => {
                 if(err) return next(err)

@@ -399,10 +399,10 @@ function ensureAuthenticated(req, res, next) {
                   const sessionSharingAsRecipientInfo = util.parseSessionSharingAsRecipientInfo(idp)
                   const token = jwt.verify(req.cookies[sessionSharingAsRecipientInfo.cookie], sessionSharingAsRecipientInfo.secret)
 
-                  const logInSessionSharingUser = userId => {
+                  const logInSessionSharingUser = loginInfo => {
                     // the IDP does authentication via session-sharing
                     log('Logging in with session-sharing', 2)
-                    logIn({ userId, req, next })
+                    logIn({ ...loginInfo, req, next })
                   }
 
                   if(idp.userInfoEndpoint) {
