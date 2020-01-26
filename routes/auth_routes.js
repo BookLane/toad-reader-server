@@ -187,6 +187,20 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
     async (req, res, next) => {
       log('Authenticate user via email', 2)
 
+      const loginInfo = {
+        email: req.query.email,
+      }
+
+      if(
+        process.env.LOGIN_TEST_EMAIL
+        && process.env.LOGIN_TEST_CODE
+        && process.env.LOGIN_TEST_EMAIL === req.query.email
+      ) {
+        await util.setLoginInfoByAccessCode({ accessCode: process.env.LOGIN_TEST_CODE, loginInfo, next })
+        res.send({ success: true })
+        return
+      }
+
       if(!util.isValidEmail(req.query.email)) {
         res.status(400).send({
           success: false,
@@ -199,10 +213,6 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
       // ensure it is unique
       while(await util.getLoginInfoByAccessCode({ accessCode, next })) {
         accessCode = util.createAccessCode()
-      }
-
-      const loginInfo = {
-        email: req.query.email,
       }
 
       await util.setLoginInfoByAccessCode({ accessCode, loginInfo, next })
