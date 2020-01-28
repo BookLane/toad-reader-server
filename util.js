@@ -435,6 +435,13 @@ const util = {
             const userId = userBeforeUpdate ? userBeforeUpdate.id : results.insertId;
             const isAdmin = [ 'SUPER_ADMIN', 'ADMIN' ].includes(cols.adminLevel)
 
+            // If userInfo does not even include a books array, do not change their book instances.
+            // (To remove all book instances, books should be an empty array.)
+            if(!userInfo.books) {
+              finishUp(userId)
+              return
+            }
+
             // filter bookIds by the book-idp (books are accessible to user only if the book is associated with login IDP)
             connection.query(
               'SELECT book_id FROM `book-idp` WHERE idp_id=?' + (isAdmin ? '' : ' AND book_id IN(?)'),
