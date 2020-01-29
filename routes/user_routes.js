@@ -243,9 +243,10 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
         return;
       }
 
-      const { version, enhancedToolsExpiresAt } = accessInfo;
-      const isPublisher = ['PUBLISHER'].includes(version);
-      const hasAccessToEnhancedTools = ['ENHANCED','INSTRUCTOR'].includes(version) && enhancedToolsExpiresAt > Date.now();
+      const { version, enhancedToolsExpiresAt } = accessInfo
+      const isPublisher = ['PUBLISHER'].includes(version)
+      const hasAccessToEnhancedTools = ['ENHANCED','INSTRUCTOR'].includes(version) && enhancedToolsExpiresAt > Date.now()
+      const defaultClassroomUid = `${req.user.idpId}-${req.params.bookId}`
 
       const getBookUserData = (classrooms=[]) => {
 
@@ -257,6 +258,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
           notDeletedAtTime: util.NOT_DELETED_AT_TIME,
           classroomUids: [ '', ...classroomUids ],  // Blank string added to prevent error in case there are none
           instructorClassroomUids: [ '', ...classrooms.filter(({ role }) => role === 'INSTRUCTOR').map(({ uid }) => uid) ],  // Blank string added to prevent error in case there are none
+          defaultClassroomUid,
         }
 
         // latest_location query
@@ -312,6 +314,9 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
               AND (
                 t.classroom_uid IN (:instructorClassroomUids)
                 OR t.published_at IS NOT NULL
+                ${!isPublisher ? `` : `
+                  OR t.classroom_uid=:defaultClassroomUid
+                `}
               )
             ORDER BY t.ordering, te_submitted_at
           `)
@@ -413,17 +418,37 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
               // get classrooms
               const classroomsByUid = {};
               classrooms.forEach(classroom => {
+                util.convertMySQLDatetimesToTimestamps(classroom)
+                util.convertJsonColsFromStrings({ tableName: 'classroom', row: classroom })
+
                 if(!['INSTRUCTOR'].includes(classroom.role)) {
                   delete classroom.access_code
                   delete classroom.instructor_access_code
+                }
+                if(!isPublisher) {
+                  ;(classroom.lti_configurations || []).forEach(ltiConfiguration => {
+                    if(
+                      ltiConfiguration.originalClassroomUid === defaultClassroomUid
+                      || !['INSTRUCTOR'].includes(classroom.role)
+                    ) {
+                      delete ltiConfiguration.key
+                      delete ltiConfiguration.secret
+                    }
+                  })
+                }
+                if(
+                  !isPublisher
+                  && (
+                    !['INSTRUCTOR'].includes(classroom.role)
+                    || classroom.uid === defaultClassroomUid
+                  )
+                ) {
+                  delete classroom.draftData
                 }
                 delete classroom.idp_id
                 delete classroom.book_id
                 delete classroom.deleted_at
                 delete classroom.role
-
-                util.convertMySQLDatetimesToTimestamps(classroom)
-                util.convertJsonColsFromStrings({ tableName: 'classroom', row: classroom })
 
                 classroom.members = []
                 classroom.tools = []
@@ -474,8 +499,6 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
       }
 
       if(hasAccessToEnhancedTools || isPublisher) {
-
-        const defaultClassroomUid = `${req.user.idpId}-${req.params.bookId}`;
 
         // first get the classrooms so as to reference them in the other queries
         connection.query(`

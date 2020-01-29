@@ -153,7 +153,7 @@ module.exports = {
           classroom,
           ['uid'],
           ['updated_at','name','access_code','instructor_access_code','syllabus',
-           'introduction','classroom_highlights_mode','closes_at','draftData',
+           'introduction','lti_configurations','classroom_highlights_mode','closes_at','draftData',
            'published_at','members','tools','toolEngagements','instructorHighlights','_delete']
         )) {
           return getErrorObj('invalid parameters');
@@ -185,8 +185,11 @@ module.exports = {
             if(classroom.uid !== `${user.idpId}-${bookId}`) {
               return getErrorObj('invalid permissions: user with PUBLISHER computed_book_access can only edit the default version');
             }
-            if(!util.paramsOk(classroom, ['uid'], ['tools'])) {
-              return getErrorObj('invalid permissions: user with PUBLISHER computed_book_access can only edit tools related to the default version');
+            if(
+              !util.paramsOk(classroom, ['uid'], ['tools', 'lti_configurations', 'draftData', 'updated_at'])
+              || !util.paramsOk(classroom.draftData || {}, [], ['lti_configurations'])
+            ) {
+              return getErrorObj('invalid permissions: user with PUBLISHER computed_book_access can only edit tools and lti_configurations related to the default version');
             }
             if(!dbClassroom) {
               return getErrorObj('invalid data: user with PUBLISHER computed_book_access attempting to edit non-existent default version');
