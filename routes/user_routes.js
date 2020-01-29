@@ -428,7 +428,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
                 if(!isPublisher) {
                   ;(classroom.lti_configurations || []).forEach(ltiConfiguration => {
                     if(
-                      ltiConfiguration.originalClassroomUid === defaultClassroomUid
+                      ltiConfiguration.createdByPublisher
                       || !['INSTRUCTOR'].includes(classroom.role)
                     ) {
                       delete ltiConfiguration.key
