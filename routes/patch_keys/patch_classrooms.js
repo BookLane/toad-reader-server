@@ -206,6 +206,14 @@ module.exports = {
             }
           }
 
+          // make sure there is not more than a single LTI configuration per domain-createdByPublisher combo
+          const hasDuplicateLTIConfigs = ltiConfigurations => (
+            ltiConfigurations.length !== [...new Set(ltiConfigurations.map(({ domain, createdByPublisher }) => `${domain} ${!!createdByPublisher}`))].length
+          )
+          if(hasDuplicateLTIConfigs(classroom.lti_configurations || [])) {
+            return getErrorObj('invalid lti_configurations: only one LTI configuration allowed per domain-createdByPublisher combo');
+          }
+
         }
 
         const accessCodesToSet = [ classroom.access_code, classroom.instructor_access_code ].filter(Boolean)
