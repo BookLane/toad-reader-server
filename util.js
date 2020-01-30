@@ -838,6 +838,36 @@ const util = {
     })
   ),
 
+  decodeJWT: ({ jwtColInIdp='internalJWT', connection, log, ignoreError }) => async (req, res, next) => {
+
+    const [ idpRow ] = await util.runQuery({
+      query: `SELECT id, ${jwtColInIdp} FROM idp WHERE domain=:domain`,
+      vars: {
+        domain: util.getIDPDomain(req.headers.host),
+      },
+      connection,
+      next,
+    })
+
+    if(!idpRow) {
+      log(["Invalid host.", req.headers.host], 3)
+      return res.status(403).send({ success: false })
+    }
+
+    try {
+      req.idpId = parseInt(idpRow.id, 10)
+      req.payload_decoded = jwt.verify(req.params.payload || req.body.payload, idpRow[jwtColInIdp])
+    } catch(err) {
+      log(["Invalid payload.", req.headers.host, err], 3)
+      if(!ignoreError) {
+        return res.status(403).send({ success: false })
+      }
+    }
+
+    return next()
+
+  },
+
 }
 
 module.exports = util;

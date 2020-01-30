@@ -206,12 +206,12 @@ module.exports = {
             }
           }
 
-          // make sure there is not more than a single LTI configuration per domain-createdByPublisher combo
+          // make sure there is not more than a single LTI configuration per domain
           const hasDuplicateLTIConfigs = ltiConfigurations => (
-            ltiConfigurations.length !== [...new Set(ltiConfigurations.map(({ domain, createdByPublisher }) => `${domain} ${!!createdByPublisher}`))].length
+            ltiConfigurations.length !== [...new Set(ltiConfigurations.map(({ domain }) => domain))].length
           )
           if(hasDuplicateLTIConfigs(classroom.lti_configurations || [])) {
-            return getErrorObj('invalid lti_configurations: only one LTI configuration allowed per domain-createdByPublisher combo');
+            return getErrorObj('invalid lti_configurations: only one LTI configuration allowed per domain')
           }
 
         }
