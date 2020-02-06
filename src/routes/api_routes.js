@@ -1,4 +1,4 @@
-var util = require('../util')
+var util = require('../utils/util')
 
 module.exports = function (app, connection, log) {
 

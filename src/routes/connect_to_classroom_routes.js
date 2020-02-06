@@ -1,4 +1,4 @@
-const util = require('../util');
+const util = require('../utils/util');
 
 module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log) {
 

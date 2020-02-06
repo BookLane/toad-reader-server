@@ -1,6 +1,6 @@
 const path = require('path')
 const fs = require('fs')
-const util = require('../util')
+const util = require('../utils/util')
 const { i18n } = require("inline-i18n")
 const Entities = require('html-entities').AllHtmlEntities
 const entities = new Entities()
@@ -850,7 +850,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
       const { expires=0, url, postData } = req.payload_decoded || {}
 
       if(!error && Date.now() > expires) {
-        error = i18n("This launch link has expired.")
+        error = i18n("This launch link has expired.", "", "enhanced")
       }
 
       if(error) {

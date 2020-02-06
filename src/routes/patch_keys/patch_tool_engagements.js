@@ -1,4 +1,4 @@
-const util = require('../../util')
+const util = require('../../utils/util')
 const uuidv4 = require('uuid/v4')
 
 const getSuccessObj = containedOldPatch => ({

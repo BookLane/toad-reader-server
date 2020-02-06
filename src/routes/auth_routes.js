@@ -1,7 +1,7 @@
-const util = require('../util')
+const util = require('../utils/util')
 const cookie = require('cookie-signature')
 const { i18n } = require("inline-i18n")
-const sendEmail = require("../sendEmail")
+const sendEmail = require("../utils/sendEmail")
 
 const getCookie = req => `connect.sid=${encodeURIComponent(`s:${cookie.sign(req.sessionID, process.env.SESSION_SECRET || 'secret')}`)}`
 
@@ -224,7 +224,7 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
           toAddrs: req.query.email,
           subject: i18n("Login code"),
           body: `
-            <p>${i18n("You login code: {{code}}", { code: `<span style="font-weight: bold;">${accessCode}</span>` })}</p>
+            <p>${i18n("Your login code: {{code}}", { code: `<span style="font-weight: bold;">${accessCode}</span>` })}</p>
             <p>${i18n("Enter this code into the native or web app.")}</p>
             <p style="font-size: 12px; color: #777;">${i18n("Note: This code expires in 15 minutes.")}</p>
           `,

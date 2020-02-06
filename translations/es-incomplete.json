@@ -1,11 +1,18 @@
 {
 	"default": {
-		"Quote from {{title}}": "TRANSLATION NEEDED",
-		"Comment": "TRANSLATION NEEDED",
-		"Share:": "TRANSLATION NEEDED",
-		"Copy link": "TRANSLATION NEEDED",
-		"Copied": "TRANSLATION NEEDED",
-		"Read at the quote": "TRANSLATION NEEDED",
-		"Login to the Reader": "TRANSLATION NEEDED"
+		"Hi,": "TRANSLATION NEEDED",
+		"Quote from {{title}}": "Citar de {{title}}",
+		"Comment": "Comentar",
+		"Share:": "Compartir:",
+		"Copy link": "Copiar enlace",
+		"Copied": "Copiado",
+		"Read at the quote": "Leer en la cita",
+		"Login code": "Código de inicio de sesión",
+		"Your login code: {{code}}": "Tu código de inicio de sesión: {{code}}",
+		"Enter this code into the native or web app.": "Ingresa este código en la aplicación instalada o web.",
+		"Note: This code expires in 15 minutes.": "Nota: Este código expira en 15 minutos."
+	},
+	"enhanced": {
+		"This launch link has expired.": "TRANSLATION NEEDED"
 	}
 }

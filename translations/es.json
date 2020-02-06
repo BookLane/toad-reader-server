@@ -1,11 +1,15 @@
 {
   "default": {
+		"Hi,": "Hola,",
     "Quote from {{title}}": "Citar de {{title}}",
     "Comment": "Comentar",
     "Share:": "Compartir:",
     "Copy link": "Copiar enlace",
     "Copied": "Copiado",
     "Read at the quote": "Leer en la cita",
-    "Login to the Reader": "Inicio de sesión en el Lector"
+		"Login code": "Código de inicio de sesión",
+		"Your login code: {{code}}": "Tu código de inicio de sesión: {{code}}",
+		"Enter this code into the native or web app.": "Ingresa este código en la aplicación instalada o web.",
+		"Note: This code expires in 15 minutes.": "Nota: Este código expira en 15 minutos."
   }
 }

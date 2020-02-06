@@ -1,4 +1,4 @@
-const util = require('../../util');
+const util = require('../../utils/util');
 const patchClassroomMembers = require('./patch_classroom_members');
 const patchTools = require('./patch_tools');
 const patchToolEngagments = require('./patch_tool_engagements');

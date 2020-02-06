@@ -3,7 +3,7 @@ module.exports = function (app, s3, connection, passport, authFuncs, ensureAuthe
   var path = require('path');
   var fs = require('fs');
   var mime = require('mime');
-  var util = require('../util');
+  var util = require('../utils/util');
 
   // function goEnsureAuthenticatedAndCheckIDP(req, res, next, redirectOnExpire) {
   //   if (req.isAuthenticated() && req.user.idpNoAuth) {

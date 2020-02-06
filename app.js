@@ -14,7 +14,7 @@ var RedisStore = require('connect-redis')(session)
 var passport = require('passport')
 var saml = require('passport-saml')
 require('dotenv').load()  //loads the local environment
-var util = require('./util')
+var util = require('./src/utils/util')
 const jwt = require('jsonwebtoken')
 const { i18nSetup } = require("inline-i18n")
 const fs = require('fs')
@@ -510,7 +510,7 @@ app.use('*', function(req, res, next) {
   }
 });
 
-require('./routes/routes')(app, s3, connection, passport, authFuncs, ensureAuthenticated, logIn, log);
+require('./src/routes/routes')(app, s3, connection, passport, authFuncs, ensureAuthenticated, logIn, log);
 
 process.on('unhandledRejection', reason => {
   log(['Unhandled node error', reason.stack || reason], 3)

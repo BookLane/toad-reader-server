@@ -1,11 +1,18 @@
 {
 	"default": {
+		"Hi,": "TRANSLATION NEEDED",
 		"Quote from {{title}}": "TRANSLATION NEEDED",
 		"Comment": "TRANSLATION NEEDED",
 		"Share:": "TRANSLATION NEEDED",
 		"Copy link": "TRANSLATION NEEDED",
 		"Copied": "TRANSLATION NEEDED",
 		"Read at the quote": "TRANSLATION NEEDED",
-		"Login to the Reader": "TRANSLATION NEEDED"
+		"Login code": "TRANSLATION NEEDED",
+		"Your login code: {{code}}": "TRANSLATION NEEDED",
+		"Enter this code into the native or web app.": "TRANSLATION NEEDED",
+		"Note: This code expires in 15 minutes.": "TRANSLATION NEEDED"
+	},
+	"enhanced": {
+		"This launch link has expired.": "TRANSLATION NEEDED"
 	}
 }
