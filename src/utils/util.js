@@ -868,6 +868,32 @@ const util = {
 
   },
 
+  setIdpLang: ({ connection }) => (req, res, next) => {
+
+    if(req.isAuthenticated()) {
+      req.idpLang = req.user.idpLang
+      return next()
+    }
+
+    connection.query(
+      'SELECT language FROM `idp` WHERE domain=?',
+      [util.getIDPDomain(req.headers.host)],
+      (err, rows) => {
+        if (err) return next(err)
+  
+        if(rows.length !== 1) {
+          log(["Request came from invalid host.", req.headers.host], 3)
+          return res.status(403).send({ success: false })
+        }
+  
+        req.idpLang = rows[0].language || 'en'
+  
+        return next()
+      },
+    )
+  
+  }
+
 }
 
 module.exports = util;

@@ -27,7 +27,9 @@ const sendEmail = input => {
 
   return new Promise((resolve, reject) => {
 
-    let { toAddrs, ccAddrs=[], bccAddrs=[], replyToAddrs, subject, body, connection, req } = input
+    let { toAddrs, ccAddrs=[], bccAddrs=[], replyToAddrs, subject, body, connection, req, language } = input
+
+    const locale = language || req.idpLang || 'en'
 
     connection.query(
       `SELECT * FROM idp WHERE domain=:domain`,
@@ -48,7 +50,7 @@ const sendEmail = input => {
                 <a href="https://${domain}" style="text-decoration: none; font-size: 18px; color: black;">${escapeHTML(name)}</a>
               </div>  
               <div style="border: 1px solid rgba(0,0,0,.1); border-radius: 5px; padding: 20px; background: white; font-size: 15px;">
-                <div style="margin-bottom: 20px;">${i18n("Hi,")}</div>
+                <div style="margin-bottom: 20px;">${i18n("Hi,", {}, { locale })}</div>
                 <div>${body}</div>
               </div>  
               <div style="padding: 10px 20px 20px 20px; font-size: 12px; text-align: center;">

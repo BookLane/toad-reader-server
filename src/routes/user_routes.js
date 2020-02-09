@@ -13,32 +13,6 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
     return encodeURIComponent(comp).replace(/%20/g, "+")
   }
 
-  const setIdpLang = (req, res, next) => {
-
-    if(req.isAuthenticated()) {
-      req.idpLang = req.user.idpLang
-      return next()
-    }
-
-    connection.query(
-      'SELECT language FROM `idp` WHERE domain=?',
-      [util.getIDPDomain(req.headers.host)],
-      (err, rows) => {
-        if (err) return next(err)
-  
-        if(rows.length !== 1) {
-          log(["Request came from invalid host.", req.headers.host], 3)
-          return res.status(403).send({ success: false })
-        }
-  
-        req.idpLang = rows[0].language || 'en'
-  
-        return next()
-      },
-    )
-  
-  }
-
   // get current milliseconds timestamp for syncing clock with the client
   app.get('/usersetup.json', ensureAuthenticatedAndCheckIDP, function (req, res) {
     const [ firstname, ...lastnamePieces ] = req.user.fullname.split(' ')
@@ -160,36 +134,39 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
   })
 
   // get shared quotation (legacy version)
-  app.get('/book/:bookId', setIdpLang, (req, res, next) => {
+  app.get('/book/:bookId',
+    util.setIdpLang({ connection }),
+    (req, res, next) => {
 
-    if(req.query.highlight) {
-      // If "creating" query parameter is present, then they can get rid of their name and/or note (and change their note?) 
+      if(req.query.highlight) {
+        // If "creating" query parameter is present, then they can get rid of their name and/or note (and change their note?) 
 
-      log(['Find book for share page', req.params.bookId]);
-      connection.query('SELECT * FROM `book` WHERE id=?',
-        [req.params.bookId],
-        async (err, rows) => {
-          if(err) return next(err)
+        log(['Find book for share page', req.params.bookId]);
+        connection.query('SELECT * FROM `book` WHERE id=?',
+          [req.params.bookId],
+          async (err, rows) => {
+            if(err) return next(err)
 
-          await sendSharePage({
-            ...req.query,
-            ...rows[0],
-            share_quote: req.query.highlight,
-            fullname: req.query.sharer,
-            book_id: req.params.bookId,
-            req,
-            res,
-            next,
-          })
+            await sendSharePage({
+              ...req.query,
+              ...rows[0],
+              share_quote: req.query.highlight,
+              fullname: req.query.sharer,
+              book_id: req.params.bookId,
+              req,
+              res,
+              next,
+            })
 
-        }
-      )
+          }
+        )
 
-    } else {
-      next()
+      } else {
+        next()
+      }
+
     }
-
-  })
+  )
 
   // Redirect if embedded and set to be mapped
   app.get('/check_for_embed_website_redirect', (req, res, next) => {
@@ -839,7 +816,10 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
   // an LTI launch link
   app.get('/lti/:payload',
     util.decodeJWT({ connection, log, ignoreError: true }),
+    util.setIdpLang({ connection }),
     (req, res, next) => {
+
+      const locale = req.idpLang || 'en'
 
       let error
 
@@ -850,7 +830,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
       const { expires=0, url, postData } = req.payload_decoded || {}
 
       if(!error && Date.now() > expires) {
-        error = i18n("This launch link has expired.", "", "enhanced")
+        error = i18n("This launch link has expired.", "", "enhanced", {}, { locale })
       }
 
       if(error) {

@@ -184,8 +184,11 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
 
   // passwordless login
   app.get('/loginwithemail',
+    util.setIdpLang({ connection }),
     async (req, res, next) => {
       log('Authenticate user via email', 2)
+
+      const locale = req.idpLang || 'en'
 
       const loginInfo = {
         email: req.query.email,
@@ -222,11 +225,11 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
         // send the email
         await sendEmail({
           toAddrs: req.query.email,
-          subject: i18n("Login code"),
+          subject: i18n("Login code", {}, { locale }),
           body: `
-            <p>${i18n("Your login code: {{code}}", { code: `<span style="font-weight: bold;">${accessCode}</span>` })}</p>
-            <p>${i18n("Enter this code into the native or web app.")}</p>
-            <p style="font-size: 12px; color: #777;">${i18n("Note: This code expires in 15 minutes.")}</p>
+            <p>${i18n("Your login code: {{code}}", { code: `<span style="font-weight: bold;">${accessCode}</span>` }, { locale })}</p>
+            <p>${i18n("Enter this code into the native or web app.", {}, { locale })}</p>
+            <p style="font-size: 12px; color: #777;">${i18n("Note: This code expires in 15 minutes.", {}, { locale })}</p>
           `,
           connection,
           req,
