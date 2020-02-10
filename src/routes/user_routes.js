@@ -6,6 +6,7 @@ const Entities = require('html-entities').AllHtmlEntities
 const entities = new Entities()
 const jwt = require('jsonwebtoken')
 const oauthSignature = require('oauth-signature')
+const uuidv4 = require('uuid/v4')
 
 module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensureAuthenticatedAndCheckIDPWithRedirect, log) {
 
@@ -624,6 +625,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
 
       const { toolUid } = req.params
       const now = util.timestampToMySQLDatetime()
+      const locale = req.user.idpLang || 'en'
 
       // get tool info
       const [ tools, idps ] = await util.runQuery({
@@ -767,12 +769,6 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
         return res.send({ success: false, error: "Site not properly configured." })
       }
 
-      const roles = {
-        INSTRUCTOR: 'Instructor',
-        STUDENT: 'Learner',
-        PUBLISHER: 'ContentDeveloper',
-      }
-
       const postData = {
         lti_message_type: 'basic-lti-launch-request',
         lti_version: 'LTI-1p0',
@@ -781,11 +777,10 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
         user_id: req.user.id,
         lis_person_contact_email_primary: req.user.email,
         lis_person_name_full: req.user.fullname,
-        roles: roles[role || 'PUBLISHER'],
-        ...(isDefaultClassroom ? {} : {
-          context_id: classroom_uid,
-          context_title: classroomName,
-        }),
+        roles: role === 'INSTRUCTOR' ? 'Instructor' : 'Learner',
+        context_id: classroom_uid,
+        context_title: isDefaultClassroom ? i18n("Book Default", {}, { locale }) : classroomName,
+        context_type: isDefaultClassroom ? 'eBook' : 'eBookClassroom',
         oauth_callback: 'about:blank',
         oauth_consumer_key: key,
         oauth_nonce: Math.random().toString(36).replace(/[^a-z]/, '').substr(2),
@@ -793,6 +788,20 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
         oauth_timestamp: parseInt(Date.now()/1000),
         oauth_version: '1.0',
       }
+
+      // Do I need these?
+        // ext_user_username: ahubert@bm
+        // ext_lms: moodle-2
+        // tool_consumer_info_product_family_code: moodle
+        // tool_consumer_info_version: 2018120303
+        // tool_consumer_instance_guid: learn.biblemesh.com
+        // tool_consumer_instance_name: BibleMesh
+        // tool_consumer_instance_description: BibleMesh
+        // launch_presentation_locale: en
+        // launch_presentation_document_target: iframe
+        // launch_presentation_return_url: https://learn.biblemesh.com
+
+      log(['LTI post data', postData])
 
       // generates a RFC 3986 encoded, BASE64 encoded HMAC-SHA1 hash
       postData.oauth_signature = decodeURIComponent(oauthSignature.generate('POST', url, postData, secret))

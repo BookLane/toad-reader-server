@@ -858,7 +858,7 @@ const util = {
       req.idpId = parseInt(idpRow.id, 10)
       req.payload_decoded = jwt.verify(req.params.payload || req.body.payload, idpRow[jwtColInIdp])
     } catch(err) {
-      log(["Invalid payload.", req.headers.host, err], 3)
+      log(["Invalid payload.", req.headers.host, req.params.payload || req.body.payload, jwtColInIdp, err], 3)
       if(!ignoreError) {
         return res.status(403).send({ success: false })
       }
