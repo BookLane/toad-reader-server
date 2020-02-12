@@ -374,6 +374,20 @@ const util = {
 
     const { idpUserId, email, fullname, adminLevel, forceResetLoginBefore, ssoData } = userInfo
 
+    // check that userInfo params (except books which is checked below) are correct
+    if(
+      typeof idpUserId !== 'string'
+      || !idpUserId
+      || typeof email !== 'string'
+      || !util.isValidEmail(email)
+      || typeof fullname !== 'string'
+      || !fullname
+      || ![ 'NONE', 'ADMIN', undefined ].includes(adminLevel)
+      || ![ 'number', 'undefined' ].includes(typeof forceResetLoginBefore)
+    ) {
+      return next('Invalid user info')
+    }
+
     const finishUp = async userId => {
       await util.updateComputedBookAccess({ idpId, userId, connection, log })
       resolveAll({ userId, ssoData })
@@ -381,8 +395,19 @@ const util = {
 
     // dedup books
     const bookIdObj = {}
-    const books = (userInfo.books || []).filter(({ id }) => {
+    const books = (userInfo.books || []).filter(({ id, version, expiration, enhancedToolsExpiration }) => {
       if(!bookIdObj[id]) {
+
+        // check validity
+        if(
+          !Number.isInteger(id)
+          || ![ 'BASE', 'ENHANCED', 'PUBLISHER', 'INSTRUCTOR', undefined ].includes(version)
+          || ![ 'number', 'undefined' ].includes(typeof expiration)
+          || ![ 'number', 'undefined' ].includes(typeof enhancedToolsExpiration)
+        ) {
+          return false  // i.e. skip it
+        }
+
         bookIdObj[id] = true
         return true
       }
