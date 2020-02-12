@@ -6,7 +6,7 @@ const Entities = require('html-entities').AllHtmlEntities
 const entities = new Entities()
 const jwt = require('jsonwebtoken')
 const oauthSignature = require('oauth-signature')
-const uuidv4 = require('uuid/v4')
+const md5 = require('md5')
 
 module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensureAuthenticatedAndCheckIDPWithRedirect, log) {
 
@@ -611,8 +611,26 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
           }
         })
 
-        log(['Deliver library', rows])
-        res.send(rows)
+        const hash = md5(rows)
+
+        if(hash === req.query.hash) {
+          log(['No change to library.', rows])
+          return res.send({
+            noChange: true,
+          })
+          
+        } else if(req.query.hash !== undefined) {
+          log(['Deliver library', rows])
+          return res.send({
+            hash,
+            books: rows,
+          })
+          
+        } else {
+          log(['Deliver library (old version without hash)', rows])
+          return res.send(rows)
+        }
+
 
       }
     )
