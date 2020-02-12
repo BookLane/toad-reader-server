@@ -380,8 +380,7 @@ const util = {
       || !idpUserId
       || typeof email !== 'string'
       || !util.isValidEmail(email)
-      || typeof fullname !== 'string'
-      || !fullname
+      || (fullname && typeof fullname !== 'string')
       || ![ 'NONE', 'ADMIN', undefined ].includes(adminLevel)
       || ![ 'number', 'undefined' ].includes(typeof forceResetLoginBefore)
     ) {
