@@ -15,7 +15,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
 
     connection.query(
       `
-        SELECT c.uid, c.access_code, c.instructor_access_code, cba.version
+        SELECT c.uid, c.book_id, c.access_code, c.instructor_access_code, cba.version
         FROM classroom as c
           LEFT JOIN computed_book_access as cba ON (cba.book_id=c.book_id)
         WHERE
@@ -71,11 +71,12 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
 
             const classroomMember = rows2[0];
             let insertOrUpdate = '';
+            const role = isInstructorAccessCode ? 'INSTRUCTOR' : 'STUDENT'
 
             const insertOrUpdateValues = {
               classroom_uid: classroom.uid,
               user_id: req.user.id,
-              role: isInstructorAccessCode ? 'INSTRUCTOR' : 'STUDENT',
+              role,
               updated_at: now,
               deleted_at: null,
             }
@@ -103,7 +104,11 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
               ],
               (err, results) => {
                 if (err) return next(err);
-                res.status(200).send({ uid: classroom.uid });
+                res.status(200).send({
+                  uid: classroom.uid,
+                  bookId: classroom.book_id,
+                  role,
+                });
               }
             );
           }
