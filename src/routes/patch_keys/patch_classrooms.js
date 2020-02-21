@@ -169,7 +169,7 @@ module.exports = {
 
         if(!onlyEngaging) {
 
-          if(!dbComputedBookAccess[0]) {  // STUDENT
+          if(!dbComputedBookAccess[0] || dbClassroom.role === 'STUDENT') {  // STUDENT
             const leavingClassroomAndMaybeEngaging = (
               util.paramsOk(classroom, ['uid', 'members'], ['toolEngagements'])
               && classroom.members.length === 1
