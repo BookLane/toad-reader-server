@@ -172,10 +172,10 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
   // Redirect if embedded and set to be mapped
   app.get('/check_for_embed_website_redirect', (req, res, next) => {
     if(!req.query.parent_domain) {
-      return res.status(400).send({ error: 'missing parent_domain parameter' });
+      return res.status(400).send({ error: 'missing parent_domain parameter' })
     }
 
-    log('Check for embed website redirect');
+    log('Check for embed website redirect')
     connection.query(`
       SELECT embed_website.domain, idp.domain as idp_domain
       FROM embed_website
@@ -186,12 +186,13 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
         req.query.parent_domain,
       ],
       (err, rows) => {
-        if(err) return next(err);
+        if(err) return next(err)
 
         if(rows.length === 0) {
-          res.send({});
+          res.send({})
         } else {
-          res.send({ redirectToDomain: rows[0].idp_domain });
+          log(`Embed website redirect. Go to: ${rows[0].idp_domain}`);
+          res.send({ redirectToDomain: rows[0].idp_domain })
         }
       }
     );
