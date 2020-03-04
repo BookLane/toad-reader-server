@@ -493,24 +493,20 @@ const util = {
                 const updateBookInstance = ({ id, version, expiration, enhancedToolsExpiration }) => new Promise(resolve => {
                   enhancedToolsExpiration = enhancedToolsExpiration || expiration
 
-                  const updateCols = {
-                    idp_id: idpId,  // will not change on update
-                  }
-
                   const expiresAt = util.timestampToMySQLDatetime(expiration)
-                  updateCols.expires_at = (expiration && expiresAt) || null
-
                   const enhancedToolsExpiresAt = util.timestampToMySQLDatetime(enhancedToolsExpiration)
-                  updateCols.enhanced_tools_expire_at = (enhancedToolsExpiration && enhancedToolsExpiresAt) || null
 
-                  if(version) {
-                    updateCols.version = version
+                  const updateCols = {
+                    expires_at: (expiration && expiresAt) || null,
+                    enhanced_tools_expire_at: (enhancedToolsExpiration && enhancedToolsExpiresAt) || null,
+                    version: version || 'BASE',
                   }
 
                   const insertCols = {
                     ...updateCols,
                     book_id: id,
                     user_id: userId,
+                    idp_id: idpId,
                     first_given_access_at: now,
                   }
 
