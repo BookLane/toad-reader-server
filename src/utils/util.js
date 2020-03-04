@@ -494,18 +494,14 @@ const util = {
                   enhancedToolsExpiration = enhancedToolsExpiration || expiration
 
                   const updateCols = {
-                    idp_id: idpId,  // there needs to be at least one column, so this one is here, though it will not change on update
+                    idp_id: idpId,  // will not change on update
                   }
 
                   const expiresAt = util.timestampToMySQLDatetime(expiration)
-                  if(expiration && expiresAt) {
-                    updateCols.expires_at = expiresAt
-                  }
+                  updateCols.expires_at = (expiration && expiresAt) || null
 
                   const enhancedToolsExpiresAt = util.timestampToMySQLDatetime(enhancedToolsExpiration)
-                  if(enhancedToolsExpiration && enhancedToolsExpiresAt) {
-                    updateCols.enhanced_tools_expire_at = enhancedToolsExpiresAt
-                  }
+                  updateCols.enhanced_tools_expire_at = (enhancedToolsExpiration && enhancedToolsExpiresAt) || null
 
                   if(version) {
                     updateCols.version = version
