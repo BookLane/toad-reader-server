@@ -55,8 +55,8 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
         })
 
         if(window.ReactNativeWebView) {  // ios or android
-          window.ReactNativeWebView.postMessage(message)
           document.cookie = "connect.sid=; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
+          window.ReactNativeWebView.postMessage(message)
 
         } else {  // web
           let webAppDomain
