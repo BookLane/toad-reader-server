@@ -502,7 +502,9 @@ app.use(passport.session())
 // force HTTPS
 app.use('*', function(req, res, next) {  
   if(!req.secure && req.headers['x-forwarded-proto'] !== 'https' && process.env.REQUIRE_HTTPS) {
-    log(['Go to HTTPS', req.headers.host + req.url]);
+    if(!/^[0-9.]+$/.test(req.headers.host)) {  // don't log all the health checks coming from IPs
+      log(['Go to HTTPS', req.headers.host + req.url]);
+    }
     var secureUrl = "https://" + req.headers.host + req.url; 
     res.redirect(secureUrl);
   } else {
