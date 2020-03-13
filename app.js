@@ -479,17 +479,20 @@ app.use(function(req, res, next) {
   if(req.headers['x-cookie-override']) {
     req.headers.cookie = req.headers['x-cookie-override']
   }
-  next();
+  next()
 })
-app.use(cookieParser());
+app.use(cookieParser())
+app.set('trust proxy', 1)
 app.use(session({
   store: process.env.IS_DEV ? null : new RedisStore(redisOptions),
   secret: process.env.SESSION_SECRET || 'secret',
   saveUninitialized: false,
   resave: false,
-  cookie : {
+  cookie: {
     httpOnly: false,
     maxAge: 1000 * 60 * 60 * 24 * 30 * 3,
+    sameSite: 'none',
+    secure: 'auto',
     // if they use this session at least once/3 months, it will never expire
   },
 }))
