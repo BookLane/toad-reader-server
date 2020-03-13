@@ -16,7 +16,15 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
       req.query['cookie'].split(';').forEach(cookie => {
         const [ key, value ] = cookie.split(/=/)
         if(key && value) {
-          res.cookie(key, value, { maxAge: 1000*60*60*24*365*100 })
+          res.cookie(
+            key,
+            value,
+            {
+              maxAge: 1000*60*60*24*365*100,
+              sameSite: 'none',
+              secure: 'auto',
+            },
+          )
         }
       })
 
@@ -26,7 +34,15 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
 
   app.get('/fixsafari',
     (req, res) => {
-      res.cookie('safari_fix', 1, { maxAge: 1000*60*60*24*365*100 })
+      res.cookie(
+        'safari_fix',
+        1,
+        {
+          maxAge: 1000*60*60*24*365*100,
+          sameSite: 'none',
+          secure: 'auto',
+        },
+      )
       res.redirect(`${util.getFrontEndOrigin(req)}${req.query.path || ``}`)
     }
   )
