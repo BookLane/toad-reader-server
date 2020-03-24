@@ -1,5 +1,7 @@
 const util = require('../utils/util');
 
+var threadIdx = 0;
+
 module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log) {
 
   // read.biblemesh.com/reportReading
@@ -9,10 +11,11 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
       res.send({ off: true });
     }
 
-    log(['Attempting to report reads for xapi', req.body]);
+    var threadId = threadIdx++;
+    log(['Attempting to report reads for xapi', threadId, req.body]);
 
     if(!util.paramsOk(req.body, ['readingRecords'])) {
-      log(['Invalid parameter(s)', req.body], 3);
+      log(['Invalid parameter(s)', threadId, req.body], 3);
       res.status(400).send();
       return;
     }
@@ -33,7 +36,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
         req.body.readingRecords.forEach(function(reading) {
 
           if(!util.paramsOk(reading, ['bookId','spineIdRef','startTime','endTime'])) {
-            log(['Invalid parameter(s)', reading], 3);
+            log(['Invalid parameter(s)', threadId, reading], 3);
             res.status(400).send();
             return;
           }
@@ -66,17 +69,18 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
         var runAQuery = function() {
           if(queriesToRun.length > 0) {
             var query = queriesToRun.shift();
-            log(['Report reading query', query]);
+            log(['Report reading query', threadId, query]);
             connection.query(query.query, query.vars, function (err, result) {
               if (err && err.code !== 'ER_DUP_ENTRY') {
-                return next(err);
+                log(['Duplicate and so ignored', threadId], 3);
+                // return next(err);
               }
               runAQuery();
             })
             
           } else {
             // When there is success on all objects
-            log('Report reads for xapi successful');
+            log(['Report reads for xapi successful', threadId]);
             res.status(200).send();
           }
         }
