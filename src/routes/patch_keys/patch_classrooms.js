@@ -1,5 +1,6 @@
 const util = require('../../utils/util');
 const patchClassroomMembers = require('./patch_classroom_members');
+const patchClassroomScheduleDates = require('./patch_classroom_schedule_dates');
 const patchTools = require('./patch_tools');
 const patchToolEngagments = require('./patch_tool_engagements');
 const patchInstructorHighlights = require('./patch_instructor_highlights');
@@ -105,6 +106,11 @@ module.exports = {
     preQueries.resultKeys.push('dbClassrooms');
     preQueries.resultKeys.push('dbClassroomAccessCodes');
 
+    patchClassroomScheduleDates.addPreQueries({
+      classrooms: body.classrooms || [],
+      preQueries,
+    })
+
     patchClassroomMembers.addPreQueries({
       classrooms: body.classrooms || [],
       preQueries,
@@ -135,6 +141,7 @@ module.exports = {
     dbComputedBookAccess,
     dbClassrooms,
     dbClassroomAccessCodes,
+    dbClassroomScheduleDates,
     dbClassroomMembers,
     dbTools,
     dbToolEngagements,
@@ -154,7 +161,7 @@ module.exports = {
           ['uid'],
           ['updated_at','name','access_code','instructor_access_code','syllabus',
            'introduction','lti_configurations','classroom_highlights_mode','closes_at','draftData',
-           'published_at','members','tools','toolEngagements','instructorHighlights','_delete']
+           'published_at','scheduleDates','members','tools','toolEngagements','instructorHighlights','_delete']
         )) {
           return getErrorObj('invalid parameters');
         }
@@ -231,7 +238,8 @@ module.exports = {
           return getErrorObj('invalid parameters: when creating a classroom, must also be making yourself an INSTRUCTOR');
         }
 
-        const { members, tools, toolEngagements, instructorHighlights } = classroom;
+        const { scheduleDates, members, tools, toolEngagements, instructorHighlights } = classroom;
+        delete classroom.scheduleDates;
         delete classroom.members;
         delete classroom.tools;
         delete classroom.toolEngagements;
@@ -243,6 +251,8 @@ module.exports = {
             containedOldPatch = true;
 
           } else {
+
+            const classroomUpdatedAt = classroom.updated_at
 
             util.prepUpdatedAtAndCreatedAt(classroom, !dbClassroom)
             util.convertTimestampsToMySQLDatetimes(classroom)
@@ -277,8 +287,23 @@ module.exports = {
                 vars: [ classroom, classroom.uid ],
               })
             }
-          }
 
+            // do schedule dates
+            const patchClassroomScheduleDatesResult = patchClassroomScheduleDates.addPatchQueries({
+              queriesToRun,
+              scheduleDates,
+              classroomUid: classroom.uid,
+              classroomUpdatedAt,
+              dbClassroomScheduleDates,
+            })
+
+            if(!patchClassroomScheduleDatesResult.success) {
+              return patchClassroomScheduleDatesResult
+            }
+
+            containedOldPatch = containedOldPatch || patchClassroomScheduleDatesResult.containedOldPatch
+
+          }
         }
 
         // do members

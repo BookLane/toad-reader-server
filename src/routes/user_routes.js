@@ -263,7 +263,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
 
         if(hasAccessToEnhancedTools || isPublisher) {
 
-          // classroom_members query
+          // classroom_member query
           queries.push(`
             SELECT cm.classroom_uid, cm.user_id, cm.classroom_group_uid, cm.role, cm.created_at, cm.updated_at, u.email, u.fullname
             FROM classroom_member as cm
@@ -315,6 +315,20 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
               AND h.deleted_at=:notDeletedAtTime
           `)
 
+          if(hasAccessToEnhancedTools) {
+  
+            // classroom_schedule_date query
+            queries.push(`
+              SELECT csd.classroom_uid, csd.due_at, csdi.spineIdRef, csdi.label
+              FROM classroom_schedule_date as csd
+                LEFT JOIN classroom_schedule_date_item as csdi ON (csdi.classroom_uid=csd.classroom_uid AND csdi.due_at=csd.due_at)
+              WHERE csd.classroom_uid IN (:classroomUids)
+                AND csd.deleted_at IS NULL
+              ORDER BY csd.due_at
+            `)
+
+          }
+
         }
 
         // build the userData object
@@ -325,7 +339,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
           (err, results) => {
             if (err) return next(err)
 
-            let [ latestLocations, highlights, members, tools, instructorHighlights ] = results
+            let [ latestLocations, highlights, members, tools, instructorHighlights, scheduleDates ] = results
             const bookUserData = {}
 
             // get latest_location
@@ -425,11 +439,19 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
                 delete classroom.deleted_at
                 delete classroom.role
 
+                classroom.scheduleDates = []
                 classroom.members = []
                 classroom.tools = []
                 classroom.instructorHighlights = []
                 classroomsByUid[classroom.uid] = classroom
-              });
+              })
+
+              // add schedule dates
+              util.compileScheduleDateItemsTogether({ scheduleDates }).forEach(scheduleDate => {
+                util.convertMySQLDatetimesToTimestamps(scheduleDate)
+                classroomsByUid[scheduleDate.classroom_uid].scheduleDates.push(scheduleDate)
+                delete scheduleDate.classroom_uid
+              })
 
               // add members
               members.forEach(member => {

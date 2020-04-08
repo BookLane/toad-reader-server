@@ -908,7 +908,42 @@ const util = {
       },
     )
   
-  }
+  },
+
+  compileScheduleDateItemsTogether: ({ scheduleDates, classroomUid }) => {
+
+    // compile items together and get rid of schedule dates for other classrooms
+
+    const itemsByScheduleDate = {}
+
+    return scheduleDates.filter(scheduleDate => {
+      const { classroom_uid, due_at, spineIdRef, label=null } = scheduleDate
+
+      if(classroomUid && classroom_uid !== classroomUid) return false  // irrelevant for this patch
+
+      const key = `${classroom_uid} ${due_at}`
+      const item = spineIdRef ? { spineIdRef, label } : null
+
+      if(itemsByScheduleDate[key]) {
+        itemsByScheduleDate[key].push(item)
+        return false
+      }
+
+      if(!scheduleDate.items) {
+        itemsByScheduleDate[key] = scheduleDate.items = []
+      }
+
+      if(item) {
+        scheduleDate.items.push(item)
+      }
+
+      delete scheduleDate.spineIdRef
+      delete scheduleDate.label
+
+      return true
+    })
+
+  },
 
 }
 

@@ -7,7 +7,7 @@
 #
 # Host: localhost (MySQL 5.7.27)
 # Database: ToadReader
-# Generation Time: 2020-01-14 11:00:37 +0000
+# Generation Time: 2020-03-13 12:31:15 +0000
 # ************************************************************
 
 
@@ -108,6 +108,7 @@ CREATE TABLE `classroom` (
   `instructor_access_code` varchar(10) DEFAULT NULL,
   `syllabus` text,
   `introduction` text,
+  `lti_configurations` text,
   `classroom_highlights_mode` enum('OFF','CLASSROOM','GROUP') NOT NULL DEFAULT 'CLASSROOM',
   `closes_at` datetime(3) DEFAULT NULL,
   `draftData` text,
@@ -176,17 +177,14 @@ CREATE TABLE `classroom_member` (
 # ------------------------------------------------------------
 
 CREATE TABLE `classroom_schedule_date` (
-  `uid` varchar(36) NOT NULL DEFAULT '',
   `classroom_uid` varchar(36) NOT NULL DEFAULT '',
   `due_at` datetime(3) NOT NULL,
-  `label` varchar(255) NOT NULL DEFAULT '',
   `created_at` datetime(3) NOT NULL,
   `updated_at` datetime(3) NOT NULL,
   `deleted_at` datetime(3) DEFAULT NULL,
-  PRIMARY KEY (`uid`),
+  PRIMARY KEY (`classroom_uid`,`due_at`),
   KEY `classroom_id` (`classroom_uid`),
   KEY `due_at` (`due_at`),
-  KEY `label` (`label`),
   KEY `created_at` (`created_at`),
   KEY `updated_at` (`updated_at`),
   KEY `deleted_at` (`deleted_at`)
@@ -198,16 +196,15 @@ CREATE TABLE `classroom_schedule_date` (
 # ------------------------------------------------------------
 
 CREATE TABLE `classroom_schedule_date_item` (
-  `uid` varchar(36) NOT NULL DEFAULT '',
-  `classroom_schedule_date_uid` varchar(36) NOT NULL DEFAULT '',
+  `classroom_uid` varchar(36) NOT NULL DEFAULT '',
+  `due_at` datetime(3) NOT NULL,
   `spineIdRef` varchar(255) NOT NULL DEFAULT '',
-  `created_at` datetime(3) NOT NULL,
-  `deleted_at` datetime(3) DEFAULT NULL,
-  PRIMARY KEY (`uid`),
-  KEY `classroom_schedule_date_id` (`classroom_schedule_date_uid`),
+  `label` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`classroom_uid`,`due_at`,`spineIdRef`),
+  KEY `classroom_uid` (`classroom_uid`),
+  KEY `due_at` (`due_at`),
   KEY `spineIdRef` (`spineIdRef`),
-  KEY `created_at` (`created_at`),
-  KEY `deleted_at` (`deleted_at`)
+  KEY `label` (`label`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 
