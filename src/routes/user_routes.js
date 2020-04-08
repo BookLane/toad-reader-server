@@ -447,11 +447,13 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
               })
 
               // add schedule dates
-              util.compileScheduleDateItemsTogether({ scheduleDates }).forEach(scheduleDate => {
-                util.convertMySQLDatetimesToTimestamps(scheduleDate)
-                classroomsByUid[scheduleDate.classroom_uid].scheduleDates.push(scheduleDate)
-                delete scheduleDate.classroom_uid
-              })
+              if(scheduleDates) {
+                util.compileScheduleDateItemsTogether({ scheduleDates }).forEach(scheduleDate => {
+                  util.convertMySQLDatetimesToTimestamps(scheduleDate)
+                  classroomsByUid[scheduleDate.classroom_uid].scheduleDates.push(scheduleDate)
+                  delete scheduleDate.classroom_uid
+                })
+              }
 
               // add members
               members.forEach(member => {
