@@ -46,6 +46,8 @@ module.exports = function (app, s3, connection, passport, authFuncs, ensureAuthe
   require('./api_routes')(app, connection, log);
   require('./admin_routes')(app, s3, connection, ensureAuthenticatedAndCheckIDP, log);
   require('./user_routes')(app, connection, ensureAuthenticatedAndCheckIDP, ensureAuthenticatedAndCheckIDPWithRedirect, log);
+  require('./lti_routes')(app, connection, ensureAuthenticatedAndCheckIDP, log);
+  require('./dashboard_routes')(app, connection, ensureAuthenticatedAndCheckIDP, log);
   require('./patch_route')(app, connection, ensureAuthenticatedAndCheckIDP, log);
   require('./connect_to_classroom_routes')(app, connection, ensureAuthenticatedAndCheckIDP, log);
   require('./xapi_routes')(app, connection, ensureAuthenticatedAndCheckIDP, log);

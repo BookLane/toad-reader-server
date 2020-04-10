@@ -843,7 +843,7 @@ const util = {
 
   runQuery: ({ query, queries, vars, connection, next }) => (
     new Promise(resolve => {
-      connection.query(
+      const { sql } = connection.query(
         query || queries.join(';'),
         vars,
         (err, result) => {
@@ -851,6 +851,8 @@ const util = {
           resolve(result)
         }
       )
+
+      // console.log('runQuery SQL: ', sql)
     })
   ),
 
