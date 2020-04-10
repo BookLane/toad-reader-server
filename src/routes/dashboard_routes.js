@@ -59,10 +59,10 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
         return res.status(400).send({ success: false, error: "Invalid permissions" })
       }
 
-      const [ toolEngagementRows, classroomMemberRows ] = await util.runQuery({
+      const [ toolEngagementRows, students ] = await util.runQuery({
         query: `
 
-          SELECT t.uid, t.spineIdRef, t.cfi, t.ordering, t.name, te.score, te.user_id, u.fullname, u.email
+          SELECT t.uid, t.spineIdRef, t.cfi, t.name, te.user_id, te.score
 
           FROM tool as t
             LEFT JOIN tool_engagement as te ON (te.tool_uid=t.uid)
@@ -82,11 +82,11 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
               )
             )
 
-          ORDER BY t.uid, u.id, te.submitted_at DESC
+          ORDER BY t.ordering, t.uid, u.id, te.submitted_at DESC
 
           ;
 
-          SELECT cm.user_id, u.fullname, u.email
+          SELECT cm.user_id as id, u.fullname, u.email
           FROM classroom_member as cm
             LEFT JOIN user as u ON (cm.user_id=u.id)
           WHERE cm.classroom_uid=:classroomUid
@@ -102,41 +102,44 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
         next,
       })
 
-      const toolsAndUsers = {}
-      const studentsWithScores = []
-      const scoresByUserId = {}
-      const quizzesWithoutScores = []
+      const scoresByToolAndUser = {}
+      const quizzesByLoc = {}
+      const quizUidsAccountedFor = {}
+      const toolUserCombosAccountedFor = {}
 
-      classroomMemberRows.forEach(({ user_id, fullname, email }) => {
-        scoresByUserId[user_id] = []
-        studentsWithScores.push({
-          user: {
-            id: user_id,
-            fullname,
-            email,
-          },
-          scores: scoresByUserId[user_id],
-        })
-      })
+      toolEngagementRows.forEach(({ uid, spineIdRef, cfi, name, user_id, score }) => {
+        if(!quizUidsAccountedFor[uid]) {
+          quizUidsAccountedFor[uid] = true
 
-      toolEngagementRows.forEach(row => {
-        const { user_id, fullname, email, ...rowMinusUser } = row
-        if(!toolsAndUsers[`${rowMinusUser.uid} ${user_id}`]) {
-          toolsAndUsers[`${rowMinusUser.uid} ${user_id}`] = true
-
-          if(!user_id) {
-            quizzesWithoutScores.push(rowMinusUser)
-          } else if(scoresByUserId[user_id]) {
-            scoresByUserId[user_id].push(rowMinusUser)
+          if(!quizzesByLoc[spineIdRef]) {
+            quizzesByLoc[spineIdRef] = {}
           }
-
+  
+          const cfiOrNullStr = cfi || 'NULL'
+  
+          if(!quizzesByLoc[spineIdRef][cfiOrNullStr]) {
+            quizzesByLoc[spineIdRef][cfiOrNullStr] = []
+          }
+  
+          scoresByToolAndUser[uid] = {}
+          quizzesByLoc[spineIdRef][cfiOrNullStr].push({
+            uid,
+            name,
+            scores: scoresByToolAndUser[uid],
+          })
         }
+
+        if(user_id && !toolUserCombosAccountedFor[`${uid} ${user_id}`]) {
+          toolUserCombosAccountedFor[`${uid} ${user_id}`] = true
+          scoresByToolAndUser[uid][user_id] = score
+        }
+  
       })
 
       return res.send({
         success: true,
-        studentsWithScores,
-        quizzesWithoutScores,
+        students,
+        quizzesByLoc,
       })
 
     }
@@ -153,7 +156,8 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
 
       const toolEngagementRows = await util.runQuery({
         query: `
-          SELECT t.uid, t.spineIdRef, t.cfi, t.ordering, t.name, te.score
+
+          SELECT t.uid, t.spineIdRef, t.cfi, t.name, te.score
 
           FROM tool as t
             LEFT JOIN tool_engagement as te ON (te.tool_uid=t.uid)
@@ -164,11 +168,17 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
             AND t.deleted_at IS NULL
             AND t.currently_published_tool_uid IS NULL
 
-            AND te.user_id=:userId
-            AND te.submitted_at IS NOT NULL
-            AND te.deleted_at IS NULL
+            AND (
+              te.uid IS NULL
+              OR (
+                te.user_id=:userId
+                AND te.submitted_at IS NOT NULL
+                AND te.deleted_at IS NULL
+              )
+            )
 
-          ORDER BY t.uid, te.submitted_at
+          ORDER BY t.ordering, t.uid, te.submitted_at
+
         `,
         vars: {
           classroomUid: req.params.classroomUid,
@@ -178,9 +188,40 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
         next,
       })
 
+      const scoresByQuizUid = {}
+      const quizzesByLoc = {}
+
+      toolEngagementRows.forEach(({ uid, spineIdRef, cfi, name, score }) => {
+
+        if(!scoresByQuizUid[uid]) {
+
+          if(!quizzesByLoc[spineIdRef]) {
+            quizzesByLoc[spineIdRef] = []
+          }
+
+          const cfiOrNullStr = cfi || 'NULL'
+
+          if(!quizzesByLoc[spineIdRef][cfiOrNullStr]) {
+            quizzesByLoc[spineIdRef][cfiOrNullStr] = []
+          }
+
+          scoresByQuizUid[uid] = []
+          quizzesByLoc[spineIdRef][cfiOrNullStr].push({
+            uid,
+            name,
+            scores: scoresByQuizUid[uid],
+          })
+
+        }
+
+        if(score) {
+          scoresByQuizUid[uid].push(score)
+        }
+      })
+
       return res.send({
         success: true,
-        scores: toolEngagementRows,
+        quizzesByLoc,
       })
 
     }
