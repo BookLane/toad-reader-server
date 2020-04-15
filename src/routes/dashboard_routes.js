@@ -157,7 +157,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
       const toolEngagementRows = await util.runQuery({
         query: `
 
-          SELECT t.uid, t.spineIdRef, t.cfi, t.name, te.score
+          SELECT t.uid, t.spineIdRef, t.cfi, t.name, te.score, te.submitted_at
 
           FROM tool as t
             LEFT JOIN tool_engagement as te ON (te.tool_uid=t.uid)
@@ -177,7 +177,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
               )
             )
 
-          ORDER BY t.ordering, t.uid, te.submitted_at
+          ORDER BY t.ordering, t.uid, te.submitted_at DESC
 
         `,
         vars: {
@@ -191,12 +191,14 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
       const scoresByQuizUid = {}
       const quizzesByLoc = {}
 
-      toolEngagementRows.forEach(({ uid, spineIdRef, cfi, name, score }) => {
+      util.convertMySQLDatetimesToTimestamps(toolEngagementRows)
+
+      toolEngagementRows.forEach(({ uid, spineIdRef, cfi, name, score, submitted_at }) => {
 
         if(!scoresByQuizUid[uid]) {
 
           if(!quizzesByLoc[spineIdRef]) {
-            quizzesByLoc[spineIdRef] = []
+            quizzesByLoc[spineIdRef] = {}
           }
 
           const cfiOrNullStr = cfi || 'NULL'
@@ -215,7 +217,10 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
         }
 
         if(score) {
-          scoresByQuizUid[uid].push(score)
+          scoresByQuizUid[uid].push({
+            score,
+            submitted_at,
+          })
         }
       })
 
