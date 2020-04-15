@@ -12,10 +12,10 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
     }
 
     var threadId = threadIdx++;
-    log(['Attempting to report reads for xapi', threadId, req.body]);
+    log(['Attempting to report reads for xapi', `thread:${threadId}`, req.body]);
 
     if(!util.paramsOk(req.body, ['readingRecords'])) {
-      log(['Invalid parameter(s)', threadId, req.body], 3);
+      log(['Invalid parameter(s)', `thread:${threadId}`, req.body], 3);
       res.status(400).send();
       return;
     }
@@ -36,8 +36,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
         req.body.readingRecords.forEach(function(reading) {
 
           if(!util.paramsOk(reading, ['bookId','spineIdRef','startTime','endTime'])) {
-            log(['Invalid parameter(s)', threadId, reading], 3);
-            res.status(400).send();
+            log(['Invalid reading record - skipping', `thread:${threadId}`, reading], 3);
             return;
           }
     
@@ -69,10 +68,10 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
         var runAQuery = function() {
           if(queriesToRun.length > 0) {
             var query = queriesToRun.shift();
-            log(['Report reading query', threadId, query]);
+            log(['Report reading query', `thread:${threadId}`, query]);
             connection.query(query.query, query.vars, function (err, result) {
               if (err && err.code !== 'ER_DUP_ENTRY') {
-                log(['Duplicate and so ignored', threadId], 3);
+                log(['Duplicate and so ignored', `thread:${threadId}`], 3);
                 // return next(err);
               }
               runAQuery();
@@ -80,7 +79,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
             
           } else {
             // When there is success on all objects
-            log(['Report reads for xapi successful', threadId]);
+            log(['Report reads for xapi successful', `thread:${threadId}`]);
             res.status(200).send();
           }
         }
