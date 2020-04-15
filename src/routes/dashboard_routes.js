@@ -232,4 +232,174 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
     }
   )
 
+  // get reflection questions
+  app.get('/getreflectionquestions/:classroomUid',
+    ensureAuthenticatedAndCheckIDP,
+    async (req, res, next) => {
+
+      if(!(await hasPermission({ req, next, role: "INSTRUCTOR" }))) {
+        return res.status(400).send({ success: false, error: "Invalid permissions" })
+      }
+
+      const [ toolEngagementRows, students ] = await util.runQuery({
+        query: `
+
+          SELECT t.uid, t.spineIdRef, t.cfi, t.name, t.data, te.user_id, te.text
+
+          FROM tool as t
+            LEFT JOIN tool_engagement as te ON (te.tool_uid=t.uid)
+            LEFT JOIN user as u ON (u.id=te.user_id)
+
+          WHERE t.classroom_uid=:classroomUid
+            AND t.toolType="REFLECTION_QUESTION"
+            AND t.published_at IS NOT NULL
+            AND t.deleted_at IS NULL
+            AND t.currently_published_tool_uid IS NULL
+
+            AND te.deleted_at IS NULL
+
+          ORDER BY t.ordering, t.uid, u.id, te.updated_at DESC
+
+          ;
+
+          SELECT cm.user_id as id, u.fullname, u.email
+          FROM classroom_member as cm
+            LEFT JOIN user as u ON (cm.user_id=u.id)
+          WHERE cm.classroom_uid=:classroomUid
+            AND cm.role='STUDENT'
+            AND cm.deleted_at IS NULL
+          ORDER BY u.fullname, u.id
+
+        `,
+        vars: {
+          classroomUid: req.params.classroomUid,
+        },
+        connection,
+        next,
+      })
+
+      const answersByToolAndUser = {}
+      const questionsByLoc = {}
+      const questionUidsAccountedFor = {}
+
+      toolEngagementRows.forEach(tool => {
+
+        util.convertJsonColsFromStrings({ tableName: 'tool', row: tool })
+        const { uid, spineIdRef, cfi, name, data, user_id, text } = tool
+
+        if(!questionUidsAccountedFor[uid]) {
+          questionUidsAccountedFor[uid] = true
+
+          if(!questionsByLoc[spineIdRef]) {
+            questionsByLoc[spineIdRef] = {}
+          }
+  
+          const cfiOrNullStr = cfi || 'NULL'
+  
+          if(!questionsByLoc[spineIdRef][cfiOrNullStr]) {
+            questionsByLoc[spineIdRef][cfiOrNullStr] = []
+          }
+  
+          answersByToolAndUser[uid] = {}
+          questionsByLoc[spineIdRef][cfiOrNullStr].push({
+            uid,
+            name,
+            question: data.question || "",
+            answers: answersByToolAndUser[uid],
+          })
+        }
+
+        if(user_id) {
+          answersByToolAndUser[uid][user_id] = text
+        }
+  
+      })
+
+      return res.send({
+        success: true,
+        students,
+        questionsByLoc,
+      })
+
+    }
+  )
+
+  // get my reflection questions
+  app.get('/getmyreflectionquestions/:classroomUid',
+    ensureAuthenticatedAndCheckIDP,
+    async (req, res, next) => {
+
+      if(!(await hasPermission({ req, next, role: "STUDENT" }))) {
+        return res.send({ success: false, error: "Invalid permissions" })
+      }
+
+      const toolEngagementRows = await util.runQuery({
+        query: `
+
+          SELECT t.uid, t.spineIdRef, t.cfi, t.name, t.data, te.text
+
+          FROM tool as t
+            LEFT JOIN tool_engagement as te ON (te.tool_uid=t.uid)
+
+          WHERE t.classroom_uid=:classroomUid
+            AND t.toolType="REFLECTION_QUESTION"
+            AND t.published_at IS NOT NULL
+            AND t.deleted_at IS NULL
+            AND t.currently_published_tool_uid IS NULL
+
+            AND (
+              te.uid IS NULL
+              OR (
+                te.user_id=:userId
+                AND te.deleted_at IS NULL
+              )
+            )
+
+          ORDER BY t.ordering, t.uid, te.updated_at DESC
+
+        `,
+        vars: {
+          classroomUid: req.params.classroomUid,
+          userId: req.user.id,
+        },
+        connection,
+        next,
+      })
+
+      const questionsByLoc = {}
+
+      util.convertMySQLDatetimesToTimestamps(toolEngagementRows)
+
+      toolEngagementRows.forEach(tool => {
+
+        util.convertJsonColsFromStrings({ tableName: 'tool', row: tool })
+        const { uid, spineIdRef, cfi, name, data, text } = tool
+
+        if(!questionsByLoc[spineIdRef]) {
+          questionsByLoc[spineIdRef] = {}
+        }
+
+        const cfiOrNullStr = cfi || 'NULL'
+
+        if(!questionsByLoc[spineIdRef][cfiOrNullStr]) {
+          questionsByLoc[spineIdRef][cfiOrNullStr] = []
+        }
+
+        questionsByLoc[spineIdRef][cfiOrNullStr].push({
+          uid,
+          name,
+          question: data.question || "",
+          answer: text || "",
+        })
+
+      })
+
+      return res.send({
+        success: true,
+        questionsByLoc,
+      })
+
+    }
+  )
+
 }
