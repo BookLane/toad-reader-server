@@ -59,7 +59,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
         return res.status(400).send({ success: false, error: "Invalid permissions" })
       }
 
-      const [ toolEngagementRows, students ] = await util.runQuery({
+      const toolEngagementRows = await util.runQuery({
         query: `
 
           SELECT t.uid, t.spineIdRef, t.cfi, t.name, te.user_id, te.score
@@ -83,16 +83,6 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
             )
 
           ORDER BY t.ordering, t.uid, u.id, te.submitted_at DESC
-
-          ;
-
-          SELECT cm.user_id as id, u.fullname, u.email
-          FROM classroom_member as cm
-            LEFT JOIN user as u ON (cm.user_id=u.id)
-          WHERE cm.classroom_uid=:classroomUid
-            AND cm.role='STUDENT'
-            AND cm.deleted_at IS NULL
-          ORDER BY u.fullname, u.id
 
         `,
         vars: {
@@ -138,7 +128,6 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
 
       return res.send({
         success: true,
-        students,
         quizzesByLoc,
       })
 
@@ -241,7 +230,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
         return res.status(400).send({ success: false, error: "Invalid permissions" })
       }
 
-      const [ toolEngagementRows, students ] = await util.runQuery({
+      const toolEngagementRows = await util.runQuery({
         query: `
 
           SELECT t.uid, t.spineIdRef, t.cfi, t.name, t.data, te.user_id, te.text
@@ -259,16 +248,6 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
             AND te.deleted_at IS NULL
 
           ORDER BY t.ordering, t.uid, u.id, te.updated_at DESC
-
-          ;
-
-          SELECT cm.user_id as id, u.fullname, u.email
-          FROM classroom_member as cm
-            LEFT JOIN user as u ON (cm.user_id=u.id)
-          WHERE cm.classroom_uid=:classroomUid
-            AND cm.role='STUDENT'
-            AND cm.deleted_at IS NULL
-          ORDER BY u.fullname, u.id
 
         `,
         vars: {
@@ -317,7 +296,6 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
 
       return res.send({
         success: true,
-        students,
         questionsByLoc,
       })
 
