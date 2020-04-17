@@ -275,6 +275,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
                 OR cm.user_id=:userId
                 OR cm.role='INSTRUCTOR'
               )
+            ORDER BY u.fullname, u.id
           `)
 
           // tools query
