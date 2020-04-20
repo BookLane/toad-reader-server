@@ -205,7 +205,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
 
         }
 
-        if(score) {
+        if(score != null) {
           scoresByQuizUid[uid].push({
             score,
             submitted_at,
