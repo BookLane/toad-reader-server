@@ -252,7 +252,7 @@ module.exports = {
                 if(dbAnswers[question_index] !== undefined) {
                   queriesToRun.push({
                     query: 'UPDATE `tool_engagement_answer` SET ? WHERE tool_engagement_uid=? AND question_index=?',
-                    vars: [ { choice_index }, toolEngagement.uid, question_index ],
+                    vars: [ { choice_index }, dbToolEngagement.uid, question_index ],
                   })
                 } else {
                   queriesToRun.push({
