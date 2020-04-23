@@ -66,7 +66,6 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
 
           FROM tool as t
             LEFT JOIN tool_engagement as te ON (te.tool_uid=t.uid)
-            LEFT JOIN user as u ON (u.id=te.user_id)
 
           WHERE t.classroom_uid=:classroomUid
             AND t.toolType="QUIZ"
@@ -82,7 +81,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
               )
             )
 
-          ORDER BY t.ordering, t.uid, u.id, te.submitted_at DESC
+          ORDER BY t.ordering, t.uid, te.user_id, te.submitted_at DESC
 
         `,
         vars: {
@@ -237,7 +236,6 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
 
           FROM tool as t
             LEFT JOIN tool_engagement as te ON (te.tool_uid=t.uid)
-            LEFT JOIN user as u ON (u.id=te.user_id)
 
           WHERE t.classroom_uid=:classroomUid
             AND t.toolType="REFLECTION_QUESTION"
@@ -247,7 +245,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
 
             AND te.deleted_at IS NULL
 
-          ORDER BY t.ordering, t.uid, u.id, te.updated_at DESC
+          ORDER BY t.ordering, t.uid, te.user_id, te.updated_at DESC
 
         `,
         vars: {
@@ -375,6 +373,93 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
       return res.send({
         success: true,
         questionsByLoc,
+      })
+
+    }
+  )
+
+  // get polls
+  app.get('/getpolls/:classroomUid',
+    ensureAuthenticatedAndCheckIDP,
+    async (req, res, next) => {
+
+      if(!(await hasPermission({ req, next, role: "INSTRUCTOR" }))) {
+        return res.status(400).send({ success: false, error: "Invalid permissions" })
+      }
+
+      const toolEngagementRows = await util.runQuery({
+        query: `
+
+          SELECT t.uid, t.spineIdRef, t.cfi, t.name, t.data, te.user_id, tea.choice_index
+
+          FROM tool as t
+            LEFT JOIN tool_engagement as te ON (te.tool_uid=t.uid)
+            LEFT JOIN tool_engagement_answer as tea ON (tea.tool_engagement_uid=te.uid)
+
+          WHERE t.classroom_uid=:classroomUid
+            AND t.toolType="POLL"
+            AND t.published_at IS NOT NULL
+            AND t.deleted_at IS NULL
+            AND t.currently_published_tool_uid IS NULL
+
+            AND te.deleted_at IS NULL
+
+            AND (
+              tea.question_index="0"
+              OR tea.question_index IS NULL
+            )
+
+          ORDER BY t.ordering, t.uid, te.user_id, te.updated_at DESC
+
+        `,
+        vars: {
+          classroomUid: req.params.classroomUid,
+        },
+        connection,
+        next,
+      })
+
+      const userIdsByToolAndChoiceIndex = {}
+      const pollsByLoc = {}
+      const pollUidsAccountedFor = {}
+
+      toolEngagementRows.forEach(tool => {
+
+        util.convertJsonColsFromStrings({ tableName: 'tool', row: tool })
+        const { uid, spineIdRef, cfi, name, data, user_id, choice_index } = tool
+
+        if(!pollUidsAccountedFor[uid]) {
+          pollUidsAccountedFor[uid] = true
+
+          if(!pollsByLoc[spineIdRef]) {
+            pollsByLoc[spineIdRef] = {}
+          }
+  
+          const cfiOrNullStr = cfi || 'NULL'
+  
+          if(!pollsByLoc[spineIdRef][cfiOrNullStr]) {
+            pollsByLoc[spineIdRef][cfiOrNullStr] = []
+          }
+  
+          userIdsByToolAndChoiceIndex[uid] = Array((data.choices || []).length).fill().map(() => ([]))
+          pollsByLoc[spineIdRef][cfiOrNullStr].push({
+            uid,
+            name,
+            question: data.question || "",
+            choices: data.choices || [],
+            userIdsByChoiceIndex: userIdsByToolAndChoiceIndex[uid],
+          })
+        }
+
+        if(user_id && choice_index != null) {
+          userIdsByToolAndChoiceIndex[uid][parseInt(choice_index, 10)].push(user_id)
+        }
+  
+      })
+
+      return res.send({
+        success: true,
+        pollsByLoc,
       })
 
     }
