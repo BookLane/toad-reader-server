@@ -661,5 +661,55 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
       }
     )
   })
-  
+ 
+  app.post('/addpushtoken', ensureAuthenticatedAndCheckIDP, async (req, res, next) => {
+
+    if(!util.paramsOk(req.body, ['token'])) {
+      log(['Invalid parameter(s)', req.body], 3)
+      res.status(400).send()
+      return
+    }
+
+    const now = util.timestampToMySQLDatetime()
+
+    const [ pushToken ] = await util.runQuery({
+      query: `
+        SELECT pt.id
+        FROM push_token as pt
+        WHERE pt.token=:token
+      `,
+      vars: {
+        token: req.body.token,
+      },
+      connection,
+      next,
+    })
+
+    await util.runQuery({
+      query: (
+        pushToken
+          ? 'UPDATE push_token SET :update WHERE id=:id'
+          : 'INSERT push_token SET :insert'
+      ),
+      vars: {
+        id: (pushToken || {}).id,
+        update: {
+          user_id: req.user.id,
+          token: req.body.token,
+          deleted_at: null,
+        },
+        insert: {
+          user_id: req.user.id,
+          token: req.body.token,
+          created_at: now,
+        },
+      },
+      connection,
+      next,
+    })
+
+    res.status(200).send({ success: true })
+
+  })
+
 }

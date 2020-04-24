@@ -153,14 +153,36 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
 
   app.get('/logout',
     ensureAuthenticated,
-    function (req, res, next) {
+    async (req, res, next) => {
+      const userId = req.user.id
+
       if(authFuncs[req.user.idpId]) {
         authFuncs[req.user.idpId].logout(req, res, next);
       } else {
         res.redirect(`/logout/callback${req.query.noredirect ? `?noredirect=1` : ``}`);
       }
+
+      if(req.headers['x-push-token'] && req.headers['x-push-token'] !== 'none') {
+        // delete push token
+
+        const now = util.timestampToMySQLDatetime()
+
+        await util.runQuery({
+          query: 'UPDATE push_token SET :update WHERE user_id=:userId AND token=:token AND deleted_at IS NULL',
+          vars: {
+            userId,
+            token: req.headers['x-push-token'],
+            update: {
+              deleted_at: now,
+            },
+          },
+          connection,
+          next,
+        })
+      }
     }
-  );
+
+  )
 
   app.all(['/logout/callback', '/login'],
     function (req, res) {
