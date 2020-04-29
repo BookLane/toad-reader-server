@@ -1,13 +1,14 @@
 module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, log) {
 
-  var fs = require('fs');
-  var multiparty = require('multiparty');
-  var admzip = require('adm-zip');
-  var util = require('../utils/util');
-  var Entities = require('html-entities').AllHtmlEntities;
-  var entities = new Entities();
-  var sharp = require('sharp');
-  var fetch = require('node-fetch');
+  var fs = require('fs')
+  var multiparty = require('multiparty')
+  var admzip = require('adm-zip')
+  var util = require('../utils/util')
+  var Entities = require('html-entities').AllHtmlEntities
+  var entities = new Entities()
+  var sharp = require('sharp')
+  var fetch = require('node-fetch')
+  var dueDateReminders = require('../crons/due_date_reminders')
 
   var deleteFolderRecursive = function(path) {
     log(['Delete folder', path], 2);
@@ -929,6 +930,9 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         );
       }
     );
+
+    // dueDateReminders({ connection, next, log })
+
   }
 
   setInterval(runHourlyCron, 1000 * 60 * 60);
@@ -1051,6 +1055,9 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         });
       }
     );
+
+    dueDateReminders({ connection, next, log })
+
   }
 
   setInterval(runMinuteCron, 1000 * 60);

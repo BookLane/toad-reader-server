@@ -1,7 +1,8 @@
 const moment = require('moment')
 const redis = require('redis')
 const jwt = require('jsonwebtoken')
-var fetch = require('node-fetch')
+const fetch = require('node-fetch')
+const { i18n } = require("inline-i18n")
 
 const fakeRedisClient = {}
 
@@ -947,6 +948,19 @@ const util = {
 
   },
 
+  combineItems: ({ labels, ...i18nOptions }) => {
+    const nonEmptyLabels = labels.filter(Boolean)
+  
+    if(nonEmptyLabels.length === 0) return ""
+  
+    return nonEmptyLabels.reduce((item1, item2) => (
+      i18n("{{item1}}, {{item2}}", {
+        item1,
+        item2,
+      }, i18nOptions)
+    ))
+  }
+  
 }
 
 module.exports = util;
