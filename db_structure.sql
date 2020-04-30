@@ -7,7 +7,7 @@
 #
 # Host: localhost (MySQL 5.7.27)
 # Database: ToadReader
-# Generation Time: 2020-03-13 12:31:15 +0000
+# Generation Time: 2020-04-30 13:57:37 +0000
 # ************************************************************
 
 
@@ -181,6 +181,7 @@ CREATE TABLE `classroom_schedule_date` (
   `due_at` datetime(3) NOT NULL,
   `created_at` datetime(3) NOT NULL,
   `updated_at` datetime(3) NOT NULL,
+  `reminded_at` datetime(3) DEFAULT NULL,
   `deleted_at` datetime(3) DEFAULT NULL,
   PRIMARY KEY (`classroom_uid`,`due_at`),
   KEY `classroom_id` (`classroom_uid`),
@@ -348,6 +349,24 @@ CREATE TABLE `latest_location` (
   PRIMARY KEY (`user_id`,`book_id`),
   KEY `user_id` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+
+
+
+# Dump of table push_token
+# ------------------------------------------------------------
+
+CREATE TABLE `push_token` (
+  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) NOT NULL,
+  `token` varchar(255) NOT NULL DEFAULT '',
+  `created_at` datetime(3) NOT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `token` (`token`),
+  KEY `user_id` (`user_id`),
+  KEY `created_at` (`created_at`),
+  KEY `deleted_at` (`deleted_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 
 
