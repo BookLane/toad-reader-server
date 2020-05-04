@@ -465,4 +465,140 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
     }
   )
 
+  // get polls
+  app.get('/getanalytics/:classroomUid',
+    ensureAuthenticatedAndCheckIDP,
+    async (req, res, next) => {
+
+      if(!(await hasPermission({ req, next, role: "INSTRUCTOR" }))) {
+        return res.status(400).send({ success: false, error: "Invalid permissions" })
+      }
+
+      const [ totalReadingBySpine, totalReadingAndReadersByDay ] = await util.runQuery({
+        query: `
+
+          SELECT
+            rs.spineIdRef,
+            SUM(rs.duration_in_seconds) as totalDurationInSeconds
+
+          FROM reading_session as rs
+            LEFT JOIN classroom_member as cm ON (cm.user_id=rs.user_id)
+
+          WHERE cm.classroom_uid=:classroomUid
+            AND cm.role="STUDENT"
+            AND cm.deleted_at IS NULL
+
+          GROUP BY rs.spineIdRef
+
+          ;
+
+          SELECT
+          	DATE(rs.read_at) as readDate,
+          	SUM(rs.duration_in_seconds) as totalDurationInSeconds,
+          	COUNT(DISTINCT rs.user_id) as numReaders
+
+          FROM reading_session as rs
+            LEFT JOIN classroom_member as cm ON (cm.user_id=rs.user_id)
+
+          WHERE cm.classroom_uid=:classroomUid
+            AND cm.role="STUDENT"
+            AND cm.deleted_at IS NULL
+
+          GROUP BY readDate
+
+        `,
+        vars: {
+          classroomUid: req.params.classroomUid,
+        },
+        connection,
+        next,
+      })
+
+      const readingBySpine = {}
+
+      totalReadingBySpine.forEach(({ spineIdRef, totalDurationInSeconds }) => {
+        readingBySpine[spineIdRef] = totalDurationInSeconds
+      })
+
+      const oneDayInMS = 1000*60*60*24
+      let nextReadDateAsTimestamp = util.mySQLDatetimeToTimestamp((totalReadingAndReadersByDay[0] || {}).readDate || '0000-01-01')
+      const readingOverTime = {
+        startTime: nextReadDateAsTimestamp,
+        totals: [],
+        numReaders: [],
+      }
+
+      totalReadingAndReadersByDay.forEach(({ readDate, totalDurationInSeconds, numReaders }) => {
+        const readDateAsTimestamp = util.mySQLDatetimeToTimestamp(readDate)
+        while(nextReadDateAsTimestamp < readDateAsTimestamp) {
+          readingOverTime.totals.push(0)
+          readingOverTime.numReaders.push(0)
+          nextReadDateAsTimestamp += oneDayInMS
+        }
+        nextReadDateAsTimestamp = readDateAsTimestamp + oneDayInMS
+
+        readingOverTime.totals.push(totalDurationInSeconds)
+        readingOverTime.numReaders.push(numReaders)
+      })
+
+      const data = {
+        readingBySpine,
+        readingOverTime,
+        readingScheduleStatuses: [
+          {
+            dueDate: 32131213123,
+            ontime: 1,
+            late: 3,
+          },
+          {
+            dueDate: 32132221231,
+            ontime: 4,
+            late: 0,
+          },
+          {
+            dueDate: 32132121235,
+            ontime: 3,
+            late: 1,
+          },
+     
+        ],
+        quizzesBySpineIdRef: {
+          ch02: {
+            "/4/1": [
+              {
+                name: 'Quiz 4',
+                data: [ 1, .3, 1 ],
+              },
+            ],
+          },
+          ch01: {
+            "/4/2/3": [
+              {
+                name: 'Quiz 3',
+                data: [ 2, .5, .95 ],
+              },
+            ],
+            "/4/2/2[page41]": [
+              {
+                name: 'Quiz 1',
+                data: [ 4, .7, 1 ],
+              },
+              {
+                name: 'Quiz 2',
+                data: [ 3, .6, .68 ],
+              },
+            ],
+          },
+        },
+      }
+    
+
+      return res.send({
+        success: true,
+        ...data,
+      })
+
+    }
+  )
+
 }

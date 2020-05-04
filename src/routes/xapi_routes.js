@@ -70,13 +70,13 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
 
           if(req.user.idpReadingSessionsOn) {
             queriesToRun.push({
-              query: 'INSERT INTO `readingSession` SET ?',
+              query: 'INSERT INTO `reading_session` SET ?',
               vars: {
                 user_id: req.user.id,
                 book_id: reading.bookId,
                 spineIdRef: reading.spineIdRef,
                 read_at: util.timestampToMySQLDatetime(timestamp),
-                durationInSeconds,
+                duration_in_seconds: durationInSeconds,
               },
             })
           }

@@ -7,7 +7,7 @@
 #
 # Host: localhost (MySQL 5.7.27)
 # Database: ToadReader
-# Generation Time: 2020-05-01 22:09:12 +0000
+# Generation Time: 2020-05-04 12:28:18 +0000
 # ************************************************************
 
 
@@ -372,16 +372,16 @@ CREATE TABLE `push_token` (
 
 
 
-# Dump of table readingSession
+# Dump of table reading_session
 # ------------------------------------------------------------
 
-CREATE TABLE `readingSession` (
+CREATE TABLE `reading_session` (
   `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
   `user_id` int(11) NOT NULL,
   `book_id` int(11) NOT NULL,
   `spineIdRef` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
   `read_at` datetime(3) NOT NULL,
-  `durationInSeconds` int(11) NOT NULL,
+  `duration_in_seconds` int(11) NOT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

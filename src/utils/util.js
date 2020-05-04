@@ -137,12 +137,12 @@ const util = {
     if(!mysqlDatetime) return 0
 
     // Split timestamp into [ Y, M, D, h, m, s, ms ]
-    var t = mysqlDatetime.split(/[- :\.]/);
+    var t = mysqlDatetime.split(/[- :\.]/)
 
     // Apply each element to the Date function
-    var d = new Date(Date.UTC(t[0], t[1]-1, t[2], t[3], t[4], t[5], t[6] || 0));
+    var d = new Date(Date.UTC(t[0], t[1]-1, t[2], t[3] || 0, t[4] || 0, t[5] || 0, t[6] || 0))
 
-    return d.getTime();
+    return d.getTime()
   },
 
   timestampToMySQLDatetime: timestamp => {
