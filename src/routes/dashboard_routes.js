@@ -66,6 +66,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
 
           FROM tool as t
             LEFT JOIN tool_engagement as te ON (te.tool_uid=t.uid)
+            LEFT JOIN classroom_member as cm ON (cm.user_id=te.user_id)
 
           WHERE t.classroom_uid=:classroomUid
             AND t.toolType="QUIZ"
@@ -74,10 +75,16 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
             AND t.currently_published_tool_uid IS NULL
 
             AND (
-              te.uid IS NULL
+              (
+                te.uid IS NULL
+                AND cm.user_id IS NULL
+              )
               OR (
                 te.submitted_at IS NOT NULL
                 AND te.deleted_at IS NULL
+                AND cm.classroom_uid=:classroomUid
+                AND cm.role="STUDENT"
+                AND cm.deleted_at IS NULL
               )
             )
 
@@ -478,7 +485,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
 
       const minMinutesToConsiderSpineRead = 5
 
-      const [ totalReadingBySpine, totalReadingAndReadersByDay, readingScheduleStatuses ] = await util.runQuery({
+      const [ totalReadingBySpine, totalReadingAndReadersByDay, readingScheduleStatuses, quizzesWithStats ] = await util.runQuery({
         query: `
 
           SELECT
@@ -536,7 +543,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
             ) as late
 
           FROM (
-        
+
             SELECT
               csd.due_at,
               cm.user_id,
@@ -575,7 +582,58 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
           ) as tbl
 
           GROUP BY tbl.due_at
-                      
+
+          ;
+
+          SELECT
+            tbl.uid,
+            tbl.name,
+            tbl.spineIdRef,
+            tbl.cfi,
+            COUNT(tbl.firstScore) as numStudentsWhoHaveTakenTheQuiz,
+            AVG(tbl.firstScore) as averageFirstScore,
+            AVG(tbl.bestScore) as averageBestScore
+
+          FROM (
+            
+            SELECT
+              t.uid,
+              t.name,
+              t.spineIdRef,
+              t.cfi,
+              SUBSTRING_INDEX(GROUP_CONCAT(te.score ORDER BY te.submitted_at), ',', 1) as firstScore,
+              MAX(te.score) as bestScore
+
+            FROM tool as t
+              LEFT JOIN tool_engagement as te ON (te.tool_uid=t.uid)
+              LEFT JOIN classroom_member as cm ON (cm.user_id=te.user_id)
+
+            WHERE t.classroom_uid=:classroomUid
+              AND t.toolType="QUIZ"
+              AND t.published_at IS NOT NULL
+              AND t.deleted_at IS NULL
+              AND t.currently_published_tool_uid IS NULL
+
+              AND (
+                (
+                  te.uid IS NULL
+                  AND cm.user_id IS NULL
+                )
+                OR (
+                  te.submitted_at IS NOT NULL
+                  AND te.deleted_at IS NULL
+                  AND cm.classroom_uid=:classroomUid
+                  AND cm.role="STUDENT"
+                  AND cm.deleted_at IS NULL
+                )
+              )
+
+            GROUP BY t.uid, te.user_id
+
+          ) as tbl
+
+          GROUP BY tbl.uid
+
         `,
         vars: {
           classroomUid: req.params.classroomUid,
@@ -612,38 +670,37 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
         readingOverTime.numReaders.push(numReaders)
       })
 
+      const quizStatsByLoc = {}
+
+      quizzesWithStats.forEach(({ uid, name, spineIdRef, cfi, numStudentsWhoHaveTakenTheQuiz, averageFirstScore, averageBestScore }) => {
+
+        if(!quizStatsByLoc[spineIdRef]) {
+          quizStatsByLoc[spineIdRef] = {}
+        }
+
+        const cfiOrNullStr = cfi || 'NULL'
+
+        if(!quizStatsByLoc[spineIdRef][cfiOrNullStr]) {
+          quizStatsByLoc[spineIdRef][cfiOrNullStr] = []
+        }
+
+        quizStatsByLoc[spineIdRef][cfiOrNullStr].push({
+          uid,
+          name,
+          data: [
+            numStudentsWhoHaveTakenTheQuiz,
+            averageFirstScore,
+            averageBestScore,
+          ],
+        })
+
+      })
+
       const data = {
         readingBySpine,
         readingOverTime,
         readingScheduleStatuses,
-        quizzesBySpineIdRef: {
-          ch02: {
-            "/4/1": [
-              {
-                name: 'Quiz 4',
-                data: [ 1, .3, 1 ],
-              },
-            ],
-          },
-          ch01: {
-            "/4/2/3": [
-              {
-                name: 'Quiz 3',
-                data: [ 2, .5, .95 ],
-              },
-            ],
-            "/4/2/2[page41]": [
-              {
-                name: 'Quiz 1',
-                data: [ 4, .7, 1 ],
-              },
-              {
-                name: 'Quiz 2',
-                data: [ 3, .6, .68 ],
-              },
-            ],
-          },
-        },
+        quizStatsByLoc,
       }
     
 
