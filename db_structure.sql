@@ -7,7 +7,7 @@
 #
 # Host: localhost (MySQL 5.7.27)
 # Database: ToadReader
-# Generation Time: 2020-04-30 13:57:37 +0000
+# Generation Time: 2020-05-01 22:09:12 +0000
 # ************************************************************
 
 
@@ -296,7 +296,8 @@ CREATE TABLE `idp` (
   `xapiUsername` text COLLATE utf8_bin,
   `xapiPassword` text COLLATE utf8_bin,
   `xapiMaxBatchSize` int(11) DEFAULT NULL,
-  `xapiConsentText` text COLLATE utf8_bin,
+  `readingSessionsOn` tinyint(1) NOT NULL DEFAULT '0',
+  `consentText` text COLLATE utf8_bin,
   `googleAnalyticsCode` text COLLATE utf8_bin,
   `language` varchar(5) COLLATE utf8_bin DEFAULT NULL,
   `created_at` datetime(3) NOT NULL,
@@ -305,7 +306,8 @@ CREATE TABLE `idp` (
   UNIQUE KEY `domain` (`domain`),
   KEY `nameQualifier` (`nameQualifier`),
   KEY `demo_expires_at` (`demo_expires_at`),
-  KEY `xapiOn` (`xapiOn`)
+  KEY `xapiOn` (`xapiOn`),
+  KEY `readingSessionsOn` (`readingSessionsOn`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
 
 
@@ -366,6 +368,21 @@ CREATE TABLE `push_token` (
   KEY `user_id` (`user_id`),
   KEY `created_at` (`created_at`),
   KEY `deleted_at` (`deleted_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
+
+# Dump of table readingSession
+# ------------------------------------------------------------
+
+CREATE TABLE `readingSession` (
+  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) NOT NULL,
+  `book_id` int(11) NOT NULL,
+  `spineIdRef` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
+  `read_at` datetime(3) NOT NULL,
+  `durationInSeconds` int(11) NOT NULL,
+  PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 
@@ -512,11 +529,9 @@ CREATE TABLE `user` (
   `adminLevel` enum('NONE','ADMIN','SUPER_ADMIN') CHARACTER SET utf8mb4 NOT NULL DEFAULT 'NONE',
   `created_at` datetime(3) NOT NULL,
   `last_login_at` datetime(3) NOT NULL,
-  `xapiConsented` tinyint(1) NOT NULL DEFAULT '0',
   PRIMARY KEY (`id`),
   UNIQUE KEY `user_id_from_idp` (`user_id_from_idp`,`idp_id`),
   KEY `email` (`email`),
-  KEY `xapiConsented` (`xapiConsented`),
   KEY `idp_id` (`idp_id`),
   KEY `fullname` (`fullname`),
   KEY `adminLevel` (`adminLevel`),

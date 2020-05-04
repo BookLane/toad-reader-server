@@ -35,7 +35,8 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
         idpAndroidAppURL: req.user.idpAndroidAppURL,
         idpIosAppURL: req.user.idpIosAppURL,
         idpXapiOn: req.user.idpXapiOn,
-        idpXapiConsentText: req.user.idpXapiConsentText,
+        idpConsentText: req.user.idpConsentText,
+        idpReadingSessionsOn: req.user.idpReadingSessionsOn,
       },
       currentServerTime: util.getUTCTimeStamp()
     }

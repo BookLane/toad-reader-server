@@ -138,7 +138,8 @@ const deserializeUser = ({ userId, ssoData, next }) => new Promise(resolve => {
     idp.androidAppURL,
     idp.iosAppURL,
     idp.xapiOn,
-    idp.xapiConsentText,
+    idp.readingSessionsOn,
+    idp.consentText,
     idp.entryPoint
   `
 
@@ -170,7 +171,8 @@ const deserializeUser = ({ userId, ssoData, next }) => new Promise(resolve => {
         idpAndroidAppURL: row.androidAppURL,
         idpIosAppURL: row.iosAppURL,
         idpXapiOn: row.xapiOn,
-        idpXapiConsentText: row.xapiConsentText,
+        idpReadingSessionsOn: row.readingSessionsOn,
+        idpConsentText: row.consentText,
       }
 
       resolve(user);

@@ -7,12 +7,12 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
   // read.biblemesh.com/reportReading
   app.post('/reportReading', ensureAuthenticatedAndCheckIDP, function (req, res, next) {
 
-    if(!req.user.idpXapiOn) {
+    if(!req.user.idpXapiOn && !req.user.idpReadingSessionsOn) {
       res.send({ off: true });
     }
 
     var threadId = threadIdx++;
-    log(['Attempting to report reads for xapi', `thread:${threadId}`, req.body]);
+    log(['Attempting to report reads', `thread:${threadId}`, req.body])
 
     if(!util.paramsOk(req.body, ['readingRecords'])) {
       log(['Invalid parameter(s)', `thread:${threadId}`, req.body], 3);
@@ -42,28 +42,46 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
     
           var book = books[reading.bookId];
 
-          queriesToRun.push({
-            query: 'INSERT INTO `xapiQueue` SET ?',
-            vars: {
-              idp_id: req.user.idpId,
-              statement: util.getReadStatement({
-                req: req,
-                bookId: reading.bookId,
-                bookTitle: book.title,
-                bookISBN: book.isbn,
+          const durationInSeconds = parseInt((reading.endTime - reading.startTime) / 1000, 10)
+          const timestamp = util.notLaterThanNow(reading.endTime)
+
+          if(req.user.idpXapiOn) {
+            queriesToRun.push({
+              query: 'INSERT INTO `xapiQueue` SET ?',
+              vars: {
+                idp_id: req.user.idpId,
+                statement: util.getReadStatement({
+                  req: req,
+                  bookId: reading.bookId,
+                  bookTitle: book.title,
+                  bookISBN: book.isbn,
+                  spineIdRef: reading.spineIdRef,
+                  timestamp,
+                  durationInSeconds,
+                }),
+                unique_tag:  // this is to prevent dups being inserted from a repeated request due to a spotted internet connection
+                  req.user.id + '-' +
+                  reading.startTime + '-' +
+                  reading.endTime,
+                created_at: currentMySQLDatetime,
+              },
+            })
+          }
+
+          if(req.user.idpReadingSessionsOn) {
+            queriesToRun.push({
+              query: 'INSERT INTO `readingSession` SET ?',
+              vars: {
+                user_id: req.user.id,
+                book_id: reading.bookId,
                 spineIdRef: reading.spineIdRef,
-                timestamp: util.notLaterThanNow(reading.endTime),
-                durationInSeconds: parseInt((reading.endTime - reading.startTime) / 1000, 10),
-              }),
-              unique_tag:  // this is to prevent dups being inserted from a repeated request due to a spotted internet connection
-                req.user.id + '-' +
-                reading.startTime + '-' +
-                reading.endTime,
-              created_at: currentMySQLDatetime,
-            },
-          });
+                read_at: util.timestampToMySQLDatetime(timestamp),
+                durationInSeconds,
+              },
+            })
+          }
     
-        });
+        })
 
         var runAQuery = function() {
           if(queriesToRun.length > 0) {
@@ -79,7 +97,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
             
           } else {
             // When there is success on all objects
-            log(['Report reads for xapi successful', `thread:${threadId}`]);
+            log(['Report reads successful', `thread:${threadId}`])
             res.status(200).send();
           }
         }
