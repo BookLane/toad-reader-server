@@ -2,13 +2,13 @@ const util = require('../utils/util')
 
 module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log) {
 
-  const hasPermission = async ({ req: { user, params }, next, role }) => {
+  const getClassroomIfHasPermission = async ({ req: { user, params }, next, role }) => {
 
     const now = util.timestampToMySQLDatetime()
 
     const [ classroomRow ] = await util.runQuery({
       query: `
-        SELECT c.uid
+        SELECT c.uid, c.book_id
 
         FROM classroom as c
           LEFT JOIN classroom_member as cm_me ON (1=1)
@@ -47,7 +47,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
       next,
     })
 
-    return !!classroomRow
+    return classroomRow || false
   }
 
   // get scores
@@ -55,7 +55,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
     ensureAuthenticatedAndCheckIDP,
     async (req, res, next) => {
 
-      if(!(await hasPermission({ req, next, role: "INSTRUCTOR" }))) {
+      if(!(await getClassroomIfHasPermission({ req, next, role: "INSTRUCTOR" }))) {
         return res.status(400).send({ success: false, error: "Invalid permissions" })
       }
 
@@ -138,7 +138,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
     ensureAuthenticatedAndCheckIDP,
     async (req, res, next) => {
 
-      if(!(await hasPermission({ req, next, role: "STUDENT" }))) {
+      if(!(await getClassroomIfHasPermission({ req, next, role: "STUDENT" }))) {
         return res.send({ success: false, error: "Invalid permissions" })
       }
 
@@ -225,7 +225,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
     ensureAuthenticatedAndCheckIDP,
     async (req, res, next) => {
 
-      if(!(await hasPermission({ req, next, role: "INSTRUCTOR" }))) {
+      if(!(await getClassroomIfHasPermission({ req, next, role: "INSTRUCTOR" }))) {
         return res.status(400).send({ success: false, error: "Invalid permissions" })
       }
 
@@ -305,7 +305,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
     ensureAuthenticatedAndCheckIDP,
     async (req, res, next) => {
 
-      if(!(await hasPermission({ req, next, role: "STUDENT" }))) {
+      if(!(await getClassroomIfHasPermission({ req, next, role: "STUDENT" }))) {
         return res.send({ success: false, error: "Invalid permissions" })
       }
 
@@ -383,7 +383,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
     ensureAuthenticatedAndCheckIDP,
     async (req, res, next) => {
 
-      if(!(await hasPermission({ req, next, role: "INSTRUCTOR" }))) {
+      if(!(await getClassroomIfHasPermission({ req, next, role: "INSTRUCTOR" }))) {
         return res.status(400).send({ success: false, error: "Invalid permissions" })
       }
 
@@ -465,16 +465,20 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
     }
   )
 
-  // get polls
+  // get analytics
   app.get('/getanalytics/:classroomUid',
     ensureAuthenticatedAndCheckIDP,
     async (req, res, next) => {
 
-      if(!(await hasPermission({ req, next, role: "INSTRUCTOR" }))) {
+      const classroomRow = await getClassroomIfHasPermission({ req, next, role: "INSTRUCTOR" })
+
+      if(!classroomRow) {
         return res.status(400).send({ success: false, error: "Invalid permissions" })
       }
 
-      const [ totalReadingBySpine, totalReadingAndReadersByDay ] = await util.runQuery({
+      const minMinutesToConsiderSpineRead = 5
+
+      const [ totalReadingBySpine, totalReadingAndReadersByDay, readingScheduleStatuses ] = await util.runQuery({
         query: `
 
           SELECT
@@ -484,7 +488,8 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
           FROM reading_session as rs
             LEFT JOIN classroom_member as cm ON (cm.user_id=rs.user_id)
 
-          WHERE cm.classroom_uid=:classroomUid
+          WHERE rs.book_id=:bookId
+            AND cm.classroom_uid=:classroomUid
             AND cm.role="STUDENT"
             AND cm.deleted_at IS NULL
 
@@ -500,15 +505,81 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
           FROM reading_session as rs
             LEFT JOIN classroom_member as cm ON (cm.user_id=rs.user_id)
 
-          WHERE cm.classroom_uid=:classroomUid
+          WHERE rs.book_id=:bookId
+            AND cm.classroom_uid=:classroomUid
             AND cm.role="STUDENT"
             AND cm.deleted_at IS NULL
 
           GROUP BY readDate
 
+          ;
+
+          SELECT
+            tbl.due_at,
+            SUM(
+              IF(
+                COALESCE(tbl.ontimeSeconds, 0) > 60 * ${minMinutesToConsiderSpineRead},
+                1,
+                0
+              )
+            ) as ontime,
+            SUM(
+              IF(
+                COALESCE(tbl.ontimeSeconds, 0) > 60 * ${minMinutesToConsiderSpineRead},
+                0,
+                IF(
+                  COALESCE(tbl.lateSeconds, 0) > 60 * ${minMinutesToConsiderSpineRead},
+                  1,
+                  0
+                )
+              )
+            ) as late
+
+          FROM (
+        
+            SELECT
+              csd.due_at,
+              cm.user_id,
+              SUM(rs1.duration_in_seconds) as ontimeSeconds,
+              SUM(rs2.duration_in_seconds) as lateSeconds
+
+            FROM classroom_schedule_date as csd
+              LEFT JOIN classroom_schedule_date_item as csdi ON (csdi.due_at=csd.due_at)
+              LEFT JOIN classroom_member as cm ON (1=1)
+              LEFT JOIN reading_session as rs1 ON (
+                rs1.book_id=:bookId
+                AND rs1.user_id=cm.user_id
+                AND rs1.spineIdRef=csdi.spineIdRef
+                AND rs1.read_at<=csd.due_at
+              )
+              LEFT JOIN reading_session as rs2 ON (
+                rs2.book_id=:bookId
+                AND rs2.user_id=cm.user_id
+                AND rs2.spineIdRef=csdi.spineIdRef
+                AND rs2.read_at>csd.due_at
+              )
+
+            WHERE csd.classroom_uid=:classroomUid
+              AND csd.deleted_at IS NULL
+              AND csdi.classroom_uid=:classroomUid
+              AND cm.classroom_uid=:classroomUid
+              AND cm.role="STUDENT"
+              AND cm.deleted_at IS NULL
+              AND (
+                rs1.id IS NOT NULL
+                OR rs2.id IS NOT NULL
+              )
+
+            GROUP BY csd.due_at, cm.user_id
+
+          ) as tbl
+
+          GROUP BY tbl.due_at
+                      
         `,
         vars: {
           classroomUid: req.params.classroomUid,
+          bookId: classroomRow.book_id,
         },
         connection,
         next,
@@ -544,24 +615,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
       const data = {
         readingBySpine,
         readingOverTime,
-        readingScheduleStatuses: [
-          {
-            dueDate: 32131213123,
-            ontime: 1,
-            late: 3,
-          },
-          {
-            dueDate: 32132221231,
-            ontime: 4,
-            late: 0,
-          },
-          {
-            dueDate: 32132121235,
-            ontime: 3,
-            late: 1,
-          },
-     
-        ],
+        readingScheduleStatuses,
         quizzesBySpineIdRef: {
           ch02: {
             "/4/1": [
