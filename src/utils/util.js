@@ -104,6 +104,8 @@ const undashifyDomain = dashedDomain => dashedDomain
 const jsonCols = {
   tool: [ 'data', 'undo_array' ],
   classroom: [ 'syllabus', 'draftData', 'lti_configurations' ],
+  book_instance: [ 'flags' ],
+  computed_book_access: [ 'flags' ],
 }
 
 const util = {
@@ -367,6 +369,7 @@ const util = {
     //       version: BASE|ENHANCED|PUBLISHER|INSTRUCTOR (optional; default: BASE)
     //       expiration: Integer (timestamp with ms; optional: default: no expiration)
     //       enhancedToolsExpiration: Integer (timestamp with ms; optional; default=expiration)
+    //       flags: [String] (optional; used for "trial")
     //     }
     //   ]
     // }
@@ -395,7 +398,7 @@ const util = {
 
     // dedup books
     const bookIdObj = {}
-    const books = (userInfo.books || []).filter(({ id, version, expiration, enhancedToolsExpiration }) => {
+    const books = (userInfo.books || []).filter(({ id, version, expiration, enhancedToolsExpiration, flags }) => {
       if(!bookIdObj[id]) {
 
         // check validity
@@ -404,6 +407,13 @@ const util = {
           || ![ 'BASE', 'ENHANCED', 'PUBLISHER', 'INSTRUCTOR', undefined ].includes(version)
           || ![ 'number', 'undefined' ].includes(typeof expiration)
           || ![ 'number', 'undefined' ].includes(typeof enhancedToolsExpiration)
+          || !(
+            flags === undefined
+            || (
+              flags instanceof Array
+              && flags.every(flag => typeof flag === 'string')
+            )
+          )
         ) {
           return false  // i.e. skip it
         }
@@ -491,7 +501,7 @@ const util = {
             
                 log(['filter bookIds by the book-idp', filteredAndFilledOutBooks]);
 
-                const updateBookInstance = ({ id, version, expiration, enhancedToolsExpiration }) => new Promise(resolve => {
+                const updateBookInstance = ({ id, version, expiration, enhancedToolsExpiration, flags }) => new Promise(resolve => {
                   enhancedToolsExpiration = enhancedToolsExpiration || expiration
 
                   const expiresAt = util.timestampToMySQLDatetime(expiration)
@@ -501,6 +511,7 @@ const util = {
                     expires_at: (expiration && expiresAt) || null,
                     enhanced_tools_expire_at: (enhancedToolsExpiration && enhancedToolsExpiresAt) || null,
                     version: version || 'BASE',
+                    flags: flags ? JSON.stringify(flags) : null,
                   }
 
                   const insertCols = {
@@ -630,7 +641,7 @@ const util = {
           ${bookId ? `AND bi.book_id=:bookId` : ``}
         ;
 
-        SELECT u.idp_id, sb.book_id, u.id as user_id, sb.version, NULL as expires_at, NULL as enhanced_tools_expire_at
+        SELECT u.idp_id, sb.book_id, u.id as user_id, sb.version, NULL as expires_at, NULL as enhanced_tools_expire_at, NULL as flags
         FROM \`subscription-book\` as sb
           LEFT JOIN user as u ON (1=1)
         WHERE sb.subscription_id=:negativeIdpId
@@ -679,6 +690,23 @@ const util = {
 
         const getCompiledRow = (row1, row2={}) => {
           const versionPrecedentOrder = [ 'BASE', 'ENHANCED', 'INSTRUCTOR', 'PUBLISHER' ]
+          let flags = null
+
+          try {
+            flags = (  // combine of the two
+              (row1.flags || row2.flags)
+                ? JSON.stringify(
+                  [
+                    ...new Set([
+                      ...JSON.parse(row1.flags || '[]'),
+                      ...JSON.parse(row2.flags || '[]'),
+                    ]),
+                  ]
+                )
+                : null
+            )
+          } catch(e) {}
+
           return {
             idp_id: row1.idp_id,
             book_id: row1.book_id,
@@ -686,6 +714,7 @@ const util = {
             version: versionPrecedentOrder.indexOf(row1.version) > versionPrecedentOrder.indexOf(row2.version) ? row1.version : row2.version,
             expires_at: getLaterMySQLDatetime(row1.expires_at, row2.expires_at),  // the latest between the two
             enhanced_tools_expire_at: getLaterMySQLDatetime(row1.enhanced_tools_expire_at, row2.enhanced_tools_expire_at),  // the latest between the two
+            flags,
           }
         }
 

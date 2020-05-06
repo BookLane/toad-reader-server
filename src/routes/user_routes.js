@@ -581,6 +581,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
         cba.version,
         cba.expires_at,
         cba.enhanced_tools_expire_at,
+        cba.flags,
         (
           SELECT GROUP_CONCAT(CONCAT(sb.subscription_id, " ", sb.version) SEPARATOR "\n")
           FROM \`subscription-book\` as sb
@@ -621,6 +622,9 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
         if (err) return next(err);
 
         rows.forEach(row => {
+          util.convertMySQLDatetimesToTimestamps(row)
+          util.convertJsonColsFromStrings({ tableName: 'computed_book_access', row })
+
           for(let key in row) {
             if(row[key] === null) {
               delete row[key]

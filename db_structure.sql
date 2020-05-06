@@ -7,7 +7,7 @@
 #
 # Host: localhost (MySQL 5.7.27)
 # Database: ToadReader
-# Generation Time: 2020-05-04 12:28:18 +0000
+# Generation Time: 2020-05-06 19:24:07 +0000
 # ************************************************************
 
 
@@ -70,6 +70,7 @@ CREATE TABLE `book_instance` (
   `version` enum('BASE','ENHANCED','PUBLISHER','INSTRUCTOR') CHARACTER SET utf8mb4 NOT NULL DEFAULT 'BASE',
   `expires_at` datetime(3) DEFAULT NULL,
   `enhanced_tools_expire_at` datetime(3) DEFAULT NULL,
+  `flags` text CHARACTER SET utf8mb4,
   PRIMARY KEY (`id`),
   UNIQUE KEY `idp_id` (`idp_id`,`user_id`,`book_id`),
   KEY `idp_id_2` (`idp_id`),
@@ -220,6 +221,7 @@ CREATE TABLE `computed_book_access` (
   `version` enum('BASE','ENHANCED','PUBLISHER','INSTRUCTOR') CHARACTER SET utf8mb4 NOT NULL DEFAULT 'BASE',
   `expires_at` datetime(3) DEFAULT NULL,
   `enhanced_tools_expire_at` datetime(3) DEFAULT NULL,
+  `flags` text CHARACTER SET utf8mb4,
   UNIQUE KEY `idp_id` (`idp_id`,`user_id`,`book_id`),
   KEY `idp_id_2` (`idp_id`),
   KEY `book_id` (`book_id`),
