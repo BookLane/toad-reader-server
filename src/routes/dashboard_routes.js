@@ -646,7 +646,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
       const readingBySpine = {}
 
       totalReadingBySpine.forEach(({ spineIdRef, totalDurationInSeconds }) => {
-        readingBySpine[spineIdRef] = totalDurationInSeconds
+        readingBySpine[spineIdRef] = parseInt(totalDurationInSeconds / 60, 10)
       })
 
       const oneDayInMS = 1000*60*60*24
@@ -666,7 +666,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
         }
         nextReadDateAsTimestamp = readDateAsTimestamp + oneDayInMS
 
-        readingOverTime.totals.push(totalDurationInSeconds)
+        readingOverTime.totals.push(parseInt(totalDurationInSeconds / 60, 10))
         readingOverTime.numReaders.push(numReaders)
       })
 
