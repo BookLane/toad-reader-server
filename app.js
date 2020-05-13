@@ -140,6 +140,8 @@ const deserializeUser = ({ userId, ssoData, next }) => new Promise(resolve => {
     idp.xapiOn,
     idp.readingSessionsOn,
     idp.consentText,
+    idp.maxMBPerBook,
+    idp.maxMBPerFile,
     idp.entryPoint
   `
 
@@ -173,6 +175,8 @@ const deserializeUser = ({ userId, ssoData, next }) => new Promise(resolve => {
         idpXapiOn: row.xapiOn,
         idpReadingSessionsOn: row.readingSessionsOn,
         idpConsentText: row.consentText,
+        idpMaxMBPerBook: row.maxMBPerBook,
+        idpMaxMBPerFile: row.maxMBPerFile,
       }
 
       resolve(user);

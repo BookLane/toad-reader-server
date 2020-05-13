@@ -7,7 +7,7 @@
 #
 # Host: localhost (MySQL 5.7.27)
 # Database: ToadReader
-# Generation Time: 2020-05-06 19:24:07 +0000
+# Generation Time: 2020-05-13 20:16:53 +0000
 # ************************************************************
 
 
@@ -300,6 +300,8 @@ CREATE TABLE `idp` (
   `xapiMaxBatchSize` int(11) DEFAULT NULL,
   `readingSessionsOn` tinyint(1) NOT NULL DEFAULT '0',
   `consentText` text COLLATE utf8_bin,
+  `maxMBPerBook` int(11) NOT NULL DEFAULT '40',
+  `maxMBPerFile` int(11) NOT NULL DEFAULT '15',
   `googleAnalyticsCode` text COLLATE utf8_bin,
   `language` varchar(5) COLLATE utf8_bin DEFAULT NULL,
   `created_at` datetime(3) NOT NULL,

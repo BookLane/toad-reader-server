@@ -305,13 +305,22 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
           return;
         }
 
-        const priceMatch = filename.match(/\$([0-9]+)\.([0-9]{2})(\.[^\.]+)?$/);
+        const priceMatch = filename.match(/\$([0-9]+)\.([0-9]{2})(\.[^\.]+)?$/)
+        const epubSizeInMB = Math.ceil(file.size/1024/1024)
+
+        if(epubSizeInMB > req.user.idpMaxMBPerBook) {
+          res.status(400).send({
+            errorType: "biblemesh_file_too_large",
+            maxMB: req.user.idpMaxMBPerBook,
+          })
+          return
+        }
 
         bookRow = {
           title: 'Unknown',
           author: '',
           isbn: '',
-          epubSizeInMB: Math.ceil(file.size/1024/1024),
+          epubSizeInMB,
           standardPriceInCents: priceMatch ? (priceMatch[1] + priceMatch[2]) : null,
           updated_at: util.timestampToMySQLDatetime()
         };
@@ -331,7 +340,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
           connection.query('INSERT INTO `book-idp` SET ?',
             {
               book_id: bookRow.id,
-              idp_id: req.user.idpId
+              idp_id: req.user.idpId,
             },
             function (err, results) {
               if (err) {
@@ -517,6 +526,16 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
             if(!filename || !/-[0-9]+\.[^.]+$/.test(filename)) {
               deleteFolderRecursive(tmpDir)
               res.status(400).send({ errorType: "biblemesh_invalid_filename" })
+              return
+            }
+
+            const fileSizeInMB = Math.ceil(file.size/1024/1024)
+
+            if(fileSizeInMB > req.user.idpMaxMBPerFile) {
+              res.status(400).send({
+                errorType: "biblemesh_file_too_large",
+                maxMB: req.user.idpMaxMBPerFile,
+              })
               return
             }
 
