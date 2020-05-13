@@ -43,6 +43,8 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
       //     secure: 'auto',
       //   },
       // )
+      const ua = req.headers['user-agent']
+
       res.send(`
         <html>
           <body>
@@ -52,9 +54,18 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
                 Sorry!
               </div>
               <div style="text-align: center; font-family: Arial; color: rgba(0,0,0,.3); padding: 50px;">
-                This app is temporarily unavailable on Safari due to recent changes to this browser.
-                We are working on a solution.
-                In the meantime, you may use Chrome or Firefox.
+                ${/like Mac OS X/.test(ua)
+                  ? `
+                    This app is temporarily unavailable in the browser on iOS.
+                    We are working on a solution.
+                    In the meantime, please download the app from the App Store.
+                  `
+                  : `
+                    This app is temporarily unavailable on Safari due to recent changes to this browser.
+                    We are working on a solution.
+                    In the meantime, you may use Chrome or Firefox.
+                  `
+                }
               </div>
               <div style="flex: 1;"></div>
             </div>
