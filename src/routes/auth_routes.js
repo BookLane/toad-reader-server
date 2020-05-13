@@ -34,16 +34,34 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
 
   app.get('/fixsafari',
     (req, res) => {
-      res.cookie(
-        'safari_fix',
-        1,
-        {
-          maxAge: 1000*60*60*24*365*100,
-          sameSite: 'none',
-          secure: 'auto',
-        },
-      )
-      res.redirect(`${util.getFrontEndOrigin(req)}${req.query.path || ``}`)
+      // res.cookie(
+      //   'safari_fix',
+      //   1,
+      //   {
+      //     maxAge: 1000*60*60*24*365*100,
+      //     sameSite: 'none',
+      //     secure: 'auto',
+      //   },
+      // )
+      res.send(`
+        <html>
+          <body>
+            <div style="display: flex; height: 100vh; flex-direction: column;">
+              <div style="flex: 1;"></div>
+              <div style="text-align: center; font-family: Arial; color: rgba(0,0,0,.6); font-size: 20px;">
+                Sorry!
+              </div>
+              <div style="text-align: center; font-family: Arial; color: rgba(0,0,0,.3); padding: 50px;">
+                This app is temporarily unavailable on Safari due to recent changes to this browser.
+                We are working on a solution.
+                In the meantime, you may use Chrome or Firefox.
+              </div>
+              <div style="flex: 1;"></div>
+            </div>
+          </body>
+        </html>
+      `)
+      // res.redirect(`${util.getFrontEndOrigin(req)}${req.query.path || ``}`)
     }
   )
 
