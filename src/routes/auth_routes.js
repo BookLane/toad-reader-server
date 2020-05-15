@@ -57,22 +57,17 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
                 Browser not supported
               </div>
               <div style="text-align: center; font-family: Arial; color: rgba(0,0,0,.3); padding: 50px;">
-                ${
-                  /Edge?\/\d/.test(ua)
-                    ? `Please use Chrome or Firefox.`
-                    : (
-                      /like Mac OS X/.test(ua)
-                        ? `
-                          This app is temporarily unsupported in the browser on iOS.
-                          We are working on a solution.
-                          In the meantime, please download the app from the App Store.
-                        `
-                        : `
-                          This app is temporarily unsupported on Safari due to recent changes to this browser.
-                          We are working on a solution.
-                          In the meantime, you may use Chrome or Firefox.
-                        `
-                    )
+                ${/like Mac OS X/.test(ua)
+                  ? `
+                    This app is temporarily unsupported in the browser on iOS.
+                    We are working on a solution.
+                    In the meantime, please download the app from the App Store.
+                  `
+                  : `
+                    This app is temporarily unsupported on Safari due to recent changes to this browser.
+                    We are working on a solution.
+                    In the meantime, you may use Chrome or Firefox.
+                  `
                 }
               </div>
               <div style="flex: 1;"></div>
