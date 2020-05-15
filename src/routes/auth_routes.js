@@ -47,24 +47,32 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
 
       res.send(`
         <html>
+          <head>
+            <meta name="viewport" content="initial-scale=1.0, maximum-scale=1.0, user-scalable=no, width=device-width">
+          </head>
           <body>
             <div style="display: flex; height: 100vh; flex-direction: column;">
               <div style="flex: 1;"></div>
               <div style="text-align: center; font-family: Arial; color: rgba(0,0,0,.6); font-size: 20px;">
-                Sorry!
+                Browser not supported
               </div>
               <div style="text-align: center; font-family: Arial; color: rgba(0,0,0,.3); padding: 50px;">
-                ${/like Mac OS X/.test(ua)
-                  ? `
-                    This app is temporarily unavailable in the browser on iOS.
-                    We are working on a solution.
-                    In the meantime, please download the app from the App Store.
-                  `
-                  : `
-                    This app is temporarily unavailable on Safari due to recent changes to this browser.
-                    We are working on a solution.
-                    In the meantime, you may use Chrome or Firefox.
-                  `
+                ${
+                  /Edge?\/\d/.test(ua)
+                    ? `Please use Chrome or Firefox.`
+                    : (
+                      /like Mac OS X/.test(ua)
+                        ? `
+                          This app is temporarily unsupported in the browser on iOS.
+                          We are working on a solution.
+                          In the meantime, please download the app from the App Store.
+                        `
+                        : `
+                          This app is temporarily unsupported on Safari due to recent changes to this browser.
+                          We are working on a solution.
+                          In the meantime, you may use Chrome or Firefox.
+                        `
+                    )
                 }
               </div>
               <div style="flex: 1;"></div>
