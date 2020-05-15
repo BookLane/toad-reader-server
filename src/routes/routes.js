@@ -75,28 +75,45 @@ module.exports = function (app, s3, connection, passport, authFuncs, ensureAuthe
 
     log(['Get S3 object', params.Key]);
     s3.getObject(params, function(err, data) {
-      if (err) {
-        if (err.statusCode == 304) {
-          res.set({
+      if(err) {
+
+        if(err.statusCode == 304) {
+          const responseHeaders = {
             'ETag': req.headers['if-none-match'],
-            'Last-Modified': req.headers['if-modified-since']
-          });
-          res.status(304);
-          res.send();
+            'Last-Modified': req.headers['if-modified-since'],
+          }
+
+          if(req.query.filename) {
+            responseHeaders['Content-Disposition'] = `attachment; filename=${req.query.filename}`
+          }
+
+          res.set(responseHeaders)
+          res.status(304)
+          res.send()
+
         } else if(notFoundCallback) {
           notFoundCallback();
+
         } else {
           log(['S3 file not found', params.Key], 2);
           res.status(404).send({ error: 'Not found' });
         }
+
       } else { 
         log('Deliver S3 object');
-        res.set({
+
+        const responseHeaders = {
           'Last-Modified': data.LastModified,
           'Content-Length': data.ContentLength,
           'Content-Type': mime.getType(urlWithoutQuery),
-          'ETag': data.ETag
-        }).send(Buffer.from(data.Body));
+          'ETag': data.ETag,
+        }
+
+        if(req.query.filename) {
+          responseHeaders['Content-Disposition'] = `attachment; filename=${req.query.filename}`
+        }
+
+        res.set(responseHeaders).send(Buffer.from(data.Body))
       }
     });
   }
