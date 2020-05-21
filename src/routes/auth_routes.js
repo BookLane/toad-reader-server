@@ -32,53 +32,6 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
     }
   )
 
-  app.get('/fixsafari',
-    (req, res) => {
-      // res.cookie(
-      //   'safari_fix',
-      //   1,
-      //   {
-      //     maxAge: 1000*60*60*24*365*100,
-      //     sameSite: 'none',
-      //     secure: 'auto',
-      //   },
-      // )
-      const ua = req.headers['user-agent']
-
-      res.send(`
-        <html>
-          <head>
-            <meta name="viewport" content="initial-scale=1.0, maximum-scale=1.0, user-scalable=no, width=device-width">
-          </head>
-          <body>
-            <div style="display: flex; height: 100vh; flex-direction: column;">
-              <div style="flex: 1;"></div>
-              <div style="text-align: center; font-family: Arial; color: rgba(0,0,0,.6); font-size: 20px;">
-                Browser not supported
-              </div>
-              <div style="text-align: center; font-family: Arial; color: rgba(0,0,0,.3); padding: 50px;">
-                ${/like Mac OS X/.test(ua)
-                  ? `
-                    This app is temporarily unsupported in the browser on iOS.
-                    We are working on a solution.
-                    In the meantime, please download the app from the App Store.
-                  `
-                  : `
-                    This app is temporarily unsupported on Safari due to recent changes to this browser.
-                    We are working on a solution.
-                    In the meantime, you may use Chrome or Firefox.
-                  `
-                }
-              </div>
-              <div style="flex: 1;"></div>
-            </div>
-          </body>
-        </html>
-      `)
-      // res.redirect(`${util.getFrontEndOrigin(req)}${req.query.path || ``}`)
-    }
-  )
-
   app.get('/confirmlogin',
     ensureAuthenticated,
     function (req, res) {
@@ -152,6 +105,71 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
       `)
     }
   );
+
+  // app.get('/confirmlogin',
+  //   ensureAuthenticated,
+  //   (req, res) => {
+
+  //     const userInfo = {
+  //       id: req.user.id,
+  //       fullname: req.user.fullname,
+  //       isAdmin: req.user.isAdmin,
+  //     }
+
+  //     const currentServerTime = util.getUTCTimeStamp()
+
+  //     const postStatusToParent = () => {
+
+  //       const message = JSON.stringify({
+  //         identifier: "sendCookiePlus",
+  //         payload: {
+  //           cookie: COOKIE,
+  //           userInfo: USERINFO,
+  //           currentServerTime: CURRENTSERVERTIME,
+  //         },
+  //       })
+
+  //       document.cookie = "connect.sid=; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
+  //       window.ReactNativeWebView.postMessage(message)
+
+  //     }
+
+  //     const postStatusToParentFunc = String(postStatusToParent)
+  //       .replace('COOKIE', JSON.stringify(getCookie(req)))
+  //       .replace('USERINFO', JSON.stringify(userInfo))
+  //       .replace('CURRENTSERVERTIME', JSON.stringify(currentServerTime))
+
+  //     res.send(`
+  //       <html>
+  //         <head>
+  //           <script>
+  //             (${postStatusToParentFunc})();
+  //           </script>
+  //         </head>
+  //         <body>
+  //         </body>
+  //       </html>
+  //     `)
+  //   }
+  // )
+
+  app.get('/confirmlogin-web',
+    ensureAuthenticated,
+    (req, res) => {
+
+      const loginInfo = {
+        cookie: getCookie(req),
+        userInfo: {
+          id: req.user.id,
+          fullname: req.user.fullname,
+          isAdmin: req.user.isAdmin,
+        },
+        currentServerTime: util.getUTCTimeStamp(),
+      }
+
+      res.redirect(`${util.getFrontEndOrigin(req)}?loginInfo=${encodeURIComponent(JSON.stringify(loginInfo))}`)
+    }
+  )
 
   app.get('/login/:idpId',
     function(req, res, next) {

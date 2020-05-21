@@ -352,7 +352,7 @@ function ensureAuthenticated(req, res, next) {
     (
       req.method == 'GET'
       && (
-        req.originalUrl.match(/^\/confirmlogin$/)
+        req.originalUrl.match(/^\/confirmlogin(?:-web)?$/)
         || (  // TODO: This is temporary, while old apps still active
           req.headers['app-request']
           && req.originalUrl.match(/^\/usersetup\.json/)
