@@ -3,6 +3,8 @@ const redis = require('redis')
 const jwt = require('jsonwebtoken')
 const fetch = require('node-fetch')
 const { i18n } = require("inline-i18n")
+const AWS = require('aws-sdk')
+const s3 = new AWS.S3()
 
 const fakeRedisClient = {}
 
@@ -988,8 +990,88 @@ const util = {
         item2,
       }, i18nOptions)
     ))
-  }
-  
+  },
+
+  s3CopyFolder: async ({ bucket, source, destination }) => {
+    // sanity check: source and dest must end with '/'
+    if(!source.endsWith('/') || !destination.endsWith('/')) {
+      throw new Error(`source or destination must ends with slash`)
+    }
+
+    const Bucket = bucket || process.env.S3_BUCKET
+
+    let isFirstTimeOrTruncated = true
+    let ContinuationToken
+
+    while(isFirstTimeOrTruncated) {
+      // plan, list through the source, if got continuation token, recursive
+      const listResponse = await s3.listObjectsV2({
+        Bucket,
+        Prefix: source,
+        ContinuationToken,
+      }).promise()
+
+      // copy objects
+      await Promise.all(
+        listResponse.Contents.map(async ({ Key }) => {
+          await s3.copyObject({
+            Bucket,
+            CopySource: `${Bucket}/${Key}`,
+            Key: `${destination}${Key.replace(listResponse.Prefix, '')}`,
+          }).promise()
+        })
+      )
+
+      isFirstTimeOrTruncated = listResponse.IsTruncated
+      ContinuationToken = listResponse.NextContinuationToken
+    }
+
+    return true
+  },
+
+  dieOnNoClassroomEditPermission: async ({ connection, next, req, log, classroomUid }) => {
+    const isDefaultClassroomUid = /^[0-9]+-[0-9]+$/.test(classroomUid)
+    const now = util.timestampToMySQLDatetime()
+
+    const rows = await util.runQuery({
+      query: `
+        SELECT c.uid
+        FROM classroom as c
+          LEFT JOIN classroom_member as cm_me ON (cm_me.classroom_uid=c.uid)
+          LEFT JOIN computed_book_access as cba ON (cba.book_id=c.book_id)
+        WHERE c.uid=:classroomUid
+          AND c.idp_id=:idpId
+          AND c.deleted_at IS NULL
+          ${isDefaultClassroomUid ? `` : `
+            AND cm_me.user_id=:userId
+            AND cm_me.role='INSTRUCTOR'
+            AND cm_me.deleted_at IS NULL
+          `}
+          AND cba.idp_id=:idpId
+          AND cba.user_id=:userId
+          AND cba.version='${isDefaultClassroomUid ? 'PUBLISHER' : 'INSTRUCTOR'}'
+          AND (cba.expires_at IS NULL OR cba.expires_at>:now)
+          AND (cba.enhanced_tools_expire_at IS NULL OR cba.enhanced_tools_expire_at>:now)
+      `,
+      vars: {
+        classroomUid,
+        idpId: req.user.idpId,
+        userId: req.user.id,
+        now,
+      },
+      connection,
+      next,
+    })
+
+    if(rows.length === 0) {
+      log(['No permission to edit classroom', req], 3)
+      res.status(403).send({ errorType: "biblemesh_no_permission" })
+      return false
+    }
+
+    return true
+  },
+
 }
 
-module.exports = util;
+module.exports = util

@@ -161,7 +161,8 @@ module.exports = {
           ['uid'],
           ['updated_at','name','access_code','instructor_access_code','syllabus',
            'introduction','lti_configurations','classroom_highlights_mode','closes_at','draftData',
-           'published_at','scheduleDates','members','tools','toolEngagements','instructorHighlights','_delete']
+           'published_at','scheduleDates','members','tools','toolEngagements','instructorHighlights',
+           'based_off_classroom_uid','_delete']
         )) {
           return getErrorObj('invalid parameters')
         }
@@ -204,12 +205,18 @@ module.exports = {
             if(classroom.instructorHighlights) {
               return getErrorObj('invalid data: user with PUBLISHER book_instance attempting to edit instructor highlights')
             }
+            if(classroom.based_off_classroom_uid) {
+              return getErrorObj('invalid parameters: default classroom cannot have based_off_classroom_uid')
+            }
           } else {  // INSTRUCTOR
             if(classroom.uid === `${user.idpId}-${bookId}`) {
               return getErrorObj('invalid permissions: user with INSTRUCTOR computed_book_access cannot edit the default version')
             }
             if(dbClassroom && dbClassroom.role !== 'INSTRUCTOR') {
               return getErrorObj('invalid permissions: user not INSTRUCTOR of this classroom')
+            }
+            if(dbClassroom && ![ undefined, dbClassroom.based_off_classroom_uid ].includes(classroom.based_off_classroom_uid)) {
+              return getErrorObj('invalid parameters: based_off_classroom_uid cannot be changed after classroom creation')
             }
           }
 
@@ -268,7 +275,7 @@ module.exports = {
                 classroom.deleted_at = classroom.updated_at
                 delete classroom._delete
                 queriesToRun.push({
-                  query: 'UPDATE `classroom` SET ? WHERE uid=?',
+                  query: 'UPDATE classroom SET ? WHERE uid=?',
                   vars: [ classroom, classroom.uid ],
                 })
               }
@@ -277,13 +284,13 @@ module.exports = {
               classroom.idp_id = user.idpId
               classroom.book_id = bookId
               queriesToRun.push({
-                query: 'INSERT INTO `classroom` SET ?',
+                query: 'INSERT INTO classroom SET ?',
                 vars: [ classroom ],
               })
 
             } else {
               queriesToRun.push({
-                query: 'UPDATE `classroom` SET ? WHERE uid=?',
+                query: 'UPDATE classroom SET ? WHERE uid=?',
                 vars: [ classroom, classroom.uid ],
               })
             }

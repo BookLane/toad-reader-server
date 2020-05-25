@@ -7,7 +7,7 @@
 #
 # Host: localhost (MySQL 5.7.27)
 # Database: ToadReader
-# Generation Time: 2020-05-13 20:16:53 +0000
+# Generation Time: 2020-05-25 18:39:09 +0000
 # ************************************************************
 
 
@@ -117,6 +117,7 @@ CREATE TABLE `classroom` (
   `published_at` datetime(3) DEFAULT NULL,
   `updated_at` datetime(3) NOT NULL,
   `deleted_at` datetime(3) DEFAULT NULL,
+  `based_off_classroom_uid` varchar(36) DEFAULT NULL,
   PRIMARY KEY (`uid`),
   UNIQUE KEY `access_code` (`access_code`),
   UNIQUE KEY `instructor_access_code` (`instructor_access_code`),
@@ -126,7 +127,8 @@ CREATE TABLE `classroom` (
   KEY `closes_at` (`closes_at`),
   KEY `created_at` (`created_at`),
   KEY `updated_at` (`updated_at`),
-  KEY `deleted_at` (`deleted_at`)
+  KEY `deleted_at` (`deleted_at`),
+  KEY `based_off_classroom_uid` (`based_off_classroom_uid`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 

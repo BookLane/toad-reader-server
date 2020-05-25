@@ -1,7 +1,7 @@
-// const util = require('../utils/util');
-const patchLatestLocation = require('./patch_keys/patch_latest_location');
-const patchHighlights = require('./patch_keys/patch_highlights');
-const patchClassrooms = require('./patch_keys/patch_classrooms');
+const util = require('../utils/util')
+const patchLatestLocation = require('./patch_keys/patch_latest_location')
+const patchHighlights = require('./patch_keys/patch_highlights')
+const patchClassrooms = require('./patch_keys/patch_classrooms')
 
 module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log) {
 
@@ -82,14 +82,54 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
 
           const runAQuery = function() {
             if(queriesToRun.length > 0) {
-              var query = queriesToRun.shift();
-              log(['Patch query', query]);
-              connection.query(query.query, query.vars, function (err, result) {
-                if (err) {
-                  return next(err);
+              const query = queriesToRun.shift()
+              log(['Patch query', query])
+
+              connection.query(
+                query.query,
+                query.vars,
+                async (err, result) => {
+                  if(err) {
+                    return next(err)
+                  }
+
+                  const { uid, based_off_classroom_uid } = (query.vars || [])[0] || {}
+
+                  if(
+                    /^INSERT INTO classroom /.test(query.query)
+                    && uid
+                    && based_off_classroom_uid
+                  ) {
+                    // Commented-out section is unnecessary as the instructor creating
+                    // the classroom already has access to all the tools, even if they are not
+                    // an instructor of the based-off classroom. Thus, this is simply something
+                    // that needs to be disallowed on the front-end.
+
+                    // const basedOffIsDefaultClassroomUid = /^[0-9]+-[0-9]+$/.test(based_off_classroom_uid)
+
+                    // if(!basedOffIsDefaultClassroomUid) {
+                    //   await util.dieOnNoClassroomEditPermission({
+                    //     connection,
+                    //     next,
+                    //     req,
+                    //     log,
+                    //     classroomUid: based_off_classroom_uid,
+                    //   })
+                    // }
+
+                    // The following is an async function. However, the most graceful failure,
+                    // if it should fail, is to simply go ahead with the rest of the patch.
+                    // This is why I do not have an await.
+                    util.s3CopyFolder({
+                      source: `enhanced_assets/${based_off_classroom_uid}/`,
+                      destination: `enhanced_assets/${uid}/`,
+                    })
+
+                  }
+
+                  runAQuery()
                 }
-                runAQuery();
-              })
+              )
               
             } else {
               if(containedOldPatch) {
