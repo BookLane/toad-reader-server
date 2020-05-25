@@ -1,9 +1,9 @@
-const util = require('../../utils/util');
-const patchClassroomMembers = require('./patch_classroom_members');
-const patchClassroomScheduleDates = require('./patch_classroom_schedule_dates');
-const patchTools = require('./patch_tools');
-const patchToolEngagments = require('./patch_tool_engagements');
-const patchInstructorHighlights = require('./patch_instructor_highlights');
+const util = require('../../utils/util')
+const patchClassroomMembers = require('./patch_classroom_members')
+const patchClassroomScheduleDates = require('./patch_classroom_schedule_dates')
+const patchTools = require('./patch_tools')
+const patchToolEngagments = require('./patch_tool_engagements')
+const patchInstructorHighlights = require('./patch_instructor_highlights')
 
 const getSuccessObj = containedOldPatch => ({
   patch: 'classrooms',
@@ -26,7 +26,7 @@ module.exports = {
     preQueries,
   }) => {
 
-    const now = util.timestampToMySQLDatetime();
+    const now = util.timestampToMySQLDatetime()
 
     if((body.classrooms || []).length > 0) {
 
@@ -39,7 +39,7 @@ module.exports = {
           AND (expires_at IS NULL OR expires_at>?)
           AND (enhanced_tools_expire_at IS NULL OR enhanced_tools_expire_at>?)
           AND version IN (?)
-      `);
+      `)
       preQueries.vars = [
         ...preQueries.vars,
         user.idpId,
@@ -48,7 +48,7 @@ module.exports = {
         now,
         now,
         ['INSTRUCTOR', 'PUBLISHER'],
-      ];
+      ]
 
       preQueries.queries.push(`
         SELECT c.uid, c.updated_at, c.deleted_at, cm_me.role
@@ -64,7 +64,7 @@ module.exports = {
             )
             OR c.uid=?
           )
-      `);
+      `)
       preQueries.vars = [
         ...preQueries.vars,
         body.classrooms.map(({ uid }) => uid),
@@ -72,7 +72,7 @@ module.exports = {
         params.bookId,
         params.userId,
         `${user.idpId}-${params.bookId}`,
-      ];
+      ]
 
       const accessCodes = [ '-', ...new Set(
         body.classrooms
@@ -97,14 +97,14 @@ module.exports = {
       ]
 
     } else {
-      preQueries.queries.push('SELECT 1');
-      preQueries.queries.push('SELECT 1');
-      preQueries.queries.push('SELECT 1');
+      preQueries.queries.push('SELECT 1')
+      preQueries.queries.push('SELECT 1')
+      preQueries.queries.push('SELECT 1')
     }
 
-    preQueries.resultKeys.push('dbComputedBookAccess');
-    preQueries.resultKeys.push('dbClassrooms');
-    preQueries.resultKeys.push('dbClassroomAccessCodes');
+    preQueries.resultKeys.push('dbComputedBookAccess')
+    preQueries.resultKeys.push('dbClassrooms')
+    preQueries.resultKeys.push('dbClassroomAccessCodes')
 
     patchClassroomScheduleDates.addPreQueries({
       classrooms: body.classrooms || [],
@@ -150,7 +150,7 @@ module.exports = {
     bookId,
   }) => {
 
-    let containedOldPatch = false;
+    let containedOldPatch = false
 
     if((classrooms || []).length > 0) {
       for(let idx in classrooms) {
@@ -163,11 +163,11 @@ module.exports = {
            'introduction','lti_configurations','classroom_highlights_mode','closes_at','draftData',
            'published_at','scheduleDates','members','tools','toolEngagements','instructorHighlights','_delete']
         )) {
-          return getErrorObj('invalid parameters');
+          return getErrorObj('invalid parameters')
         }
 
         if(classroom._delete !== undefined && !classroom._delete) {
-          return getErrorObj('invalid parameters (_delete)');
+          return getErrorObj('invalid parameters (_delete)')
         }
 
         const dbClassroom = dbClassrooms.filter(({ uid }) => uid === classroom.uid)[0]
@@ -184,32 +184,32 @@ module.exports = {
               && classroom.members[0].user_id === user.id
             )
             if(!leavingClassroomAndMaybeEngaging) {
-              return getErrorObj('invalid permissions: user lacks INSTRUCTOR/PUBLISHER computed_book_access');
+              return getErrorObj('invalid permissions: user lacks INSTRUCTOR/PUBLISHER computed_book_access')
             } else if(leavingClassroomAndMaybeEngaging && classroom.uid === `${user.idpId}-${bookId}`) {
-              return getErrorObj('invalid permissions: user cannot leave the default version');
+              return getErrorObj('invalid permissions: user cannot leave the default version')
             }
           } else if(dbComputedBookAccess[0].version === 'PUBLISHER') {  // PUBLISHER
             if(classroom.uid !== `${user.idpId}-${bookId}`) {
-              return getErrorObj('invalid permissions: user with PUBLISHER computed_book_access can only edit the default version');
+              return getErrorObj('invalid permissions: user with PUBLISHER computed_book_access can only edit the default version')
             }
             if(
               !util.paramsOk(classroom, ['uid'], ['tools', 'lti_configurations', 'draftData', 'updated_at'])
               || !util.paramsOk(classroom.draftData || {}, [], ['lti_configurations'])
             ) {
-              return getErrorObj('invalid permissions: user with PUBLISHER computed_book_access can only edit tools and lti_configurations related to the default version');
+              return getErrorObj('invalid permissions: user with PUBLISHER computed_book_access can only edit tools and lti_configurations related to the default version')
             }
             if(!dbClassroom) {
-              return getErrorObj('invalid data: user with PUBLISHER computed_book_access attempting to edit non-existent default version');
+              return getErrorObj('invalid data: user with PUBLISHER computed_book_access attempting to edit non-existent default version')
             }
             if(classroom.instructorHighlights) {
-              return getErrorObj('invalid data: user with PUBLISHER book_instance attempting to edit instructor highlights');
+              return getErrorObj('invalid data: user with PUBLISHER book_instance attempting to edit instructor highlights')
             }
           } else {  // INSTRUCTOR
             if(classroom.uid === `${user.idpId}-${bookId}`) {
-              return getErrorObj('invalid permissions: user with INSTRUCTOR computed_book_access cannot edit the default version');
+              return getErrorObj('invalid permissions: user with INSTRUCTOR computed_book_access cannot edit the default version')
             }
             if(dbClassroom && dbClassroom.role !== 'INSTRUCTOR') {
-              return getErrorObj('invalid permissions: user not INSTRUCTOR of this classroom');
+              return getErrorObj('invalid permissions: user not INSTRUCTOR of this classroom')
             }
           }
 
@@ -231,24 +231,24 @@ module.exports = {
             || accessCodesToSet.includes(instructor_access_code)
           )
         ))) {
-          return getErrorObj(`duplicate code(s): ${accessCodesToSet.join(' ')}`);
+          return getErrorObj(`duplicate code(s): ${accessCodesToSet.join(' ')}`)
         }
 
         if(!dbClassroom && (classroom.members || []).filter(({ user_id, role }) => (user_id === user.id && role === 'INSTRUCTOR')).length === 0) {
-          return getErrorObj('invalid parameters: when creating a classroom, must also be making yourself an INSTRUCTOR');
+          return getErrorObj('invalid parameters: when creating a classroom, must also be making yourself an INSTRUCTOR')
         }
 
-        const { scheduleDates, members, tools, toolEngagements, instructorHighlights } = classroom;
-        delete classroom.scheduleDates;
-        delete classroom.members;
-        delete classroom.tools;
-        delete classroom.toolEngagements;
-        delete classroom.instructorHighlights;
+        const { scheduleDates, members, tools, toolEngagements, instructorHighlights } = classroom
+        delete classroom.scheduleDates
+        delete classroom.members
+        delete classroom.tools
+        delete classroom.toolEngagements
+        delete classroom.instructorHighlights
 
         if(classroom.updated_at) {
 
           if(dbClassroom && util.mySQLDatetimeToTimestamp(dbClassroom.updated_at) > classroom.updated_at) {
-            containedOldPatch = true;
+            containedOldPatch = true
 
           } else {
 
@@ -263,10 +263,10 @@ module.exports = {
               if(!dbClassroom) {
                 // shouldn't get here, but just ignore if it does
               } else if(dbClassroom.deleted_at) {
-                containedOldPatch = true;
+                containedOldPatch = true
               } else {
-                classroom.deleted_at = classroom.updated_at;
-                delete classroom._delete;
+                classroom.deleted_at = classroom.updated_at
+                delete classroom._delete
                 queriesToRun.push({
                   query: 'UPDATE `classroom` SET ? WHERE uid=?',
                   vars: [ classroom, classroom.uid ],
@@ -274,8 +274,8 @@ module.exports = {
               }
 
             } else if(!dbClassroom) {
-              classroom.idp_id = user.idpId;
-              classroom.book_id = bookId;
+              classroom.idp_id = user.idpId
+              classroom.book_id = bookId
               queriesToRun.push({
                 query: 'INSERT INTO `classroom` SET ?',
                 vars: [ classroom ],
@@ -368,7 +368,7 @@ module.exports = {
       }
     }
 
-    return getSuccessObj(containedOldPatch);
+    return getSuccessObj(containedOldPatch)
 
   },
 
