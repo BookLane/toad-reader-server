@@ -51,7 +51,7 @@ module.exports = {
       ]
 
       preQueries.queries.push(`
-        SELECT c.uid, c.updated_at, c.deleted_at, cm_me.role
+        SELECT c.uid, c.updated_at, c.deleted_at, c.based_off_classroom_uid, cm_me.role
         FROM classroom as c
           LEFT JOIN classroom_member as cm_me ON (cm_me.classroom_uid=c.uid)
         WHERE c.uid IN (?)
