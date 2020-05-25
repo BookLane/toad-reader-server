@@ -473,12 +473,10 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         WHERE c.uid=:classroomUid
           AND c.idp_id=:idpId
           AND c.deleted_at IS NULL
-          ${!isDefaultClassroomUid ? `` : `
-            (
-              cm_me.user_id=:userId
-              AND cm_me.role='INSTRUCTOR'
-              AND cm_me.deleted_at IS NULL
-            )
+          ${isDefaultClassroomUid ? `` : `
+            AND cm_me.user_id=:userId
+            AND cm_me.role='INSTRUCTOR'
+            AND cm_me.deleted_at IS NULL
           `}
           AND cba.idp_id=:idpId
           AND cba.user_id=:userId
