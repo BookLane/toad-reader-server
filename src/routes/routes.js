@@ -289,7 +289,7 @@ module.exports = function (app, s3, connection, passport, authFuncs, ensureAuthe
             AND c.idp_id=:idpId
             AND c.deleted_at IS NULL
             ${isDefaultClassroomUid ? `
-              AND bi.version='PUBLISHER'
+              AND bi.version IN ('PUBLISHER', 'INSTRUCTOR', 'ENHANCED')
             ` : `
               AND cm_me.user_id=:userId
               AND cm_me.deleted_at IS NULL
