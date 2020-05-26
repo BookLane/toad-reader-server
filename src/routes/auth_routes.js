@@ -39,6 +39,7 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
       const userInfo = {
         id: req.user.id,
         fullname: req.user.fullname,
+        email: req.user.email,
         isAdmin: req.user.isAdmin,
       }
 
@@ -162,6 +163,7 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
         userInfo: {
           id: req.user.id,
           fullname: req.user.fullname,
+          email: req.user.email,
           isAdmin: req.user.isAdmin,
         },
         currentServerTime: util.getUTCTimeStamp(),
@@ -383,6 +385,7 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
                   userInfo: {
                     id: req.user.id,
                     fullname: req.user.fullname,
+                    email: req.user.email,
                     isAdmin: req.user.isAdmin,
                   },
                   currentServerTime: Date.now(),
