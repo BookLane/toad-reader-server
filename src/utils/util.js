@@ -183,11 +183,13 @@ const util = {
 
   convertMySQLDatetimesToTimestamps: objOrAry => {
     if(objOrAry instanceof Array) {
-      objOrAry.forEach(obj => util.convertMySQLDatetimesToTimestamps(obj));
-    } else {
+      objOrAry.forEach(obj => util.convertMySQLDatetimesToTimestamps(obj))
+    } else if(objOrAry && typeof objOrAry === 'object') {
       Object.keys(objOrAry).forEach(key => {
         if(/_at$/.test(key) && typeof objOrAry[key] === 'string') {
-          objOrAry[key] = util.mySQLDatetimeToTimestamp(objOrAry[key]);
+          objOrAry[key] = util.mySQLDatetimeToTimestamp(objOrAry[key])
+        } else {
+          util.convertMySQLDatetimesToTimestamps(objOrAry[key])
         }
       })
     }

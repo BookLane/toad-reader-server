@@ -702,7 +702,8 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
         readingScheduleStatuses,
         quizStatsByLoc,
       }
-    
+
+      util.convertMySQLDatetimesToTimestamps(data)
 
       return res.send({
         success: true,
