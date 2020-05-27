@@ -441,12 +441,6 @@ function ensureAuthenticated(req, res, next) {
                 break
               }
 
-              case 'EMAIL': {
-                // TO DO
-                return res.status(403).send({ error: 'Please login' })
-                break
-              }
-
               case 'NONE_OR_EMAIL': {
                 // the IDP does not require authentication, so log them in as userId = -idpId
                 log('Logging in without authentication', 2)
