@@ -308,7 +308,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
 
           // instructor highlights query
           queries.push(`
-            SELECT h.spineIdRef, h.cfi, h.note, h.updated_at, ih.classroom_uid, ih.created_at, u.id as author_id, u.fullname as author_fullname
+            SELECT h.spineIdRef, h.cfi, h.note, h.share_quote, h.updated_at, ih.classroom_uid, ih.created_at, u.id as author_id, u.fullname as author_fullname
             FROM instructor_highlight as ih
               LEFT JOIN highlight as h ON (ih.highlight_id=h.id)
               LEFT JOIN user as u ON (u.id=h.user_id)
@@ -482,6 +482,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
                   // We do not want to send data duplicated elsewhere for this user,
                   // lest there develop an inconsistency between them.
                   delete highlight.note
+                  delete highlight.share_quote
                   delete highlight.updated_at
                   delete highlight.author_fullname
                   delete highlight.author_id
