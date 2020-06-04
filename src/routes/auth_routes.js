@@ -309,6 +309,10 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
       }
 
       await util.setLoginInfoByAccessCode({ accessCode, loginInfo, next })
+
+      if(process.env.IS_DEV) {
+        log(`Login code: ${accessCode}`)
+      }
       
       try {
 
