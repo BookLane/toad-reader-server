@@ -1,20 +1,20 @@
 ////////////// REQUIRES //////////////
 
-var express = require('express')
-var cors = require('cors')
-var app = express()
-var http = require('http')
-var bodyParser = require('body-parser')
-var cookieParser = require('cookie-parser')
-var mysql = require('mysql')
-var SqlString = require('mysql/lib/protocol/SqlString')
-var AWS = require('aws-sdk')
-var session = require('express-session')
-var RedisStore = require('connect-redis')(session)
-var passport = require('passport')
-var saml = require('passport-saml')
+const express = require('express')
+const cors = require('cors')
+const app = express()
+const http = require('http')
+const bodyParser = require('body-parser')
+const cookieParser = require('cookie-parser')
+const mysql = require('mysql')
+const SqlString = require('mysql/lib/protocol/SqlString')
+const AWS = require('aws-sdk')
+const session = require('express-session')
+const RedisStore = require('connect-redis')(session)
+const passport = require('passport')
+const saml = require('passport-saml')
 require('dotenv').load()  //loads the local environment
-var util = require('./src/utils/util')
+const util = require('./src/utils/util')
 const jwt = require('jsonwebtoken')
 const { i18nSetup } = require("inline-i18n")
 const fs = require('fs')
@@ -22,23 +22,36 @@ require("array-flat-polyfill")  // Array.flat function
 
 ////////////// SETUP SERVER //////////////
 
-var port = parseInt(process.env.PORT, 10) || process.env.PORT || 8080;
-app.set('port', port);
-var server = http.createServer(app);
-var log = function(msgs, importanceLevel) {
-  var logLevel = parseInt(process.env.LOGLEVEL) || 3;   // 1=verbose, 2=important, 3=errors only
-  importanceLevel = importanceLevel || 1;
+const port = parseInt(process.env.PORT, 10) || process.env.PORT || 8080
+app.set('port', port)
+const server = http.createServer(app)
+const log = function(msgs, importanceLevel) {
+  const logLevel = parseInt(process.env.LOGLEVEL) || 3   // 1=verbose, 2=important, 3=errors only
+  importanceLevel = importanceLevel || 1
   if(importanceLevel >= logLevel) {
-    if(!Array.isArray(msgs)) msgs = [msgs];
-    msgs.unshift(['LOG ','INFO','ERR '][importanceLevel - 1]);
-    console.log.apply(this, msgs);
+    if(!Array.isArray(msgs)) msgs = [msgs]
+    msgs.unshift(['LOG ','INFO','ERR '][importanceLevel - 1])
+    console.log.apply(this, msgs)
   }
 }
-// console.log('ENV >>> ', process.env);
+const sessionParser = session({
+  store: process.env.IS_DEV ? null : new RedisStore(redisOptions),
+  secret: process.env.SESSION_SECRET || 'secret',
+  saveUninitialized: false,
+  resave: false,
+  cookie: {
+    httpOnly: false,
+    maxAge: 1000 * 60 * 60 * 24 * 30 * 3,
+    sameSite: 'none',
+    secure: 'auto',
+    // if they use this session at least once/3 months, it will never expire
+  },
+})
+// console.log('ENV >>> ', process.env)
 
 
 ////////////// SETUP CORS //////////////
-var corsOptionsDelegate = (req, callback) => {
+const corsOptionsDelegate = (req, callback) => {
   const corsOptions = {}
 
   if(process.env.IS_DEV) {
@@ -50,13 +63,13 @@ var corsOptionsDelegate = (req, callback) => {
   callback(null, corsOptions)
 }
 
-app.use(cors(corsOptionsDelegate));
+app.use(cors(corsOptionsDelegate))
 
 ////////////// SETUP STORAGE //////////////
 
-var s3 = new AWS.S3();
+const s3 = new AWS.S3()
 
-var connection = mysql.createConnection({
+const connection = mysql.createConnection({
   host: process.env.OVERRIDE_RDS_HOSTNAME || process.env.RDS_HOSTNAME,
   port: process.env.OVERRIDE_RDS_PORT || process.env.RDS_PORT,
   user: process.env.OVERRIDE_RDS_USERNAME || process.env.RDS_USERNAME,
@@ -82,7 +95,7 @@ var connection = mysql.createConnection({
   // debug: true,
 })
 
-var redisOptions = {
+const redisOptions = {
   host: process.env.REDIS_HOSTNAME,
   port: process.env.REDIS_PORT
 }
@@ -121,7 +134,18 @@ fs.readdir(translationsDir, (err, files) => {
 ////////////// SETUP PASSPORT //////////////
 
 passport.serializeUser((user, done) => {
-  done(null, { userId: user.id, ssoData: user.ssoData })
+  done(
+    null,
+    {
+      userId: user.id,
+      ssoData: user.ssoData,
+
+      // The next two are only used for websockets.
+      // On http requests, they will be overwritten.
+      fullname: user.fullname,
+      idpId: user.idpId,
+    },
+  )
 })
 
 const deserializeUser = ({ userId, ssoData, next }) => new Promise(resolve => {
@@ -152,13 +176,13 @@ const deserializeUser = ({ userId, ssoData, next }) => new Promise(resolve => {
     + 'WHERE user.id=? ',
     [userId],
     (err, rows) => {
-      if (err) return next(err);
+      if (err) return next(err)
 
       if(rows.length !== 1) {
-        return next(`User record not found: ${userId}`);
+        return next(`User record not found: ${userId}`)
       }
 
-      var row = rows[0];
+      const row = rows[0]
 
       const user = {
         id: row.id,
@@ -179,7 +203,7 @@ const deserializeUser = ({ userId, ssoData, next }) => new Promise(resolve => {
         idpMaxMBPerFile: row.maxMBPerFile,
       }
 
-      resolve(user);
+      resolve(user)
     }
   )
 
@@ -198,24 +222,24 @@ passport.deserializeUser((partialUser, done) => {
 const logIn = ({ userId, req, next }) => {
   deserializeUser({ userId, next }).then(user => {
     req.login(user, function(err) {
-      if (err) { return next(err); }
-      return next();
-    });
-  });
+      if (err) { return next(err) }
+      return next()
+    })
+  })
 }
 
-var authFuncs = {};
+const authFuncs = {}
 
-var strategyCallback = function(idp, profile, done) {
-  log(['Profile from idp', profile], 2);
+const strategyCallback = function(idp, profile, done) {
+  log(['Profile from idp', profile], 2)
 
-  var idpUserId = profile['idpUserId'];
-  var idpId = parseInt(idp.id);
+  const idpUserId = profile['idpUserId']
+  const idpId = parseInt(idp.id)
 
   if(!idpUserId) {
-    log(['Bad login', profile], 3);
-    done('Bad login.');
-    return;
+    log(['Bad login', profile], 3)
+    done('Bad login.')
+    return
   }
 
   const returnUser = loginInfo => (
@@ -240,25 +264,25 @@ var strategyCallback = function(idp, profile, done) {
       books: ( profile['bookIds'] ? profile['bookIds'].split(' ') : [] )
         .map(bId => ({ id: parseInt(bId) })),
       ssoData: profile,
-    };
-
-    if(profile['isAdmin']) {
-      userInfo.adminLevel = 'ADMIN';
     }
 
-    const fullname = ((profile['urn:oid:2.5.4.42'] || '') + ' ' + (profile['urn:oid:2.5.4.4'] || '')).trim();
+    if(profile['isAdmin']) {
+      userInfo.adminLevel = 'ADMIN'
+    }
+
+    const fullname = ((profile['urn:oid:2.5.4.42'] || '') + ' ' + (profile['urn:oid:2.5.4.4'] || '')).trim()
     if(fullname) {
-      userInfo.fullname = fullname;
+      userInfo.fullname = fullname
     }
 
     if(!userInfo.email) {
-      log(['Bad login', profile], 3);
-      done('Bad login.');
+      log(['Bad login', profile], 3)
+      done('Bad login.')
     }
   
     util.updateUserInfo({ connection, log, userInfo, idpId, updateLastLoginAt: true, next: done }).then(returnUser)
   }
-};
+}
 
 // re-compute all computed_book_access rows and update where necessary
 connection.query(
@@ -279,13 +303,13 @@ connection.query(
 connection.query('SELECT * FROM `idp` WHERE entryPoint IS NOT NULL',
   function (err, rows) {
     if (err) {
-      log(["Could not setup IDPs.", err], 3);
-      return;
+      log(["Could not setup IDPs.", err], 3)
+      return
     }
 
     rows.forEach(function(row) {
-      var baseUrl = util.getDataOrigin(row)
-      var samlStrategy = new saml.Strategy(
+      const baseUrl = util.getDataOrigin(row)
+      const samlStrategy = new saml.Strategy(
         {
           issuer: baseUrl + "/shibboleth",
           identifierFormat: null,
@@ -300,15 +324,15 @@ connection.query('SELECT * FROM `idp` WHERE entryPoint IS NOT NULL',
           privateCert: row.spkey
         },
         function(profile, done) {
-          strategyCallback(row, profile, done);
+          strategyCallback(row, profile, done)
         }
-      );
+      )
 
-      passport.use(row.id, samlStrategy);
+      passport.use(row.id, samlStrategy)
 
       authFuncs[util.getDataDomain(row.domain)] = authFuncs[row.id] = {
         getMetaData: function() {
-          return samlStrategy.generateServiceProviderMetadata(row.spcert, row.spcert);
+          return samlStrategy.generateServiceProviderMetadata(row.spcert, row.spcert)
         },
         logout: function(req, res, next) {
           log(['Logout', req.user], 2)
@@ -323,12 +347,12 @@ connection.query('SELECT * FROM `idp` WHERE entryPoint IS NOT NULL',
               if(req.user.ssoData) {
                 log('Redirect to SLO')
                 samlStrategy.logout({ user: req.user.ssoData }, function(err2, req2){
-                  if (err2) return next(err2);
+                  if (err2) return next(err2)
     
                   log('Back from SLO')
                   //redirect to the IdP Logout URL
                   res.redirect(req2)
-                });
+                })
               }
               break
             }
@@ -340,13 +364,13 @@ connection.query('SELECT * FROM `idp` WHERE entryPoint IS NOT NULL',
         }
       }
 
-    });
+    })
   }
-);
+)
 
 function ensureAuthenticated(req, res, next) {
   if (req.isAuthenticated()) {
-    return next();
+    return next()
 
   } else if(
     (
@@ -369,21 +393,21 @@ function ensureAuthenticated(req, res, next) {
     //           action: 'forbidden',
     //           iframeid: window.name,
     //           payload: 'Unable to display book. You are not logged in.',
-    //       }, '*');
+    //       }, '*')
     //     </script>
-    //   `);
+    //   `)
     // }
     
-    log('Checking if IDP requires authentication');
+    log('Checking if IDP requires authentication')
     connection.query('SELECT * FROM `idp` WHERE domain=?',
       [util.getIDPDomain(req.headers.host)],
       function (err, rows) {
-        if (err) return next(err);
-        var idp = rows[0];
+        if (err) return next(err)
+        const idp = rows[0]
 
         if(!idp) {
-          log('Tenant not found: ' + req.headers.host, 2);
-          return res.redirect('https://' + process.env.APP_URL + '?tenant_not_found=1');
+          log('Tenant not found: ' + req.headers.host, 2)
+          return res.redirect('https://' + process.env.APP_URL + '?tenant_not_found=1')
 
         } else {
 
@@ -462,10 +486,10 @@ function ensureAuthenticated(req, res, next) {
           }
         }
       }
-    );
+    )
 
   } else {
-    return res.status(403).send({ error: 'Please login' });
+    return res.status(403).send({ error: 'Please login' })
   }
 }
 
@@ -483,39 +507,29 @@ app.use(function(req, res, next) {
 })
 app.use(cookieParser())
 app.set('trust proxy', 1)
-app.use(session({
-  store: process.env.IS_DEV ? null : new RedisStore(redisOptions),
-  secret: process.env.SESSION_SECRET || 'secret',
-  saveUninitialized: false,
-  resave: false,
-  cookie: {
-    httpOnly: false,
-    maxAge: 1000 * 60 * 60 * 24 * 30 * 3,
-    sameSite: 'none',
-    secure: 'auto',
-    // if they use this session at least once/3 months, it will never expire
-  },
-}))
+app.use(sessionParser)
 app.use(passport.initialize())
 app.use(passport.session())
 
 
 ////////////// ROUTES //////////////
 
+require('./src/sockets/sockets')({ server, sessionParser, connection, log })
+
 // force HTTPS
 app.use('*', function(req, res, next) {  
   if(!req.secure && req.headers['x-forwarded-proto'] !== 'https' && process.env.REQUIRE_HTTPS) {
     if(!/^[0-9.]+$/.test(req.headers.host)) {  // don't log all the health checks coming from IPs
-      log(['Go to HTTPS', req.headers.host + req.url]);
+      log(['Go to HTTPS', req.headers.host + req.url])
     }
-    var secureUrl = "https://" + req.headers.host + req.url; 
-    res.redirect(secureUrl);
+    const secureUrl = "https://" + req.headers.host + req.url
+    res.redirect(secureUrl)
   } else {
-    next();
+    next()
   }
-});
+})
 
-require('./src/routes/routes')(app, s3, connection, passport, authFuncs, ensureAuthenticated, logIn, log);
+require('./src/routes/routes')(app, s3, connection, passport, authFuncs, ensureAuthenticated, logIn, log)
 
 process.on('unhandledRejection', reason => {
   log(['Unhandled node error', reason.stack || reason], 3)
@@ -523,4 +537,4 @@ process.on('unhandledRejection', reason => {
 
 ////////////// LISTEN //////////////
 
-server.listen(port);
+server.listen(port)

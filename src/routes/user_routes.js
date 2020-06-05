@@ -292,7 +292,15 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
               tea.question_index as tea_question_index,
               tea.choice_index as tea_choice_index
             FROM tool as t
-              LEFT JOIN tool_engagement as te ON (te.tool_uid=t.uid AND te.deleted_at IS NULL AND te.user_id=:userId)
+              LEFT JOIN tool_engagement as te ON (
+                te.tool_uid=t.uid
+                AND te.deleted_at IS NULL
+                AND te.user_id=:userId
+                AND (
+                  t.toolType!='QUESTION'
+                  OR t.isDiscussion=0
+                )
+              )
               LEFT JOIN tool_engagement_answer as tea ON (tea.tool_engagement_uid=te.uid)
             WHERE t.classroom_uid IN (:classroomUids)
               AND t.deleted_at IS NULL
@@ -360,7 +368,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
         
               // compile engagements under each tool, and answers under each engagement
               tools = tools.filter(tool => {
-                const { uid, toolType, te_uid, tea_question_index, tea_choice_index } = tool
+                const { uid, toolType, isDiscussion, te_uid, tea_question_index, tea_choice_index } = tool
 
                 const toolFilterReturn = !toolsByUid[uid]
                 if(!toolsByUid[uid]) {
@@ -368,7 +376,13 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
                 }
 
                 if(te_uid) {
-                  const isUpdateEngagementToolType = [ 'REFLECTION_QUESTION', 'POLL' ].includes(toolType)
+                  const isUpdateEngagementToolType = (
+                    [ 'POLL' ].includes(toolType)
+                    || (
+                      [ 'QUESTION' ].includes(toolType)
+                      && !isDiscussion
+                    )
+                  )
 
                   const toolEngagement = { ...tool }
                   for(let key in toolEngagement) {
@@ -471,6 +485,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
                 classroomsByUid[tool.classroom_uid].tools.push(tool)
                 delete tool.classroom_uid
                 delete tool.deleted_at
+                delete tool.isDiscussion
               })
 
               // add instructor highlights

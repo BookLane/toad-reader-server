@@ -7,7 +7,7 @@
 #
 # Host: localhost (MySQL 5.7.27)
 # Database: ToadReader
-# Generation Time: 2020-05-25 18:39:09 +0000
+# Generation Time: 2020-06-04 12:23:39 +0000
 # ************************************************************
 
 
@@ -455,8 +455,9 @@ CREATE TABLE `tool` (
   `cfi` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
   `ordering` int(11) unsigned NOT NULL,
   `name` varchar(255) NOT NULL DEFAULT '',
-  `toolType` enum('QUIZ','NOTES_INSERT','LTI','VIDEO','DISCUSSION_QUESTION','REFLECTION_QUESTION','POLL','DOCUMENT','IMAGES','AUDIO') NOT NULL DEFAULT 'NOTES_INSERT',
+  `toolType` enum('QUIZ','NOTES_INSERT','LTI','VIDEO','QUESTION','POLL','DOCUMENT','IMAGES','AUDIO') NOT NULL DEFAULT 'NOTES_INSERT',
   `data` text NOT NULL,
+  `isDiscussion` tinyint(1) NOT NULL,
   `undo_array` text NOT NULL,
   `due_at` datetime(3) DEFAULT NULL,
   `closes_at` datetime(3) DEFAULT NULL,
@@ -478,7 +479,8 @@ CREATE TABLE `tool` (
   KEY `updated_at` (`updated_at`),
   KEY `published_at` (`published_at`),
   KEY `deleted_at` (`deleted_at`),
-  KEY `currently_published_tool_uid` (`currently_published_tool_uid`)
+  KEY `currently_published_tool_uid` (`currently_published_tool_uid`),
+  KEY `isDiscussion` (`isDiscussion`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 

@@ -132,6 +132,10 @@ module.exports = {
 
         } else {
 
+          if(!dbTool || (tool.toolType === 'QUESTION' && tool.data)) {
+            tool.isDiscussion = !!tool.data.isDiscussion
+          }
+
           util.prepUpdatedAtAndCreatedAt(tool, !dbTool)
           util.convertTimestampsToMySQLDatetimes(tool)
 

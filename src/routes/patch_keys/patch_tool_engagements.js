@@ -85,23 +85,28 @@ module.exports = {
 
       // compile answers together
       dbToolEngagements = dbToolEngagements.filter(dbToolEngagement => {
-        const { uid, toolType, tool_uid, question_index, choice_index } = dbToolEngagement
+        const { uid, toolType, isDiscussion, tool_uid, question_index, choice_index } = dbToolEngagement
         const qIdx = parseInt(question_index)
         const chIdx = parseInt(choice_index)
 
         if(parseError) return
 
-        if(![ 'QUIZ', 'DISCUSSION_QUESTION', 'REFLECTION_QUESTION', 'POLL' ].includes(toolType)) {
+        if([ 'QUESTION' ].includes(toolType) && !!isDiscussion) {
+          parseError = `invalid data: cannot patch discussion question engagement`
+          return false
+        }
+
+        if(![ 'QUIZ', 'QUESTION', 'POLL' ].includes(toolType)) {
           parseError = `invalid data: cannot patch engagement for toolType ${toolType}`
           return false
         }
   
-        if([ 'QUIZ', 'DISCUSSION_QUESTION' ].includes(toolType) && toolUidsForToolEngagementsWithoutUids.includes(tool_uid)) {
+        if([ 'QUIZ' ].includes(toolType) && toolUidsForToolEngagementsWithoutUids.includes(tool_uid)) {
           parseError = `invalid data: cannot patch engagement of toolType ${toolType} without uid`
           return false
         }
 
-        if([ 'REFLECTION_QUESTION', 'POLL' ].includes(toolType) && !toolUidsForToolEngagementsWithoutUids.includes(tool_uid)) {
+        if([ 'QUESTION', 'POLL' ].includes(toolType) && !toolUidsForToolEngagementsWithoutUids.includes(tool_uid)) {
           parseError = `invalid data: cannot patch engagement for toolType ${toolType} with uid`
           return false
         }

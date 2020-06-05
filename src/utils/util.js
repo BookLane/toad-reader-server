@@ -1074,6 +1074,61 @@ const util = {
     return true
   },
 
+  getClassroomIfHasPermission: async ({ connection, req: { user, params }, next, roles }) => {
+
+    const now = util.timestampToMySQLDatetime()
+    const defaultClassroomUidRegex = new RegExp(`^${user.idpId}-[0-9]+$`)
+    const checkMyMembership = !(roles.includes('STUDENT') && defaultClassroomUidRegex.test(params.classroomUid))
+
+    const [ classroomRow ] = await util.runQuery({
+      query: `
+        SELECT c.uid, c.book_id
+
+        FROM classroom as c
+          ${!checkMyMembership ? `` : `
+            LEFT JOIN classroom_member as cm_me ON (1=1)
+          `}
+          LEFT JOIN computed_book_access as cba ON (cba.book_id=c.book_id)
+
+        WHERE c.uid=:classroomUid
+          AND c.idp_id=:idpId
+          AND c.deleted_at IS NULL
+
+          ${!checkMyMembership ? `` : `
+            AND cm_me.classroom_uid=:classroomUid
+            AND cm_me.user_id=:userId
+            AND cm_me.role IN (:roles)
+            AND cm_me.deleted_at IS NULL
+          `}
+
+          AND cba.idp_id=:idpId
+          AND cba.user_id=:userId
+          AND cba.version IN (:versions)
+          AND (cba.expires_at IS NULL OR cba.expires_at>:now)
+          AND (cba.enhanced_tools_expire_at IS NULL OR cba.enhanced_tools_expire_at>:now)
+      `,
+      vars: {
+        classroomUid: params.classroomUid,
+        idpId: user.idpId,
+        userId: user.id,
+        roles,
+        versions: (
+          (
+            roles.length === 1
+            && roles.includes('INSTRUCTOR')
+          )
+            ? [ 'INSTRUCTOR' ]
+            : [ 'PUBLISHER', 'INSTRUCTOR', 'ENHANCED' ]
+        ),
+        now,
+      },
+      connection,
+      next,
+    })
+
+    return classroomRow || false
+  },
+
 }
 
 module.exports = util
