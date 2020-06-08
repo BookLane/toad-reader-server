@@ -113,7 +113,7 @@ module.exports = ({ server, sessionParser, connection, log }) => {
 
             log(['Socket message: getResponses'])
 
-            const PAGE_SIZE = 20
+            const PAGE_SIZE = 20  // same constant set on the frontend
             const MAX_PAGE_SIZE = 100
 
             // Without fromAtLeast, get the next 20.
