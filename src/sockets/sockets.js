@@ -36,7 +36,7 @@ module.exports = ({ server, sessionParser, connection, log }) => {
     const { pathname } = url.parse(req.url)
     const [ x, socketName, cookie, ...params ] = pathname.split('/')
 
-    log('Socket attempting to initiate...', socketName)
+    log(['Socket attempting to initiate...', socketName])
 
     if(!wss[socketName] || !cookie) {
       socket.destroy()
