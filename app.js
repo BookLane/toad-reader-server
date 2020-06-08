@@ -22,6 +22,11 @@ require("array-flat-polyfill")  // Array.flat function
 
 ////////////// SETUP SERVER //////////////
 
+const redisOptions = {
+  host: process.env.REDIS_HOSTNAME,
+  port: process.env.REDIS_PORT
+}
+
 const port = parseInt(process.env.PORT, 10) || process.env.PORT || 8080
 app.set('port', port)
 const server = http.createServer(app)
@@ -94,11 +99,6 @@ const connection = mysql.createConnection({
   },
   // debug: true,
 })
-
-const redisOptions = {
-  host: process.env.REDIS_HOSTNAME,
-  port: process.env.REDIS_PORT
-}
 
 ////////////// SETUP I18N //////////////
 
