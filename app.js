@@ -321,7 +321,7 @@ connection.query('SELECT * FROM `idp` WHERE entryPoint IS NOT NULL',
           logoutCallbackUrl: baseUrl + "/logout/callback",
           cert: row.idpcert,
           decryptionPvk: row.spkey,
-          privateCert: row.spkey
+          privateCert: row.spkey,
         },
         function(profile, done) {
           strategyCallback(row, profile, done)
@@ -376,7 +376,7 @@ function ensureAuthenticated(req, res, next) {
     (
       req.method == 'GET'
       && (
-        req.originalUrl.match(/^\/confirmlogin(?:-web)?$/)
+        req.originalUrl.match(/^\/confirmlogin(?:-web)?(?:\?.*)?$/)
         || (  // TODO: This is temporary, while old apps still active
           req.headers['app-request']
           && req.originalUrl.match(/^\/usersetup\.json/)
@@ -475,8 +475,9 @@ function ensureAuthenticated(req, res, next) {
               case 'SHIBBOLETH': {
                 // the IDP does require authentication
                 log('Redirecting to authenticate', 2)
-                req.session.loginRedirect = req.url
-                return res.redirect('/login/' + idpId)
+                const encodedCookie = encodeURIComponent(util.getCookie(req))
+                req.session.loginRedirect = `${req.url}${/\?/.test(req.url) ? `&` : `?`}cookieOverride=${encodedCookie}`
+                return res.redirect(`/login/${idpId}?cookieOverride=${encodedCookie}`)
               }
 
               default: {
@@ -500,9 +501,13 @@ function ensureAuthenticated(req, res, next) {
 app.use(bodyParser.json({ limit: '50mb' })) // for parsing application/json
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }))
 app.use(function(req, res, next) {
-  if(req.headers['x-cookie-override']) {
-    req.headers.cookie = req.headers['x-cookie-override']
-  }
+  try {
+    req.headers.cookie =
+      req.headers['x-cookie-override']
+      || req.query.cookieOverride
+      || JSON.parse(req.body.RelayState).cookieOverride
+      || req.headers.cookie
+  } catch(e) {}
   next()
 })
 app.use(cookieParser())

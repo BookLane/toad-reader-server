@@ -5,6 +5,7 @@ const fetch = require('node-fetch')
 const { i18n } = require("inline-i18n")
 const AWS = require('aws-sdk')
 const s3 = new AWS.S3()
+const cookie = require('cookie-signature')
 
 const fakeRedisClient = {}
 
@@ -1128,6 +1129,8 @@ const util = {
 
     return classroomRow || false
   },
+
+  getCookie: req => `connect.sid=${encodeURIComponent(`s:${cookie.sign(req.sessionID, process.env.SESSION_SECRET || 'secret')}`)}`,
 
 }
 

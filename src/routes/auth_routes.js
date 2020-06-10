@@ -1,9 +1,6 @@
 const util = require('../utils/util')
-const cookie = require('cookie-signature')
 const { i18n } = require("inline-i18n")
 const sendEmail = require("../utils/sendEmail")
-
-const getCookie = req => `connect.sid=${encodeURIComponent(`s:${cookie.sign(req.sessionID, process.env.SESSION_SECRET || 'secret')}`)}`
 
 module.exports = function (app, passport, authFuncs, connection, ensureAuthenticated, logIn, log) {
 
@@ -88,7 +85,7 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
       }
 
       const postStatusToParentFunc = String(postStatusToParent)
-        .replace('COOKIE', JSON.stringify(getCookie(req)))
+        .replace('COOKIE', JSON.stringify(util.getCookie(req)))
         .replace('USERINFO', JSON.stringify(userInfo))
         .replace('CURRENTSERVERTIME', JSON.stringify(currentServerTime))
         .replace('DEVNETWORKIP', JSON.stringify(process.env.DEV_NETWORK_IP))
@@ -136,7 +133,7 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
   //     }
 
   //     const postStatusToParentFunc = String(postStatusToParent)
-  //       .replace('COOKIE', JSON.stringify(getCookie(req)))
+  //       .replace('COOKIE', JSON.stringify(util.getCookie(req)))
   //       .replace('USERINFO', JSON.stringify(userInfo))
   //       .replace('CURRENTSERVERTIME', JSON.stringify(currentServerTime))
 
@@ -159,7 +156,7 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
     (req, res) => {
 
       const loginInfo = {
-        cookie: getCookie(req),
+        cookie: util.getCookie(req),
         userInfo: {
           id: req.user.id,
           fullname: req.user.fullname,
@@ -169,13 +166,18 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
         currentServerTime: util.getUTCTimeStamp(),
       }
 
-      res.redirect(`${util.getFrontEndOrigin(req)}?loginInfo=${encodeURIComponent(JSON.stringify(loginInfo))}`)
+      const hashAddOn = req.query.hash ? `&hash=${encodeURIComponent(req.query.hash)}` : ``
+
+      res.redirect(`${util.getFrontEndOrigin(req)}?loginInfo=${encodeURIComponent(JSON.stringify(loginInfo))}${hashAddOn}`)
     }
   )
 
   app.get('/login/:idpId',
     function(req, res, next) {
-      log('Authenticate user', 2);
+      log('Authenticate user', 2)
+      req.query.RelayState = JSON.stringify({
+        cookieOverride: util.getCookie(req),
+      })
       passport.authenticate(req.params.idpId, { failureRedirect: '/login/fail' })(req, res, next);
     },
     function (req, res) {
@@ -393,7 +395,7 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
                     isAdmin: req.user.isAdmin,
                   },
                   currentServerTime: Date.now(),
-                  cookie: getCookie(req),
+                  cookie: util.getCookie(req),
                 })
               }
             })
