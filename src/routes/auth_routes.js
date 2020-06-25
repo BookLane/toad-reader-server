@@ -29,9 +29,84 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
     }
   )
 
+  // app.get('/confirmlogin',
+  //   ensureAuthenticated,
+  //   function (req, res) {
+
+  //     const userInfo = {
+  //       id: req.user.id,
+  //       fullname: req.user.fullname,
+  //       email: req.user.email,
+  //       isAdmin: req.user.isAdmin,
+  //     }
+
+  //     const currentServerTime = util.getUTCTimeStamp()
+
+  //     const postStatusToParent = () => {
+
+  //       const message = JSON.stringify({
+  //         identifier: "sendCookiePlus",
+  //         payload: {
+  //           cookie: COOKIE,
+  //           userInfo: USERINFO,
+  //           currentServerTime: CURRENTSERVERTIME,
+  //         },
+  //       })
+
+  //       if(window.ReactNativeWebView) {  // ios or android
+  //         document.cookie = "connect.sid=; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
+  //         window.ReactNativeWebView.postMessage(message)
+
+  //       } else {  // web
+  //         let webAppDomain
+
+  //         if([ 'localhost', DEVNETWORKIP ].includes(location.hostname)) {
+  //           // dev environment
+  //           webAppDomain = '*'
+  
+  //         } else if(/\.data\.staging\.toadreader\.com$/.test(location.hostname)) {
+  //           // staging environment
+  //           webAppDomain = `https://${location.host.replace(/\.data\./, '.')}`
+  
+  //         } else {
+  //           // production environment
+  //           webAppDomain = `https://${
+  //             location.hostname
+  //               .split('.')[0]
+  //               .replace(/--/g, '[ DASH ]')
+  //               .replace(/-/g, '.')
+  //               .replace(/\[ DASH \]/g, '-')
+  //           }`
+  //         }
+  
+  //         parent.postMessage(message, webAppDomain)
+  //       }
+
+  //     }
+
+  //     const postStatusToParentFunc = String(postStatusToParent)
+  //       .replace('COOKIE', JSON.stringify(util.getCookie(req)))
+  //       .replace('USERINFO', JSON.stringify(userInfo))
+  //       .replace('CURRENTSERVERTIME', JSON.stringify(currentServerTime))
+  //       .replace('DEVNETWORKIP', JSON.stringify(process.env.DEV_NETWORK_IP))
+
+  //     res.send(`
+  //       <html>
+  //         <head>
+  //           <script>
+  //             (${postStatusToParentFunc})();
+  //           </script>
+  //         </head>
+  //         <body>
+  //         </body>
+  //       </html>
+  //     `)
+  //   }
+  // );
+
   app.get('/confirmlogin',
     ensureAuthenticated,
-    function (req, res) {
+    (req, res) => {
 
       const userInfo = {
         id: req.user.id,
@@ -53,34 +128,8 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
           },
         })
 
-        if(window.ReactNativeWebView) {  // ios or android
-          document.cookie = "connect.sid=; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
-          window.ReactNativeWebView.postMessage(message)
-
-        } else {  // web
-          let webAppDomain
-
-          if([ 'localhost', DEVNETWORKIP ].includes(location.hostname)) {
-            // dev environment
-            webAppDomain = '*'
-  
-          } else if(/\.data\.staging\.toadreader\.com$/.test(location.hostname)) {
-            // staging environment
-            webAppDomain = `https://${location.host.replace(/\.data\./, '.')}`
-  
-          } else {
-            // production environment
-            webAppDomain = `https://${
-              location.hostname
-                .split('.')[0]
-                .replace(/--/g, '[ DASH ]')
-                .replace(/-/g, '.')
-                .replace(/\[ DASH \]/g, '-')
-            }`
-          }
-  
-          parent.postMessage(message, webAppDomain)
-        }
+        document.cookie = "connect.sid=; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
+        window.ReactNativeWebView.postMessage(message)
 
       }
 
@@ -88,7 +137,6 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
         .replace('COOKIE', JSON.stringify(util.getCookie(req)))
         .replace('USERINFO', JSON.stringify(userInfo))
         .replace('CURRENTSERVERTIME', JSON.stringify(currentServerTime))
-        .replace('DEVNETWORKIP', JSON.stringify(process.env.DEV_NETWORK_IP))
 
       res.send(`
         <html>
@@ -102,54 +150,7 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
         </html>
       `)
     }
-  );
-
-  // app.get('/confirmlogin',
-  //   ensureAuthenticated,
-  //   (req, res) => {
-
-  //     const userInfo = {
-  //       id: req.user.id,
-  //       fullname: req.user.fullname,
-  //       isAdmin: req.user.isAdmin,
-  //     }
-
-  //     const currentServerTime = util.getUTCTimeStamp()
-
-  //     const postStatusToParent = () => {
-
-  //       const message = JSON.stringify({
-  //         identifier: "sendCookiePlus",
-  //         payload: {
-  //           cookie: COOKIE,
-  //           userInfo: USERINFO,
-  //           currentServerTime: CURRENTSERVERTIME,
-  //         },
-  //       })
-
-  //       document.cookie = "connect.sid=; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
-  //       window.ReactNativeWebView.postMessage(message)
-
-  //     }
-
-  //     const postStatusToParentFunc = String(postStatusToParent)
-  //       .replace('COOKIE', JSON.stringify(util.getCookie(req)))
-  //       .replace('USERINFO', JSON.stringify(userInfo))
-  //       .replace('CURRENTSERVERTIME', JSON.stringify(currentServerTime))
-
-  //     res.send(`
-  //       <html>
-  //         <head>
-  //           <script>
-  //             (${postStatusToParentFunc})();
-  //           </script>
-  //         </head>
-  //         <body>
-  //         </body>
-  //       </html>
-  //     `)
-  //   }
-  // )
+  )
 
   app.get('/confirmlogin-web',
     ensureAuthenticated,

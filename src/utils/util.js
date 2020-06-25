@@ -230,6 +230,7 @@ const util = {
 
   getBackendBaseUrl: req => `${util.getProtocol(req)}://${req.headers.host}`,
   getFrontendBaseUrl: req => `${util.getProtocol(req)}://${util.getIDPDomain(req.headers.host)}`,
+  // getFrontendBaseUrl does not (and should not) get a beta base url
 
   // xAPI statement utils below
 
@@ -293,7 +294,7 @@ const util = {
       return `${dashifyDomain(domain)}.data.staging.toadreader.com`
     }
   
-    // production environment
+    // production or beta environment
     return `${dashifyDomain(domain)}.data.toadreader.com`
   
   },
@@ -312,6 +313,11 @@ const util = {
 
     if(process.env.IS_STAGING) {
       domain = req.headers.host.replace('.data', '')
+    }
+
+    const betaUrlMatch = (req.headers.referer || "").match(/^https?:\/\/([^\/.]*\.beta\.toadreader\.com)(\/|$)/)
+    if(betaUrlMatch || req.query.isBeta) {
+      domain = req.headers.host.replace('.data', '.beta')
     }
 
     return `${util.getProtocol(req)}://${domain}`
