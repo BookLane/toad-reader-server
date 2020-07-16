@@ -184,7 +184,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
       }
 
       // create index for search
-      await putEPUBFile('search_index.json', await getIndexedBookJSON({ baseUri: toUploadDir, spines }))
+      await putEPUBFile('search_index.json', await getIndexedBookJSON({ baseUri: toUploadDir, spines, log }))
 
       // clean up
       deleteFolderRecursive(tmpDir)
