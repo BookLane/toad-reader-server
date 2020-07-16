@@ -1,3 +1,6 @@
+const parseEpub = require('../utils/parseEpub')
+const { getIndexedBookJSON } = require('../utils/indexEpub')
+
 module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, log) {
 
   var fs = require('fs')
@@ -149,108 +152,127 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
     
     var tmpDir = 'tmp_epub_' + util.getUTCTimeStamp();
     var toUploadDir = tmpDir + '/toupload';
-    var epubToS3SuccessCount = 0;
     var epubFilePaths = [];
     var bookRow;
 
-    var checkDone = function() {
-      if(epubToS3SuccessCount == epubFilePaths.length + (bookRow.coverHref ? 1 : 0)) {
-        // clean up
-        deleteFolderRecursive(tmpDir);
+    const onUploadDone = async () => {
+      const { title, author, isbn, coverHref, spines, success } = await parseEpub({ baseUri: toUploadDir, log })
 
-        // prep to insert the book row
-        bookRow.author = bookRow.creator || bookRow.publisher || '';
-        bookRow.isbn = bookRow.identifier || '';
-        bookRow.updated_at = util.timestampToMySQLDatetime();
-        delete bookRow.creator;
-        delete bookRow.publisher;
-        delete bookRow.identifier;
-
-        // check if book already exists in same idp group
-        log('Look for identical book in idp group');
-        connection.query(''
-          + 'SELECT b.id, IF(bi.idp_id=?, 1, 0) as alreadyBookInThisIdp '
-          + 'FROM `book` as b '
-          + 'LEFT JOIN `book-idp` as bi ON (b.id = bi.book_id) '
-          + 'LEFT JOIN `idp_group_member` as igm1 ON (bi.idp_id = igm1.idp_id) '
-          + 'LEFT JOIN `idp_group_member` as igm2 ON (igm1.idp_group_id = igm2.idp_group_id) '
-          + 'WHERE b.title=? AND b.author=? AND b.isbn=? '
-          + 'AND (bi.idp_id=? OR igm2.idp_id=?) '
-          + 'ORDER BY alreadyBookInThisIdp DESC '
-          + 'LIMIT 1 ',
-          [req.user.idpId, bookRow.title, bookRow.author, bookRow.isbn, req.user.idpId, req.user.idpId],
-          function (err, rows, fields) {
-            if (err) return next(err);
-
-            if(rows.length === 1) {
-
-              // delete book
-              deleteBook(bookRow.id, next, function() {
-
-                log('DELETE book-idp row', 2);
-                connection.query('DELETE FROM `book-idp` WHERE book_id=? AND idp_id=?',
-                  [bookRow.id, req.user.idpId],
-                  function (err, results) {
-                    if (err) return next(err);
-
-                    if(rows[0].alreadyBookInThisIdp == '1') {
-                      log('Import unnecessary (book already associated with this idp)', 2);
-                      res.send({
-                        success: true,
-                        note: 'already-associated',
-                        bookId: rows[0].id
-                      });
-                    } else {
-                      var bookIdpParams = {
-                        book_id: rows[0].id,
-                        idp_id: req.user.idpId
-                      };
-                      log(['INSERT book-idp row', bookIdpParams], 2);
-                      connection.query('INSERT INTO `book-idp` SET ?',
-                        bookIdpParams,
-                        async (err, results) => {
-                          if (err) return next(err);
-
-                          await util.updateComputedBookAccess({ idpId: req.user.idpId, bookId: rows[0].id, connection, log })
-
-                          log('Import unnecessary (book exists in idp with same group; added association)', 2);
-                          res.send({
-                            success: true,
-                            note: 'associated-to-existing',
-                            bookId: rows[0].id
-                          });
-          
-                        }
-                      );
-                    }
-                  }
-                );
-                
-              });
-
-              return;
-            }            
-            
-            log(['Update book row', bookRow], 2);
-            connection.query('UPDATE `book` SET ? WHERE id=?', [bookRow, bookRow.id], async (err, result) => {
-              if (err) {
-                return next(err);
-              }
-
-              await util.updateComputedBookAccess({ idpId: req.user.idpId, bookId: bookRow.id, connection, log })
-
-              log('Import successful', 2);
-              res.send({
-                success: true,
-                bookId: bookRow.id
-              });
-            })
-          }
-        );
+      if(!success) {
+        deleteFolderRecursive(tmpDir)
+        deleteBook(bookRow.id, next, () => {
+          res.status(400).send({errorType: "biblemesh_unable_to_process"})
+        })
+        return
       }
+
+      // prep to insert the book row
+      bookRow.title = title || 'Unknown'
+      bookRow.author = author || ''
+      bookRow.isbn = isbn || ''
+      bookRow.updated_at = util.timestampToMySQLDatetime()
+
+      if(coverHref) {
+        bookRow.coverHref = `epub_content/book_${bookRow.id}/${coverHref}`
+        const imgData = await (
+          sharp(`${toUploadDir}/${coverHref}`)
+            .resize(75)
+            .png()
+            .toBuffer()
+        )
+        await putEPUBFile('cover_thumbnail_created_on_import.png', imgData)
+      }
+
+      // create index for search
+      await putEPUBFile('search_index.json', await getIndexedBookJSON({ baseUri: toUploadDir, spines }))
+
+      // clean up
+      deleteFolderRecursive(tmpDir)
+
+      // check if book already exists in same idp group
+      log('Look for identical book in idp group');
+      connection.query(''
+        + 'SELECT b.id, IF(bi.idp_id=?, 1, 0) as alreadyBookInThisIdp '
+        + 'FROM `book` as b '
+        + 'LEFT JOIN `book-idp` as bi ON (b.id = bi.book_id) '
+        + 'LEFT JOIN `idp_group_member` as igm1 ON (bi.idp_id = igm1.idp_id) '
+        + 'LEFT JOIN `idp_group_member` as igm2 ON (igm1.idp_group_id = igm2.idp_group_id) '
+        + 'WHERE b.title=? AND b.author=? AND b.isbn=? '
+        + 'AND (bi.idp_id=? OR igm2.idp_id=?) '
+        + 'ORDER BY alreadyBookInThisIdp DESC '
+        + 'LIMIT 1 ',
+        [req.user.idpId, bookRow.title, bookRow.author, bookRow.isbn, req.user.idpId, req.user.idpId],
+        function (err, rows, fields) {
+          if (err) return next(err);
+
+          if(rows.length === 1) {
+
+            // delete book
+            deleteBook(bookRow.id, next, function() {
+
+              log('DELETE book-idp row', 2);
+              connection.query('DELETE FROM `book-idp` WHERE book_id=? AND idp_id=?',
+                [bookRow.id, req.user.idpId],
+                function (err, results) {
+                  if (err) return next(err);
+
+                  if(rows[0].alreadyBookInThisIdp == '1') {
+                    log('Import unnecessary (book already associated with this idp)', 2);
+                    res.send({
+                      success: true,
+                      note: 'already-associated',
+                      bookId: rows[0].id
+                    });
+                  } else {
+                    var bookIdpParams = {
+                      book_id: rows[0].id,
+                      idp_id: req.user.idpId
+                    };
+                    log(['INSERT book-idp row', bookIdpParams], 2);
+                    connection.query('INSERT INTO `book-idp` SET ?',
+                      bookIdpParams,
+                      async (err, results) => {
+                        if (err) return next(err);
+
+                        await util.updateComputedBookAccess({ idpId: req.user.idpId, bookId: rows[0].id, connection, log })
+
+                        log('Import unnecessary (book exists in idp with same group; added association)', 2);
+                        res.send({
+                          success: true,
+                          note: 'associated-to-existing',
+                          bookId: rows[0].id
+                        });
+        
+                      }
+                    );
+                  }
+                }
+              );
+              
+            });
+
+            return;
+          }            
+          
+          log(['Update book row', bookRow], 2);
+          connection.query('UPDATE `book` SET ? WHERE id=?', [bookRow, bookRow.id], async (err, result) => {
+            if (err) {
+              return next(err);
+            }
+
+            await util.updateComputedBookAccess({ idpId: req.user.idpId, bookId: bookRow.id, connection, log })
+
+            log('Import successful', 2);
+            res.send({
+              success: true,
+              bookId: bookRow.id
+            });
+          })
+        }
+      )
     }
     
-    var putEPUBFile = function(relfilepath, body) {
+    const putEPUBFile = (relfilepath, body) => new Promise(resolve => {
       var key = 'epub_content/book_' + bookRow.id + '/' + relfilepath;
       log(['Upload file to S3', key]);
       s3.putObject({
@@ -258,16 +280,16 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         Key: key,
         Body: body,
         ContentLength: body.byteCount,
-      }, function(err, data) {
-        if (err) {
+      }, (err, data) => {
+        if(err) {
           // clean up
-          deleteFolderRecursive(tmpDir);
-          return next(err);
+          deleteFolderRecursive(tmpDir)
+          return next(err)
         }
-        epubToS3SuccessCount++;
-        checkDone();
+        log(['...uploaded to S3', key]);
+        resolve()
       });
-    }
+    })
 
     var getEPUBFilePaths = function(path) {
       if( fs.existsSync(path) ) {
@@ -370,68 +392,17 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
                     var zip = new admzip(file.path);
                     zip.extractAllTo(toUploadDir);
 
-                    fs.rename(file.path, toUploadDir + '/book.epub', function(err) {
+                    fs.rename(file.path, toUploadDir + '/book.epub', async (err) => {
 
-                      getEPUBFilePaths(toUploadDir);
-                      epubFilePaths.forEach(function(path) {
-                        // TODO: Setup search
-                        // TODO: make thumbnail smaller
-                        // TODO: make fonts public
+                      getEPUBFilePaths(toUploadDir)
+                      await Promise.all(epubFilePaths.map(path => (
+                        putEPUBFile(path.replace(toUploadDir + '/', ''), fs.createReadStream(path))
+                      )))
 
-                        if(path == toUploadDir + '/META-INF/container.xml') {
-                          var contents = fs.readFileSync(path, "utf-8");
-                          var matches = contents.match(/["']([^"']+\.opf)["']/);
-                          if(matches) {
-                            var opfContents = fs.readFileSync(toUploadDir + '/' + matches[1], "utf-8");
+                      // TODO: make fonts public
 
-                            ['title','creator','publisher','identifier'].forEach(function(dcTag) {
-                              var dcTagRegEx = new RegExp('<dc:' + dcTag + '[^>]*>([^<]+)</dc:' + dcTag + '>');
-                              var opfPathMatches1 = opfContents.match(dcTagRegEx);
-                              if(opfPathMatches1) {
-                                bookRow[dcTag] = entities.decode(opfPathMatches1[1]);
-                              }
-
-                            });
-
-                            var setCoverHref = function(attr, attrVal) {
-                              if(bookRow.coverHref) return;
-                              var coverItemRegEx = new RegExp('<item ([^>]*)' + attr + '=["\']' + attrVal + '["\']([^>]*)\/>');
-                              var coverItemMatches = opfContents.match(coverItemRegEx);
-                              var coverItem = coverItemMatches && coverItemMatches[1] + coverItemMatches[2];
-                              if(coverItem) {
-                                var coverItemHrefMatches = coverItem.match(/href=["']([^"']+)["']/);
-                                if(coverItemHrefMatches) {
-                                  bookRow.coverHref = 'epub_content/book_' + bookRow.id + '/' + matches[1].replace(/[^\/]*$/, '') + coverItemHrefMatches[1];
-                                }
-                              }
-                            }
-
-                            var opfPathMatches2 = opfContents.match(/<meta ([^>]*)name=["']cover["']([^>]*)\/>/);
-                            var metaCover = opfPathMatches2 && opfPathMatches2[1] + opfPathMatches2[2];
-                            if(metaCover) {
-                              var metaCoverMatches = metaCover.match(/content=["']([^"']+)["']/);
-                              if(metaCoverMatches) {
-                                setCoverHref('id', metaCoverMatches[1]);
-                              }
-                            }
-                            setCoverHref('properties', 'cover-image');
-                          }
-                        }
-
-                        putEPUBFile(path.replace(toUploadDir + '/', ''), fs.createReadStream(path));
-                      });
-
-                      if(bookRow.coverHref) {
-                        var baseCoverHref = bookRow.coverHref.replace('epub_content/book_' + bookRow.id, '');
-                        sharp(toUploadDir + baseCoverHref)
-                          .resize(75)
-                          .png()
-                          .toBuffer()
-                          .then(function(imgData) {
-                            putEPUBFile('cover_thumbnail_created_on_import.png', imgData);
-                          });
-                      }
-                    });
+                      await onUploadDone()
+                    })
 
 
                   } catch (e) {
