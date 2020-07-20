@@ -49,24 +49,38 @@ const getEpubTextNodeDocuments = async ({ spineItemPath, spineIdRef, log }) => {
           currentBlockText = text
         }
 
-        const nextTextNode = textNodes[idx+1]
-        if(nextTextNode) {
-          nextBlockEl = nextTextNode.parentElement.closest(blockTagNames)
+        let wordsAndSpacesFollowing = []
+        let idx2 = 1
+        let nextTextNode = textNodes[idx + idx2++]
+        let nextBlockEl = nextTextNode && nextTextNode.parentElement.closest(blockTagNames)
 
-          if(nextBlockEl === currentBlockEl) {
-            context[1] = nextTextNode
+        while(
+          wordsAndSpacesFollowing.length < 6
+          && nextBlockEl === currentBlockEl
+        ) {
+          wordsAndSpacesFollowing = [
+            ...wordsAndSpacesFollowing,
+            ...nextTextNode
               .textContent
               .split(new RegExp(`(${SPACE_OR_PUNCTUATION})`, 'u'))
-              .slice(0, 6)  // get the first 3 words
-              .join('')
-          }
+          ]
+
+          nextTextNode = textNodes[idx + idx2++]
+          nextBlockEl = nextTextNode && nextTextNode.parentElement.closest(blockTagNames)
         }
+
+        context[1] = wordsAndSpacesFollowing
+          .slice(0, 6)  // get the first 3 words
+          .join('')
+
+// TODO: "trim" the SPACE_OR_PUNCTUATION from the start of the prior context and end of the following context
+
 
       } catch (e) {
         log(['Could not get search index context', e], 3)
       }
 
-      if(!text.trim()) return
+      if((new RegExp(`^(?:${SPACE_OR_PUNCTUATION}|)$`, 'u')).test(text)) return
 
       if(!numHitsByText[text]) numHitsByText[text] = 0
 
