@@ -75,8 +75,6 @@ const getEpubTextNodeDocuments = async ({ spineItemPath, spineIdRef, log }) => {
           .join('')
           .replace(new RegExp(`${SPACE_OR_PUNCTUATION}$`, 'u'), '')
 
-// TODO: deal with words split across text nodes
-
       } catch (e) {
         log(['Could not get search index context', e], 3)
       }
