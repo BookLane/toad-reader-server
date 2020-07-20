@@ -44,6 +44,7 @@ const getEpubTextNodeDocuments = async ({ spineItemPath, spineIdRef, log }) => {
             .split(new RegExp(`(${SPACE_OR_PUNCTUATION})`, 'u'))
             .slice(-6)  // get the last 3 words
             .join('')
+            .replace(new RegExp(`^${SPACE_OR_PUNCTUATION}`, 'u'), '')
           currentBlockText += text
         } else {
           currentBlockText = text
@@ -72,9 +73,9 @@ const getEpubTextNodeDocuments = async ({ spineItemPath, spineIdRef, log }) => {
         context[1] = wordsAndSpacesFollowing
           .slice(0, 6)  // get the first 3 words
           .join('')
+          .replace(new RegExp(`${SPACE_OR_PUNCTUATION}$`, 'u'), '')
 
-// TODO: "trim" the SPACE_OR_PUNCTUATION from the start of the prior context and end of the following context
-
+// TODO: deal with words split across text nodes
 
       } catch (e) {
         log(['Could not get search index context', e], 3)
