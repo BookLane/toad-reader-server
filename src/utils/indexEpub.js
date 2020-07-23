@@ -17,15 +17,44 @@ const getIndexedBookJSON = async ({ baseUri, spines, log }) => {
     // },
   })
 
+  const startTime = Date.now()
+  let i = 0
+
   for(let spine of spines) {
     const spineItemPath = `${baseUri}/${spine.path}`
 
-    const documents = await getEpubTextNodeDocuments({ spineItemPath, spineIdRef: spine.idref, log })
+    process.stdout.clearLine()
+    process.stdout.cursorTo(0)
+    process.stdout.write(`SearchIndexing: Parsing spine ${++i} of ${spines.length}`)
 
-    await currentMiniSearch.addAllAsync(documents)
+    try {
+      const documents = await getEpubTextNodeDocuments({ spineItemPath, spineIdRef: spine.idref, log })
+      await currentMiniSearch.addAllAsync(documents)
+
+    } catch(e) {
+      log([`SearchIndexing: Spine not found when creating search index.`, spineItemPath], 3)
+    }
+
+    if(Date.now() - startTime > 1000 * 10) {
+      process.stdout.clearLine()
+      process.stdout.cursorTo(0)
+      throw new Error(`Search indexing taking too long. Giving up: ${baseUri}`)
+    }
   }
 
-  return JSON.stringify(currentMiniSearch.toJSON())
+  process.stdout.clearLine()
+  process.stdout.cursorTo(0)
+
+  const jsonStr = JSON.stringify(currentMiniSearch.toJSON())
+  const mbSize = parseInt((jsonStr.length / (1000 * 1000)) + .5, 10)
+
+  if(mbSize > 10) {
+    throw new Error(`EPUB content too massive (~${mbSize} mb) to create a search index: ${baseUri}`)
+  }
+
+  log([`SearchIndexing: index creation complete (~${mbSize} mb)`])
+
+  return jsonStr
 }
 
 const getAutoSuggest = partialSearchStr => {

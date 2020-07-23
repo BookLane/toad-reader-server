@@ -1,11 +1,15 @@
 const fs = require('fs')
 const { JSDOM } = require("jsdom")
 
-const { SPACE_OR_PUNCTUATION } = require("./util")
+const { SPACE_OR_PUNCTUATION, getFromS3 } = require("./util")
 
 const getEpubTextNodeDocuments = async ({ spineItemPath, spineIdRef, log }) => {
 
-  const spineXHTML = fs.readFileSync(spineItemPath, "utf-8")
+  const spineXHTML = (
+    /^epub_content\/book_/.test(spineItemPath)
+      ? await getFromS3(spineItemPath)
+      : fs.readFileSync(spineItemPath, "utf-8")
+  )
 
   const { window } = new JSDOM(spineXHTML)
   const { document, NodeFilter } = window

@@ -3,6 +3,8 @@
 const fs = require('fs')
 const { parseString } = require('xml2js')
 
+const { getFromS3 } = require("./util")
+
 const normalizePath = path => {
 
   // get rid of unneeded ./
@@ -23,7 +25,11 @@ const normalizePath = path => {
 const getXmlAsObj = async ({ uri }) => {
   const uriWithoutHash = uri.replace(/#.*$/, '')
 
-  const xml = fs.readFileSync(uriWithoutHash, "utf-8")
+  const xml = (
+    /^epub_content\/book_/.test(uriWithoutHash)
+      ? await getFromS3(uriWithoutHash)
+      : fs.readFileSync(uriWithoutHash, "utf-8")
+  )
 
   return await new Promise(
     (resolve, reject) => parseString(xml, (err, result) => {
