@@ -64,8 +64,10 @@ module.exports = async ({ baseUri, log }) => {
       }
     })
     
+    const metadataObj = (opfObj.package.metadata || opfObj.package['opf:metadata'])[0] || {}
+
     const getMetadataItem = type => {
-      const item = opfObj.package.metadata[0][`dc:${type}`][0]
+      const item = metadataObj[`dc:${type}`][0]
       return item['_'] || item
     }
     info.title = getMetadataItem('title') || 'Unknown'
@@ -73,7 +75,7 @@ module.exports = async ({ baseUri, log }) => {
     info.isbn = getMetadataItem('identifier') || ''
 
     let coverId
-    opfObj.package.metadata[0].meta.some(tag => {
+    metadataObj.meta.some(tag => {
       if((tag.$ || {}).name === 'cover') {
         coverId = tag.$.content
         return true
