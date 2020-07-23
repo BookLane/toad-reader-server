@@ -208,7 +208,11 @@ module.exports = function (app, s3, connection, passport, authFuncs, ensureAuthe
     // fonts. When I get all epub files going through cloudfront, I will no longer need this.
     const isFontFile = ['eot', 'woff', 'woff2', 'ttf', 'otf'].includes(urlWithoutQuery.toLowerCase().split('.').pop())
 
-    if(isFontFile) {
+    // temporarily remove authentication of assets for safari
+    const isSafari = /^((?!chrome|android).)*safari/i.test(req.headers['user-agent'])
+    const isAsset = !/^[^?]+\.(epub|x?html|opf|ncx|xml)(?:\?.*|$)/i.test(req.url)
+
+    if(isFontFile || (isSafari && isAsset)) {
       getAssetFromS3(req, res, next);
     } else {
       next();
