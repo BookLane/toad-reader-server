@@ -23,9 +23,11 @@ const getIndexedBookJSON = async ({ baseUri, spines, log }) => {
   for(let spine of spines) {
     const spineItemPath = `${baseUri}/${spine.path}`
 
-    process.stdout.clearLine()
-    process.stdout.cursorTo(0)
-    process.stdout.write(`SearchIndexing: Parsing spine ${++i} of ${spines.length}`)
+    try {
+      process.stdout.clearLine()
+      process.stdout.cursorTo(0)
+      process.stdout.write(`SearchIndexing: Parsing spine ${++i} of ${spines.length}`)
+    } catch(e) {}
 
     try {
       const documents = await getEpubTextNodeDocuments({ spineItemPath, spineIdRef: spine.idref, log })
@@ -35,20 +37,31 @@ const getIndexedBookJSON = async ({ baseUri, spines, log }) => {
       log([`SearchIndexing: Spine not found when creating search index.`, spineItemPath], 3)
     }
 
-    if(Date.now() - startTime > 1000 * 10) {
-      process.stdout.clearLine()
-      process.stdout.cursorTo(0)
-      throw new Error(`Search indexing taking too long. Giving up: ${baseUri}`)
+    const maxNumSecs = 60
+    if(
+      Date.now() - startTime > 1000 * maxNumSecs
+      || (
+        Date.now() - startTime > 1000 * 5
+        && i/spines.length < 5/maxNumSecs
+      )
+    ) {
+      try {
+        process.stdout.clearLine()
+        process.stdout.cursorTo(0)
+      } catch(e) {}
+      throw new Error(`Search indexing taking too long. Got through ${i} of ${spines.length} spines. Giving up: ${baseUri}`)
     }
   }
 
-  process.stdout.clearLine()
-  process.stdout.cursorTo(0)
+  try {
+    process.stdout.clearLine()
+    process.stdout.cursorTo(0)
+  } catch(e) {}
 
   const jsonStr = JSON.stringify(currentMiniSearch.toJSON())
   const mbSize = parseInt((jsonStr.length / (1000 * 1000)) + .5, 10)
 
-  if(mbSize > 10) {
+  if(mbSize > 15) {
     throw new Error(`EPUB content too massive (~${mbSize} mb) to create a search index: ${baseUri}`)
   }
 
