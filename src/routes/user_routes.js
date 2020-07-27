@@ -2,10 +2,6 @@ const path = require('path')
 const fs = require('fs')
 const util = require('../utils/util')
 const { i18n } = require("inline-i18n")
-const Entities = require('html-entities').AllHtmlEntities
-const entities = new Entities()
-const jwt = require('jsonwebtoken')
-const oauthSignature = require('oauth-signature')
 const md5 = require('md5')
 
 module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensureAuthenticatedAndCheckIDPWithRedirect, log) {
