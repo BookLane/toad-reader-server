@@ -1,114 +1,109 @@
+const fs = require('fs')
+const multiparty = require('multiparty')
+const admzip = require('adm-zip')
+const sharp = require('sharp')
+const fetch = require('node-fetch')
+
+const util = require('../utils/util')
 const parseEpub = require('../utils/parseEpub')
 const { getIndexedBookJSON } = require('../utils/indexEpub')
+const dueDateReminders = require('../crons/due_date_reminders')
 
 module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, log) {
 
-  var fs = require('fs')
-  var multiparty = require('multiparty')
-  var admzip = require('adm-zip')
-  var util = require('../utils/util')
-  var Entities = require('html-entities').AllHtmlEntities
-  var entities = new Entities()
-  var sharp = require('sharp')
-  var fetch = require('node-fetch')
-  var dueDateReminders = require('../crons/due_date_reminders')
-
-  var deleteFolderRecursive = function(path) {
-    log(['Delete folder', path], 2);
-    if( fs.existsSync(path) ) {
-      fs.readdirSync(path).forEach(function(file,index){
-        var curPath = path + "/" + file;
+  const deleteFolderRecursive = path => {
+    log(['Delete folder', path], 2)
+    if(fs.existsSync(path)) {
+      fs.readdirSync(path).forEach(file => {
+        const curPath = `${path}/${file}`
         if(fs.lstatSync(curPath).isDirectory()) { // recurse
-          deleteFolderRecursive(curPath);
+          deleteFolderRecursive(curPath)
         } else { // delete file
-          fs.unlinkSync(curPath);
+          fs.unlinkSync(curPath)
         }
-      });
-      fs.rmdirSync(path);
+      })
+      fs.rmdirSync(path)
     }
-  };
+  }
 
-  function emptyS3Folder(params, callback){
-    log(['Empty S3 folder', params], 2);
-    s3.listObjects(params, function(err, data) {
-      if (err) return callback(err);
+  const emptyS3Folder = async params => {
+    log(['Empty S3 folder', params], 2)
+    const data = await s3.listObjects(params).promise()
 
-      if (data.Contents.length == 0) callback();
+    if(data.Contents.length == 0) return
 
-      var delParams = {Bucket: params.Bucket};
-      delParams.Delete = {Objects:[]};
+    const delParams = {
+      Bucket: params.Bucket,
+      Delete: {
+        Objects: [],
+      },
+    }
 
-      var overfull = data.Contents.length >= 1000;
-      data.Contents.slice(0,999).forEach(function(content) {
-        delParams.Delete.Objects.push({Key: content.Key});
-      });
+    const overfull = data.Contents.length >= 1000
+    data.Contents.slice(0,999).forEach(content => {
+      delParams.Delete.Objects.push({ Key: content.Key })
+    })
 
-      if(delParams.Delete.Objects.length > 0) {
-        s3.deleteObjects(delParams, function(err, data) {
-          if (err) return callback(err);
-          if(overfull) emptyS3Folder(params, callback);
-          else callback();
-        });
+    if(delParams.Delete.Objects.length > 0) {
+      await s3.deleteObjects(delParams).promise()
+      if(overfull) {
+        await emptyS3Folder(params)
       }
-    });
+    }
   }
 
-  function deleteBook(bookId, next, callback) {
-    log(['Delete book', bookId], 2);
-    connection.query('DELETE FROM `book` WHERE id=?', bookId, function (err, result) {
-      if (err) return next(err);
+  const deleteBook = async (bookId, next) => {
+    log(['Delete book', bookId], 2)
+    await util.runQuery({
+      query: 'DELETE FROM `book` WHERE id=:bookId',
+      vars: {
+        bookId,
+      },
+      connection,
+      next,
+    })
 
-      emptyS3Folder({
-        Bucket: process.env.S3_BUCKET,
-        Prefix: 'epub_content/book_' + bookId + '/'
-      }, function(err, data) {
-        if (err) return next(err);
-        
-        callback();
-
-      });
-    });
+    await emptyS3Folder({
+      Bucket: process.env.S3_BUCKET,
+      Prefix: `epub_content/book_${bookId}/`,
+    })
   }
 
-  function deleteBookIfUnassociated(bookId, next, callback) {
+  const deleteBookIfUnassociated = async (bookId, next) => {
     // clear out book and its user data, if book unassociated
 
     log(['Check if book is unassociated', bookId]);
-    connection.query('SELECT * FROM `book-idp` WHERE book_id=? LIMIT 1',
-      [bookId],
-      function (err, rows, fields) {
-        if (err) return next(err);
+    const rows = await util.runQuery({
+      query: 'SELECT * FROM `book-idp` WHERE book_id=:bookId LIMIT 1',
+      vars: {
+        bookId,
+      },
+      connection,
+      next,
+    })
 
-        if(rows.length > 0) {
-          callback();
-        } else {
+    if(rows.length > 0) return
 
-          log(['Check if book is unused', bookId]);
-          connection.query(
-            `
-              SELECT id FROM book_instance WHERE book_id=:book_id LIMIT 1;
-              SELECT subscription_id FROM \`subscription-book\` WHERE book_id=:book_id LIMIT 1
-            `,
-            {
-              bookId,
-            },
-            function (err2, results2) {
-              if (err2) return next(err2);
+    log(['Check if book is unused', bookId])
+    const results = await util.runQuery({
+      queries: [
+        'SELECT id FROM book_instance WHERE book_id=:bookId LIMIT 1',
+        'SELECT subscription_id FROM \`subscription-book\` WHERE book_id=:bookId LIMIT 1',
+      ],
+      vars: {
+        bookId,
+      },
+      connection,
+      next,
+    })
 
-              if(results2.some(rows2 => rows2.length > 0)) {
-                callback();
-              } else {
-                deleteBook(bookId, next, callback);
-              }
-            }
-          );
-        }
-      }
-    );
+    if(results.some(rows2 => rows2.length > 0)) return
+
+    await deleteBook(bookId, next)
   }
 
   // delete a book
-  app.delete(['/', '/book/:bookId'], ensureAuthenticatedAndCheckIDP, function (req, res, next) {
+  app.delete(['/', '/book/:bookId'], ensureAuthenticatedAndCheckIDP, async (req, res, next) => {
 
     if(!req.user.isAdmin) {
       log('No permission to delete book', 3);
@@ -116,230 +111,92 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
       return;
     }
 
-    connection.query('DELETE FROM `book-idp` WHERE book_id=? AND idp_id=?',
-      [req.params.bookId, req.user.idpId],
-      async (err, result) => {
-        if (err) return next(err);
+    await util.runQuery({
+      query: 'DELETE FROM `book-idp` WHERE book_id=:bookId AND idp_id=:idpId',
+      vars: {
+        bookId: req.params.bookId,
+        idpId: req.user.idpId,
+      },
+      connection,
+      next,
+    })
 
-        log('Delete (idp disassociation) successful', 2);
+    log('Delete (idp disassociation) successful', 2)
+
+    await util.updateComputedBookAccess({ idpId: req.user.idpId, bookId: req.params.bookId, connection, log })
+
+    res.send({ success: true });
           
-        // if(req.user.idpExpire) {  // if it is a temporary demo
-        //   // if book was owned solely by a demo tenant, delete it
-        //   deleteBookIfUnassociated(req.params.bookId, next, function() {
-        //     res.send({ success: true });
-        //   });
-        // } else {
-        //   res.send({ success: true });
-        // }
-
-        await util.updateComputedBookAccess({ idpId: req.user.idpId, bookId: req.params.bookId, connection, log })
-
-        res.send({ success: true });
-          
-      }
-    );
-
   })
 
   // import book
-  app.post('/importbook.json', ensureAuthenticatedAndCheckIDP, function (req, res, next) {
+  app.post('/importbook.json', ensureAuthenticatedAndCheckIDP, async (req, res, next) => {
 
-    if(!req.user.isAdmin) {
-      log('No permission to import book', 3);
-      res.status(403).send({ errorType: "biblemesh_no_permission" });
-      return;
-    }
-    
-    var tmpDir = 'tmp_epub_' + util.getUTCTimeStamp();
-    var toUploadDir = tmpDir + '/toupload';
-    var epubFilePaths = [];
-    var bookRow;
+    const tmpDir = `tmp_epub_${util.getUTCTimeStamp()}`
+    const toUploadDir = `${tmpDir}/toupload`
+    const epubFilePaths = []
+    let bookRow, cleanUpBookIdpToDelete
 
-    const onUploadDone = async () => {
-      const { title, author, isbn, coverHref, spines, success } = await parseEpub({ baseUri: toUploadDir, log })
+    deleteFolderRecursive(tmpDir)
 
-      if(!success) {
-        deleteFolderRecursive(tmpDir)
-        deleteBook(bookRow.id, next, () => {
-          res.status(400).send({errorType: "biblemesh_unable_to_process"})
-        })
-        return
-      }
+    fs.mkdirSync(tmpDir)
 
-      // prep to insert the book row
-      bookRow.title = title || 'Unknown'
-      bookRow.author = author || ''
-      bookRow.isbn = isbn || ''
-      bookRow.updated_at = util.timestampToMySQLDatetime()
-
-      if(coverHref) {
-        bookRow.coverHref = `epub_content/book_${bookRow.id}/${coverHref}`
-        const imgData = await (
-          sharp(`${toUploadDir}/${coverHref}`)
-            .resize(75)
-            .png()
-            .toBuffer()
-        )
-        await putEPUBFile('cover_thumbnail_created_on_import.png', imgData)
-      }
-
-      // create index for search
-      try {
-        await putEPUBFile('search_index.json', await getIndexedBookJSON({ baseUri: toUploadDir, spines, log }))
-      } catch(e) {
-        log(e.message, 3)
-      }
-
-      // clean up
-      deleteFolderRecursive(tmpDir)
-
-      // check if book already exists in same idp group
-      log('Look for identical book in idp group');
-      connection.query(''
-        + 'SELECT b.id, IF(bi.idp_id=?, 1, 0) as alreadyBookInThisIdp '
-        + 'FROM `book` as b '
-        + 'LEFT JOIN `book-idp` as bi ON (b.id = bi.book_id) '
-        + 'LEFT JOIN `idp_group_member` as igm1 ON (bi.idp_id = igm1.idp_id) '
-        + 'LEFT JOIN `idp_group_member` as igm2 ON (igm1.idp_group_id = igm2.idp_group_id) '
-        + 'WHERE b.title=? AND b.author=? AND b.isbn=? '
-        + 'AND (bi.idp_id=? OR igm2.idp_id=?) '
-        + 'ORDER BY alreadyBookInThisIdp DESC '
-        + 'LIMIT 1 ',
-        [req.user.idpId, bookRow.title, bookRow.author, bookRow.isbn, req.user.idpId, req.user.idpId],
-        function (err, rows, fields) {
-          if (err) return next(err);
-
-          if(rows.length === 1) {
-
-            // delete book
-            deleteBook(bookRow.id, next, function() {
-
-              log('DELETE book-idp row', 2);
-              connection.query('DELETE FROM `book-idp` WHERE book_id=? AND idp_id=?',
-                [bookRow.id, req.user.idpId],
-                function (err, results) {
-                  if (err) return next(err);
-
-                  if(rows[0].alreadyBookInThisIdp == '1') {
-                    log('Import unnecessary (book already associated with this idp)', 2);
-                    res.send({
-                      success: true,
-                      note: 'already-associated',
-                      bookId: rows[0].id
-                    });
-                  } else {
-                    var bookIdpParams = {
-                      book_id: rows[0].id,
-                      idp_id: req.user.idpId
-                    };
-                    log(['INSERT book-idp row', bookIdpParams], 2);
-                    connection.query('INSERT INTO `book-idp` SET ?',
-                      bookIdpParams,
-                      async (err, results) => {
-                        if (err) return next(err);
-
-                        await util.updateComputedBookAccess({ idpId: req.user.idpId, bookId: rows[0].id, connection, log })
-
-                        log('Import unnecessary (book exists in idp with same group; added association)', 2);
-                        res.send({
-                          success: true,
-                          note: 'associated-to-existing',
-                          bookId: rows[0].id
-                        });
-        
-                      }
-                    );
-                  }
-                }
-              );
-              
-            });
-
-            return;
-          }            
-          
-          log(['Update book row', bookRow], 2);
-          connection.query('UPDATE `book` SET ? WHERE id=?', [bookRow, bookRow.id], async (err, result) => {
-            if (err) {
-              return next(err);
-            }
-
-            await util.updateComputedBookAccess({ idpId: req.user.idpId, bookId: bookRow.id, connection, log })
-
-            log('Import successful', 2);
-            res.send({
-              success: true,
-              bookId: bookRow.id
-            });
-          })
-        }
-      )
-    }
-    
-    const putEPUBFile = (relfilepath, body) => new Promise(resolve => {
-      var key = 'epub_content/book_' + bookRow.id + '/' + relfilepath;
-      log(['Upload file to S3', key]);
-      s3.putObject({
-        Bucket: process.env.S3_BUCKET,
-        Key: key,
-        Body: body,
-        ContentLength: body.byteCount,
-      }, (err, data) => {
-        if(err) {
-          // clean up
-          deleteFolderRecursive(tmpDir)
-          return next(err)
-        }
-        log(['...uploaded to S3', key]);
-        resolve()
-      });
+    const form = new multiparty.Form({
+      uploadDir: tmpDir
     })
 
-    var getEPUBFilePaths = function(path) {
-      if( fs.existsSync(path) ) {
-        fs.readdirSync(path).forEach(function(file,index){
-          var curPath = path + "/" + file;
-          if(fs.lstatSync(curPath).isDirectory()) { // recurse
-            getEPUBFilePaths(curPath);
-          } else {
-            epubFilePaths.push(curPath);
+    let processedOneFile = false  // at this point, we only allow one upload at a time
+
+    form.on('file', async (name, file) => {
+
+      if(processedOneFile) return
+      processedOneFile = true
+
+      try {
+
+        if(!req.user.isAdmin) {
+          throw new Error(`biblemesh_no_permission`)
+        }
+  
+        const putEPUBFile = async (relfilepath, body) => {
+          const key = `epub_content/book_${bookRow.id}/${relfilepath}`
+          
+          log(['Upload file to S3', key])
+  
+          await s3.putObject({
+            Bucket: process.env.S3_BUCKET,
+            Key: key,
+            Body: body,
+            ContentLength: body.byteCount,
+          }).promise()
+  
+          log(['...uploaded to S3', key])
+        }
+  
+        const getEPUBFilePaths = path => {
+          if(fs.existsSync(path)) {
+            fs.readdirSync(path).forEach(file => {
+              const curPath = `${path}/${file}`
+              if(fs.lstatSync(curPath).isDirectory()) { // recurse
+                getEPUBFilePaths(curPath)
+              } else {
+                epubFilePaths.push(curPath)
+              }
+            })
           }
-        });
-      }
-    };
-
-    deleteFolderRecursive(tmpDir);
-
-    fs.mkdir(tmpDir, function(err) {
-
-      var form = new multiparty.Form({
-        uploadDir: tmpDir
-      });
-
-      var processedOneFile = false;  // at this point, we only allow one upload at a time
-
-      form.on('file', function(name, file) {
-
-        if(processedOneFile) return;
-        processedOneFile = true;
-
-        var filename = file.originalFilename;
+        }
+    
+        const filename = file.originalFilename
 
         if(!filename) {
-          deleteFolderRecursive(tmpDir);
-          res.status(400).send({ errorType: "biblemesh_invalid_filename" });
-          return;
+          throw new Error(`biblemesh_invalid_filename`)
         }
 
         const priceMatch = filename.match(/\$([0-9]+)\.([0-9]{2})(\.[^\.]+)?$/)
         const epubSizeInMB = Math.ceil(file.size/1024/1024)
 
         if(epubSizeInMB > req.user.idpMaxMBPerBook) {
-          res.status(400).send({
-            errorType: "biblemesh_file_too_large",
-            maxMB: req.user.idpMaxMBPerBook,
-          })
-          return
+          throw new Error(`biblemesh_file_too_large`)
         }
 
         bookRow = {
@@ -349,87 +206,218 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
           epubSizeInMB,
           standardPriceInCents: priceMatch ? (priceMatch[1] + priceMatch[2]) : null,
           updated_at: util.timestampToMySQLDatetime()
-        };
+        }
 
         // Put row into book table
-        log(['Insert book row', bookRow], 2);
-        connection.query('INSERT INTO `book` SET ?', [bookRow] , function (err, results) {
-          if (err) {
-            // clean up
-            deleteFolderRecursive(tmpDir);
-            return next(err);
-          }
+        log(['Insert book row', bookRow], 2)
+        bookRow.id = (await util.runQuery({
+          query: 'INSERT INTO `book` SET ?',
+          vars: bookRow,
+          connection,
+          next,
+        })).insertId
 
-          bookRow.id = results.insertId;
-          bookRow.rootUrl = 'epub_content/book_' + bookRow.id;
+        bookRow.rootUrl = `epub_content/book_${bookRow.id}`
 
-          connection.query('INSERT INTO `book-idp` SET ?',
-            {
-              book_id: bookRow.id,
-              idp_id: req.user.idpId,
-            },
-            function (err, results) {
-              if (err) {
-                // clean up
-                deleteFolderRecursive(tmpDir);
-                connection.query('DELETE FROM `book` WHERE id=?', bookRow.id, function (err2, result) {
-                  if (err2) return next(err2);
-                  return next(err);
-                });
-              }
+        await emptyS3Folder({
+          Bucket: process.env.S3_BUCKET,
+          Prefix: 'epub_content/book_' + bookRow.id + '/'
+        })
 
-              emptyS3Folder({
-                Bucket: process.env.S3_BUCKET,
-                Prefix: 'epub_content/book_' + bookRow.id + '/'
-              }, function(err, data) {
-                if (err) {
-                  // clean up
-                  deleteFolderRecursive(tmpDir);
-                  return next(err);
-                }
-              
-                deleteFolderRecursive(toUploadDir);
+        deleteFolderRecursive(toUploadDir)
 
-                fs.mkdir(toUploadDir, function(err) {
-                  
-                  try {
-                    var zip = new admzip(file.path);
-                    zip.extractAllTo(toUploadDir);
+        fs.mkdirSync(toUploadDir)
 
-                    fs.rename(file.path, toUploadDir + '/book.epub', async (err) => {
+        const zip = new admzip(file.path)
+        zip.extractAllTo(toUploadDir)
 
-                      getEPUBFilePaths(toUploadDir)
-                      await Promise.all(epubFilePaths.map(path => (
-                        putEPUBFile(path.replace(toUploadDir + '/', ''), fs.createReadStream(path))
-                      )))
+        fs.renameSync(file.path, `${toUploadDir}/book.epub`)
 
-                      // TODO: make fonts public
+        getEPUBFilePaths(toUploadDir)
+        await Promise.all(epubFilePaths.map(path => (
+          putEPUBFile(path.replace(toUploadDir + '/', ''), fs.createReadStream(path))
+        )))
 
-                      await onUploadDone()
-                    })
+        // TODO: make fonts public
+
+        // after files uploaded
+        const { title, author, isbn, coverHref, spines, success } = await parseEpub({ baseUri: toUploadDir, log })
+
+        if(!success) {
+          throw Error(`biblemesh_unable_to_process`)
+        }
+
+        // prep to insert the book row
+        bookRow.title = title || 'Unknown'
+        bookRow.author = author || ''
+        bookRow.isbn = isbn || ''
+        bookRow.updated_at = util.timestampToMySQLDatetime()
+
+        if(coverHref) {
+          bookRow.coverHref = `epub_content/book_${bookRow.id}/${coverHref}`
+          const imgData = await (
+            sharp(`${toUploadDir}/${coverHref}`)
+              .resize(75)
+              .png()
+              .toBuffer()
+          )
+          await putEPUBFile('cover_thumbnail_created_on_import.png', imgData)
+        }
+
+        // create index for search
+        try {
+          await putEPUBFile('search_index.json', await getIndexedBookJSON({ baseUri: toUploadDir, spines, log }))
+        } catch(e) {
+          log(e.message, 3)
+          throw Error(`search_indexing_failed`)
+        }
+
+        // clean up
+        deleteFolderRecursive(tmpDir)
+
+        // check if book already exists in same idp group
+        log('Look for identical book in idp group')
+        const rows = await util.runQuery({
+          query: `
+            SELECT
+              b.id,
+              IF(bi.idp_id=:idpId, 1, 0) as alreadyBookInThisIdp
+
+            FROM book as b
+              LEFT JOIN \`book-idp\` as bi ON (b.id = bi.book_id)
+              LEFT JOIN idp_group_member as igm1 ON (bi.idp_id = igm1.idp_id)
+              LEFT JOIN idp_group_member as igm2 ON (igm1.idp_group_id = igm2.idp_group_id)
+
+            WHERE b.title=:title
+              AND b.author=:author
+              AND b.isbn=:isbn
+              AND (
+                bi.idp_id=:idpId
+                OR igm2.idp_id=:idpId
+              )
+
+            ORDER BY alreadyBookInThisIdp DESC
+
+            LIMIT 1
+          `,
+          vars: {
+            ...bookRow,
+            idpId: req.user.idpId,
+          },
+          connection,
+          next,
+        })
 
 
-                  } catch (e) {
-                    log(['Import book exception', e], 3);
-                    deleteFolderRecursive(tmpDir);
-                    deleteBook(bookRow.id, next, function() {
-                      res.status(400).send({errorType: "biblemesh_unable_to_process"});
-                    });
-                  }
-                });
-              });
+        if(rows.length === 1) {
+
+          // delete book
+          await deleteBook(bookRow.id, next)
+
+          if(rows[0].alreadyBookInThisIdp == '1') {
+            log('Import unnecessary (book already associated with this idp)', 2)
+            res.send({
+              success: true,
+              note: 'already-associated',
+              bookId: rows[0].id,
+            })
+
+          } else {
+            const vars = cleanUpBookIdpToDelete = {
+              book_id: rows[0].id,
+              idp_id: req.user.idpId
             }
-          );
-        });
-      });
+            log(['INSERT book-idp row', vars], 2)
+            await util.runQuery({
+              query: 'INSERT INTO `book-idp` SET ?',
+              vars,
+              connection,
+              next,
+            })
 
-      form.on('error', function(err) {
-        res.status(400).send({ errorType: "biblemesh_bad_file" });
-      })
+            await util.updateComputedBookAccess({ idpId: req.user.idpId, bookId: rows[0].id, connection, log })
 
-      form.parse(req);
-      
-    });
+            log('Import unnecessary (book exists in idp with same group; added association)', 2)
+            res.send({
+              success: true,
+              note: 'associated-to-existing',
+              bookId: rows[0].id,
+            })
+
+          }
+          
+          return
+        }
+
+        const vars = cleanUpBookIdpToDelete = {
+          book_id: bookRow.id,
+          idp_id: req.user.idpId,
+        }
+        log(['INSERT book-idp row', vars], 2)
+        await util.runQuery({
+          query: 'INSERT INTO `book-idp` SET ?',
+          vars,
+          connection,
+          next,
+        })
+
+        log(['Update book row', bookRow.id, bookRow], 2)
+        await util.runQuery({
+          query: 'UPDATE `book` SET :bookRow WHERE id=:bookId',
+          vars: {
+            bookId: bookRow.id,
+            bookRow,
+          },
+          connection,
+          next,
+        })
+
+        await util.updateComputedBookAccess({ idpId: req.user.idpId, bookId: bookRow.id, connection, log })
+
+        log('Import successful', 2)
+        res.send({
+          success: true,
+          bookId: bookRow.id
+        })
+
+      } catch(err) {
+
+        log(['Import book exception', err.message], 3)
+  
+        // clean up...
+  
+        try {
+          if(cleanUpBookIdpToDelete) {
+            await util.runQuery({
+              query: 'DELETE FROM `book-idp` WHERE idp_id=:idpId AND book_id=:bookId',
+              vars: cleanUpBookIdpToDelete,
+              connection,
+              next,
+            })
+          }
+        } catch(err2) {}
+  
+        if(bookRow) {
+          deleteBookIfUnassociated(bookRow.id, next)
+          await util.updateComputedBookAccess({ idpId: req.user.idpId, bookId: bookRow.id, connection, log })
+        }
+  
+        deleteFolderRecursive(tmpDir)
+  
+        res.status(400).send({
+          errorType: /^[_a-z]+$/.test(err.message) ? err.message : "biblemesh_unable_to_process",
+          maxMB: req.user.idpMaxMBPerBook,
+        })
+      }
+  
+    })
+
+    form.on('error', err => {
+      res.status(400).send({ errorType: `biblemesh_bad_file` })
+    })
+
+    form.parse(req)
+
   })
 
   // import file
