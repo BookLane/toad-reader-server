@@ -26,14 +26,17 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
     }
   }
 
-  const emptyS3Folder = async params => {
-    log(['Empty S3 folder', params], 2)
-    const data = await s3.listObjects(params).promise()
+  const emptyS3Folder = async Prefix => {
+    log(['Empty S3 folder', Prefix], 2)
+    const data = await s3.listObjects({
+      Bucket: process.env.S3_BUCKET,
+      Prefix,
+    }).promise()
 
     if(data.Contents.length == 0) return
 
     const delParams = {
-      Bucket: params.Bucket,
+      Bucket: process.env.S3_BUCKET,
       Delete: {
         Objects: [],
       },
@@ -47,7 +50,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
     if(delParams.Delete.Objects.length > 0) {
       await s3.deleteObjects(delParams).promise()
       if(overfull) {
-        await emptyS3Folder(params)
+        await emptyS3Folder(Prefix)
       }
     }
   }
@@ -63,10 +66,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
       next,
     })
 
-    await emptyS3Folder({
-      Bucket: process.env.S3_BUCKET,
-      Prefix: `epub_content/book_${bookId}/`,
-    })
+    await emptyS3Folder(`epub_content/book_${bookId}/`)
   }
 
   const deleteBookIfUnassociated = async (bookId, next) => {
@@ -136,6 +136,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
     const toUploadDir = `${tmpDir}/toupload`
     const epubFilePaths = []
     let bookRow, cleanUpBookIdpToDelete
+    const { replaceExisting } = req.query
 
     deleteFolderRecursive(tmpDir)
 
@@ -219,10 +220,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
 
         bookRow.rootUrl = `epub_content/book_${bookRow.id}`
 
-        await emptyS3Folder({
-          Bucket: process.env.S3_BUCKET,
-          Prefix: 'epub_content/book_' + bookRow.id + '/'
-        })
+        await emptyS3Folder(`epub_content/book_${bookRow.id}/`)
 
         deleteFolderRecursive(toUploadDir)
 
@@ -308,8 +306,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
           next,
         })
 
-
-        if(rows.length === 1) {
+        if(rows.length === 1 && !replaceExisting) {
 
           // delete book
           await deleteBook(bookRow.id, next)
@@ -349,17 +346,44 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
           return
         }
 
-        const vars = cleanUpBookIdpToDelete = {
-          book_id: bookRow.id,
-          idp_id: req.user.idpId,
+        if(replaceExisting) {
+          const row = rows[0]
+
+          if(!row || row.alreadyBookInThisIdp != '1') {
+            throw new Error(`does-not-exist`)
+          }
+
+          // copy the old s3 dir to `book_XX--replaced-[timestamp]`
+          await util.s3CopyFolder({
+            source: `epub_content/book_${row.id}/`,
+            destination: `epub_content/book_${row.id}--replaced-${Date.now()}/`,
+          })
+
+          // copy new s3 dir to where old was
+          await util.s3CopyFolder({
+            source: `epub_content/book_${bookRow.id}/`,
+            destination: `epub_content/book_${row.id}/`,
+          })
+
+          // delete the new book
+          await deleteBook(bookRow.id, next)
+
+          // change bookRow.id so that the existing row gets updated
+          bookRow.id = row.id
+
+        } else {
+          const vars = cleanUpBookIdpToDelete = {
+            book_id: bookRow.id,
+            idp_id: req.user.idpId,
+          }
+          log(['INSERT book-idp row', vars], 2)
+          await util.runQuery({
+            query: 'INSERT INTO `book-idp` SET ?',
+            vars,
+            connection,
+            next,
+          })
         }
-        log(['INSERT book-idp row', vars], 2)
-        await util.runQuery({
-          query: 'INSERT INTO `book-idp` SET ?',
-          vars,
-          connection,
-          next,
-        })
 
         log(['Update book row', bookRow.id, bookRow], 2)
         await util.runQuery({
@@ -405,7 +429,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         deleteFolderRecursive(tmpDir)
   
         res.status(400).send({
-          errorType: /^[_a-z]+$/.test(err.message) ? err.message : "biblemesh_unable_to_process",
+          errorType: /^[-_a-z]+$/.test(err.message) ? err.message : "biblemesh_unable_to_process",
           maxMB: req.user.idpMaxMBPerBook,
         })
       }
