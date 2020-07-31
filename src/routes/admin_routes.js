@@ -218,8 +218,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
           next,
         })).insertId
 
-        bookRow.rootUrl = `epub_content/book_${bookRow.id}`
-
         await emptyS3Folder(`epub_content/book_${bookRow.id}/`)
 
         deleteFolderRecursive(toUploadDir)
@@ -252,7 +250,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         bookRow.updated_at = util.timestampToMySQLDatetime()
 
         if(coverHref) {
-          bookRow.coverHref = `epub_content/book_${bookRow.id}/${coverHref}`
           const imgData = await (
             sharp(`${toUploadDir}/${coverHref}`)
               .resize(75)
@@ -384,6 +381,10 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
             next,
           })
         }
+
+        // these need to be down here after bookRow.id gets updated if replaceExisting is true
+        bookRow.coverHref = `epub_content/book_${bookRow.id}/${coverHref}`
+        bookRow.rootUrl = `epub_content/book_${bookRow.id}`
 
         log(['Update book row', bookRow.id, bookRow], 2)
         await util.runQuery({
