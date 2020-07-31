@@ -23,10 +23,12 @@ const getIndexedBookJSON = async ({ baseUri, spines, log }) => {
   for(let spine of spines) {
     const spineItemPath = `${baseUri}/${spine.path}`
 
+    i++
+
     try {
       process.stdout.clearLine()
       process.stdout.cursorTo(0)
-      process.stdout.write(`SearchIndexing: Parsing spine ${++i} of ${spines.length}`)
+      process.stdout.write(`SearchIndexing: Parsing spine ${i} of ${spines.length}`)
     } catch(e) {}
 
     try {
