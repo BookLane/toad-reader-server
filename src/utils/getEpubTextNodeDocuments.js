@@ -3,7 +3,30 @@ const { JSDOM } = require("jsdom")
 
 const { SPACE_OR_PUNCTUATION, getFromS3 } = require("./util")
 
-const getEpubTextNodeDocuments = async ({ spineItemPath, spineIdRef, log }) => {
+const MYSQL_DEFAULT_STOP_WORDS_OVER_THREE_CHARS = [
+  'about',
+  'are',
+  'com',
+  'for',
+  'from',
+  'how',
+  'that',
+  'the',
+  'this',
+  'was',
+  'what',
+  'when',
+  'where',
+  'who',
+  'will',
+  'with',
+  'und',
+  'the',
+  'www',
+]
+const normalizeHTMLText = text => text.replace(/\s\s+/g, ' ')
+
+const getEpubTextNodeDocuments = async ({ spineItemPath, spineIdRef, documentIndex, searchTermCounts, log }) => {
 
   const spineXHTML = (
     /^epub_content\/book_/.test(spineItemPath)
@@ -15,7 +38,6 @@ const getEpubTextNodeDocuments = async ({ spineItemPath, spineIdRef, log }) => {
   const { document, NodeFilter } = window
 
   const numHitsByText = {}
-  let index = 0
   let currentBlockEl, currentBlockText
 
   const treeWalker = document.createTreeWalker(
@@ -30,11 +52,21 @@ const getEpubTextNodeDocuments = async ({ spineItemPath, spineIdRef, log }) => {
     node = treeWalker.nextNode()
   }
 
-  return textNodes
+  const documents = textNodes
     .map((node, idx) => {
 
-      const text = node.textContent
+      const text = normalizeHTMLText(node.textContent)
       const context = ["", ""]
+
+      // add words to searchTermCounts
+      text.split(new RegExp(SPACE_OR_PUNCTUATION, 'u')).forEach(term => {
+        term = term.toLowerCase()
+        if(term.length < 3 || MYSQL_DEFAULT_STOP_WORDS_OVER_THREE_CHARS.includes(term)) return
+        if(!searchTermCounts[term]) {
+          searchTermCounts[term] = 0
+        }
+        searchTermCounts[term]++
+      })
 
       try {
 
@@ -44,11 +76,13 @@ const getEpubTextNodeDocuments = async ({ spineItemPath, spineIdRef, log }) => {
         currentBlockEl = node.parentElement.closest(blockTagNames)
 
         if(prevBlockEl === currentBlockEl) {
-          context[0] = currentBlockText
-            .split(new RegExp(`(${SPACE_OR_PUNCTUATION})`, 'u'))
-            .slice(-6)  // get the last 3 words
-            .join('')
-            .replace(new RegExp(`^${SPACE_OR_PUNCTUATION}`, 'u'), '')
+          context[0] = normalizeHTMLText(
+            currentBlockText
+              .split(new RegExp(`(${SPACE_OR_PUNCTUATION})`, 'u'))
+              .slice(-6)  // get the last 3 words
+              .join('')
+              .replace(new RegExp(`^${SPACE_OR_PUNCTUATION}`, 'u'), '')
+          )
           currentBlockText += text
         } else {
           currentBlockText = text
@@ -74,10 +108,12 @@ const getEpubTextNodeDocuments = async ({ spineItemPath, spineIdRef, log }) => {
           nextBlockEl = nextTextNode && nextTextNode.parentElement.closest(blockTagNames)
         }
 
-        context[1] = wordsAndSpacesFollowing
-          .slice(0, 6)  // get the first 3 words
-          .join('')
-          .replace(new RegExp(`${SPACE_OR_PUNCTUATION}$`, 'u'), '')
+        context[1] = normalizeHTMLText(
+          wordsAndSpacesFollowing
+            .slice(0, 6)  // get the first 3 words
+            .join('')
+            .replace(new RegExp(`${SPACE_OR_PUNCTUATION}$`, 'u'), '')
+        )
 
       } catch (e) {
         log(['Could not get search index context', e], 3)
@@ -88,7 +124,7 @@ const getEpubTextNodeDocuments = async ({ spineItemPath, spineIdRef, log }) => {
       if(!numHitsByText[text]) numHitsByText[text] = 0
 
       return {
-        id: index++,
+        id: documentIndex++,
         spineIdRef,
         text,
         hitIndex: numHitsByText[text]++,
@@ -97,7 +133,11 @@ const getEpubTextNodeDocuments = async ({ spineItemPath, spineIdRef, log }) => {
 
     })
     .filter(Boolean)
-          
+
+    return {
+      documents,
+      updatedDocumentIndex: documentIndex,
+    }
 }
 
 module.exports = getEpubTextNodeDocuments

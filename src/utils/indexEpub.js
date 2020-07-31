@@ -3,7 +3,7 @@ const MiniSearch = require("minisearch")
 const { SPACE_OR_PUNCTUATION } = require("./util")
 const getEpubTextNodeDocuments = require("./getEpubTextNodeDocuments")
 
-const getIndexedBookJSON = async ({ baseUri, spines, log }) => {
+const getIndexedBook = async ({ baseUri, spines, log }) => {
 
   const currentMiniSearch = new MiniSearch({
     idField: 'id',
@@ -18,21 +18,24 @@ const getIndexedBookJSON = async ({ baseUri, spines, log }) => {
   })
 
   const startTime = Date.now()
-  let i = 0
+  let spineIndex = 0
+  let documentIndex = 0
+  const searchTermCounts = {}
 
   for(let spine of spines) {
     const spineItemPath = `${baseUri}/${spine.path}`
 
-    i++
+    spineIndex++
 
     try {
       process.stdout.clearLine()
       process.stdout.cursorTo(0)
-      process.stdout.write(`SearchIndexing: Parsing spine ${i} of ${spines.length}`)
+      process.stdout.write(`SearchIndexing: Parsing spine ${spineIndex} of ${spines.length}`)
     } catch(e) {}
 
     try {
-      const documents = await getEpubTextNodeDocuments({ spineItemPath, spineIdRef: spine.idref, log })
+      const { updatedDocumentIndex, documents } = await getEpubTextNodeDocuments({ spineItemPath, spineIdRef: spine.idref, documentIndex, searchTermCounts, log })
+      documentIndex = updatedDocumentIndex
       await currentMiniSearch.addAllAsync(documents)
 
     } catch(e) {
@@ -44,14 +47,14 @@ const getIndexedBookJSON = async ({ baseUri, spines, log }) => {
       Date.now() - startTime > 1000 * maxNumSecs
       || (
         Date.now() - startTime > 1000 * 5
-        && i/spines.length < 5/maxNumSecs
+        && spineIndex/spines.length < 5/maxNumSecs
       )
     ) {
       try {
         process.stdout.clearLine()
         process.stdout.cursorTo(0)
       } catch(e) {}
-      throw new Error(`Search indexing taking too long. Got through ${i} of ${spines.length} spines. Giving up: ${baseUri}`)
+      throw new Error(`Search indexing taking too long. Got through ${spineIndex} of ${spines.length} spines. Giving up: ${baseUri}`)
     }
   }
 
@@ -60,7 +63,8 @@ const getIndexedBookJSON = async ({ baseUri, spines, log }) => {
     process.stdout.cursorTo(0)
   } catch(e) {}
 
-  const jsonStr = JSON.stringify(currentMiniSearch.toJSON())
+  const indexObj = currentMiniSearch.toJSON()
+  const jsonStr = JSON.stringify(indexObj)
   const mbSize = parseInt((jsonStr.length / (1000 * 1000)) + .5, 10)
 
   if(mbSize > 15) {
@@ -69,7 +73,11 @@ const getIndexedBookJSON = async ({ baseUri, spines, log }) => {
 
   log([`SearchIndexing: index creation complete (~${mbSize} mb)`])
 
-  return jsonStr
+  return {
+    indexObj,
+    jsonStr,
+    searchTermCounts,
+  }
 }
 
 const getAutoSuggest = partialSearchStr => {
@@ -101,7 +109,7 @@ const searchBook = searchStr => {
 }
 
 module.exports = {
-  getIndexedBookJSON,
+  getIndexedBook,
   getAutoSuggest,
   searchBook,
 }

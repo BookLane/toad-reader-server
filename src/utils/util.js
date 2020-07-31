@@ -109,6 +109,7 @@ const jsonCols = {
   classroom: [ 'syllabus', 'draftData', 'lti_configurations' ],
   book_instance: [ 'flags' ],
   computed_book_access: [ 'flags' ],
+  book_textnode_index: [ 'context' ],
 }
 
 const util = {
@@ -833,11 +834,13 @@ const util = {
     })
   },
 
-  convertJsonColsToStrings: ({ tableName, row }) => {
-    ;(jsonCols[tableName] || []).forEach(col => {
-      if(row[col] !== undefined) {
-        row[col] = JSON.stringify(row[col])
-      }
+  convertJsonColsToStrings: ({ tableName, row, rows }) => {
+    ;(rows || [row]).forEach(row => {
+      ;(jsonCols[tableName] || []).forEach(col => {
+        if(row[col] !== undefined) {
+          row[col] = JSON.stringify(row[col])
+        }
+      })
     })
   },
 

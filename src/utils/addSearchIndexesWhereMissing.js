@@ -1,5 +1,5 @@
 const parseEpub = require('./parseEpub')
-const { getIndexedBookJSON } = require('./indexEpub')
+const { getIndexedBook } = require('./indexEpub')
 const { runQuery, getFromS3 } = require('./util')
 
 module.exports = async ({ s3, connection, next, log }) => {
@@ -76,7 +76,7 @@ module.exports = async ({ s3, connection, next, log }) => {
 
     // create index for search
     try {
-      await putEPUBFile('search_index.json', await getIndexedBookJSON({ baseUri, spines, log }))
+      await putEPUBFile('search_index.json', (await getIndexedBook({ baseUri, spines, log })).jsonStr)
     } catch(e) {
       log(e.message, 3)
       continue

@@ -7,7 +7,7 @@
 #
 # Host: localhost (MySQL 5.7.27)
 # Database: ToadReader
-# Generation Time: 2020-06-04 12:23:39 +0000
+# Generation Time: 2020-07-31 21:09:40 +0000
 # ************************************************************
 
 
@@ -81,6 +81,37 @@ CREATE TABLE `book_instance` (
   KEY `expires_at` (`expires_at`),
   KEY `enhanced_tools_expire_at` (`enhanced_tools_expire_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+
+
+# Dump of table book_textnode_index
+# ------------------------------------------------------------
+
+CREATE TABLE `book_textnode_index` (
+  `id` int(11) unsigned NOT NULL,
+  `book_id` int(11) unsigned NOT NULL,
+  `spineIdRef` varchar(150) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
+  `text` varchar(10000) NOT NULL DEFAULT '',
+  `hitIndex` int(11) unsigned NOT NULL,
+  `context` text NOT NULL,
+  PRIMARY KEY (`id`,`book_id`),
+  KEY `book_id` (`book_id`),
+  FULLTEXT KEY `text` (`text`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
+
+# Dump of table book_textnode_index_term
+# ------------------------------------------------------------
+
+CREATE TABLE `book_textnode_index_term` (
+  `book_id` int(11) unsigned NOT NULL,
+  `term` varchar(150) NOT NULL DEFAULT '',
+  `count` int(11) unsigned NOT NULL,
+  KEY `book_id` (`book_id`),
+  KEY `term` (`term`),
+  KEY `count` (`count`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 
 

@@ -657,20 +657,20 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
         const hash = md5(rows)
 
         if(hash === req.query.hash) {
-          log(['No change to library.', rows])
+          log(['No change to library.', rows.length])
           return res.send({
             noChange: true,
           })
           
         } else if(req.query.hash !== undefined) {
-          log(['Deliver library', rows])
+          log(['Deliver library', rows.length])
           return res.send({
             hash,
             books: rows,
           })
           
         } else {
-          log(['Deliver library (old version without hash)', rows])
+          log(['Deliver library (old version without hash)', rows.length])
           return res.send(rows)
         }
 

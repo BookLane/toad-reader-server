@@ -6,7 +6,7 @@ const fetch = require('node-fetch')
 
 const util = require('../utils/util')
 const parseEpub = require('../utils/parseEpub')
-const { getIndexedBookJSON } = require('../utils/indexEpub')
+const { getIndexedBook } = require('../utils/indexEpub')
 const dueDateReminders = require('../crons/due_date_reminders')
 
 module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, log) {
@@ -66,6 +66,8 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
       next,
     })
 
+    await deleteBookSearchIndexRows(bookId, next)
+
     await emptyS3Folder(`epub_content/book_${bookId}/`)
   }
 
@@ -100,6 +102,21 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
     if(results.some(rows2 => rows2.length > 0)) return
 
     await deleteBook(bookId, next)
+  }
+
+  const deleteBookSearchIndexRows = async (bookId, next) => {
+    log(['Delete book search index rows', bookId], 2)
+    await util.runQuery({
+      queries: [
+        'DELETE FROM `book_textnode_index` WHERE book_id=:bookId',
+        'DELETE FROM `book_textnode_index_term` WHERE book_id=:bookId',
+      ],
+      vars: {
+        bookId,
+      },
+      connection,
+      next,
+    })
   }
 
   // delete a book
@@ -259,9 +276,13 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
           await putEPUBFile('cover_thumbnail_created_on_import.png', imgData)
         }
 
-        // create index for search
+        // create and save search index
+        let indexObj, searchTermCounts
         try {
-          await putEPUBFile('search_index.json', await getIndexedBookJSON({ baseUri: toUploadDir, spines, log }))
+          indexedBook = await getIndexedBook({ baseUri: toUploadDir, spines, log })
+          await putEPUBFile('search_index.json', indexedBook.jsonStr)
+          indexObj = indexedBook.indexObj
+          searchTermCounts = indexedBook.searchTermCounts
         } catch(e) {
           log(e.message, 3)
           throw Error(`search_indexing_failed`)
@@ -365,6 +386,9 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
           // delete the new book
           await deleteBook(bookRow.id, next)
 
+          // delete the search index rows for the old book
+          deleteBookSearchIndexRows(row.id, next)
+
           // change bookRow.id so that the existing row gets updated
           bookRow.id = row.id
 
@@ -377,6 +401,45 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
           await util.runQuery({
             query: 'INSERT INTO `book-idp` SET ?',
             vars,
+            connection,
+            next,
+          })
+        }
+
+        const numInsertsAtOnce = 100
+
+        // save search index to db (needs to be down here after bookRow.id gets updated if replaceExisting is true)
+        const storedFields = Object.values(indexObj.storedFields)
+        for(let i=0; i<storedFields.length; i+=numInsertsAtOnce) {
+          const chunk = storedFields.slice(i, i+numInsertsAtOnce)
+
+          util.convertJsonColsToStrings({ tableName: 'book_textnode_index', rows: chunk })
+
+          log([`INSERT ${numInsertsAtOnce} book_textnode_index rows from index ${i}...`], 2)
+          await util.runQuery({
+            queries: chunk.map(() => 'INSERT INTO book_textnode_index SET ?'),
+            vars: chunk.map(textnodeInfo => ({
+              ...textnodeInfo,
+              book_id: bookRow.id,
+            })),
+            connection,
+            next,
+          })
+        }
+
+        // save search index terms to db (needs to be down here after bookRow.id gets updated if replaceExisting is true)
+        const searchTerms = Object.keys(searchTermCounts)
+        for(let i=0; i<searchTerms.length; i+=numInsertsAtOnce) {
+          const chunk = searchTerms.slice(i, i+numInsertsAtOnce)
+
+          log([`INSERT ${numInsertsAtOnce} book_textnode_index_term rows from index ${i}...`], 2)
+          await util.runQuery({
+            queries: chunk.map(() => 'INSERT INTO book_textnode_index_term SET ?'),
+            vars: chunk.map(searchTerm => ({
+              term: searchTerm,
+              count: searchTermCounts[searchTerm],
+              book_id: bookRow.id,
+            })),
             connection,
             next,
           })
