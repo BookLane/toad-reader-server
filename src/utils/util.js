@@ -824,13 +824,15 @@ const util = {
     return true;
   },
 
-  convertJsonColsFromStrings: ({ tableName, row }) => {
-    ;(jsonCols[tableName] || []).forEach(col => {
-      if(row[col] !== undefined) {
-        try {
-          row[col] = JSON.parse(row[col])
-        } catch(e) {}
-      }
+  convertJsonColsFromStrings: ({ tableName, row, rows }) => {
+    ;(rows || [row]).forEach(row => {
+      ;(jsonCols[tableName] || []).forEach(col => {
+        if(row[col] !== undefined) {
+          try {
+            row[col] = JSON.parse(row[col])
+          } catch(e) {}
+        }
+      })
     })
   },
 

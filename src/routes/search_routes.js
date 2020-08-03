@@ -71,7 +71,12 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
     async (req, res, next) => {
 
       const { bookId } = req.params
-      const { searchStr } = req.query
+      let { searchStr, limit, offset } = req.query
+
+      limit = Math.min(Math.max(0, parseInt(limit, 10) || 100), 100)
+      offset = Math.max(parseInt(offset, 10) || 0, 0)
+
+      const now = util.timestampToMySQLDatetime()
 
       if(bookId) {
         const accessInfo = await util.hasAccess({ bookId, req, connection, log, next })
@@ -83,7 +88,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
       }
 
       log(`Search "${searchStr}"...`)
-      const rows = await util.runQuery({
+      const results = await util.runQuery({
         query: `
           SELECT
             bti.*
@@ -114,21 +119,26 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
                 AGAINST(:search IN BOOLEAN MODE)
 
             ORDER BY ll.updated_at DESC
+
+            LIMIT ${limit}
+            OFFSET ${offset}
         `,
         vars: {
           bookId,
           userId: req.user.id,
           idpId: req.user.idpId,
           now,
-          search: searchStr.map(term => `+${term}`),
+          search: searchStr.split(new RegExp(util.SPACE_OR_PUNCTUATION, 'u')).map(term => `+${term}`).join(' '),
         },
         connection,
         next,
       })
 
+      util.convertJsonColsFromStrings({ tableName: 'book_textnode_index', rows: results })
+
       return res.send({
         success: true,
-        rows,
+        results,
       })
 
     }
