@@ -1,6 +1,6 @@
 const parseEpub = require('./parseEpub')
 const { getIndexedBook } = require('./indexEpub')
-const { runQuery, getFromS3 } = require('./util')
+const { runQuery, getFromS3, convertJsonColsToStrings } = require('./util')
 
 module.exports = async ({ s3, connection, next, log }) => {
 
@@ -31,6 +31,8 @@ module.exports = async ({ s3, connection, next, log }) => {
   })
 
   log([`SearchIndexing: found ${books.length} books.`])
+
+  // Too beefy for indexes: 44, 180, 265, 502
 
   for(let idx in books) {
     const bookId = books[idx].id
@@ -74,9 +76,68 @@ module.exports = async ({ s3, connection, next, log }) => {
 
     log([`SearchIndexing: Indexing book id ${bookId}...`])
 
+    const numInsertsAtOnce = 100
+
     // create index for search
     try {
-      await putEPUBFile('search_index.json', (await getIndexedBook({ baseUri, spines, log })).jsonStr)
+      const indexedBook = await getIndexedBook({ baseUri, spines, log })
+      await putEPUBFile('search_index.json', indexedBook.jsonStr)
+
+      const indexObj = indexedBook.indexObj
+      const searchTermCounts = indexedBook.searchTermCounts
+
+      // delete index rows for book
+      log(['Delete book search index rows', bookId], 2)
+      await runQuery({
+        queries: [
+          'DELETE FROM `book_textnode_index` WHERE book_id=:bookId',
+          'DELETE FROM `book_textnode_index_term` WHERE book_id=:bookId',
+        ],
+        vars: {
+          bookId,
+        },
+        connection,
+        next,
+      })
+  
+      // save search index to db
+      const storedFields = Object.values(indexObj.storedFields)
+      for(let i=0; i<storedFields.length; i+=numInsertsAtOnce) {
+        const chunk = storedFields.slice(i, i+numInsertsAtOnce)
+
+        convertJsonColsToStrings({ tableName: 'book_textnode_index', rows: chunk })
+
+        await runQuery({
+          queries: chunk.map(() => 'INSERT INTO book_textnode_index SET ?'),
+          vars: chunk.map(textnodeInfo => ({
+            ...textnodeInfo,
+            book_id: bookId,
+          })),
+          connection,
+          next,
+        })
+      }
+      log([`INSERTed ${storedFields.length} rows to book_textnode_index.`], 2)
+
+      // save search index terms to db
+      const searchTerms = Object.keys(searchTermCounts)
+        .filter(searchTerm => searchTermCounts[searchTerm])
+      for(let i=0; i<searchTerms.length; i+=numInsertsAtOnce) {
+        const chunk = searchTerms.slice(i, i+numInsertsAtOnce)
+
+        await runQuery({
+          queries: chunk.map(() => 'INSERT INTO book_textnode_index_term SET ?'),
+          vars: chunk.map(searchTerm => ({
+            term: searchTerm,
+            count: searchTermCounts[searchTerm],
+            book_id: bookId,
+          })),
+          connection,
+          next,
+        })
+      }
+      log([`INSERTed ${searchTerms.length} rows to book_textnode_index_term.`], 2)
+
     } catch(e) {
       log(e.message, 3)
       continue

@@ -429,6 +429,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
 
         // save search index terms to db (needs to be down here after bookRow.id gets updated if replaceExisting is true)
         const searchTerms = Object.keys(searchTermCounts)
+          .filter(searchTerm => searchTermCounts[searchTerm])
         for(let i=0; i<searchTerms.length; i+=numInsertsAtOnce) {
           const chunk = searchTerms.slice(i, i+numInsertsAtOnce)
 
@@ -1103,5 +1104,5 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
   setInterval(runMinuteCron, 1000 * 60);
   runMinuteCron();
 
-
+  
 }

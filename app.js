@@ -82,6 +82,7 @@ const connection = mysql.createConnection({
   database: process.env.OVERRIDE_RDS_DB_NAME || process.env.RDS_DB_NAME,
   multipleStatements: true,
   dateStrings: true,
+  charset : 'utf8mb4',
   queryFormat: function (query, values) {
     if(!values) return query
 
