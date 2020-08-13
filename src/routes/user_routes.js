@@ -48,10 +48,10 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
 
     const locale = language || req.idpLang || 'en'
 
-    const urlWithoutEditing = `${util.getProtocol(req)}://${req.headers.host}${req.originalUrl.replace(/([\?&])editing=1&?/, '$1').replace(/iniframe=1&?/, '').replace(/[\?&]$/, '')}`
+    const urlWithoutEditing = `${util.getProtocol({ req })}://${req.headers.host}${req.originalUrl.replace(/([\?&])editing=1&?/, '$1').replace(/iniframe=1&?/, '').replace(/[\?&]$/, '')}`
 
     if(domain) {
-      req.headers.host = util.getDataDomain(domain)
+      req.headers.host = util.getDataDomain({ domain })
     }
 
     const frontendBaseUrl = util.getFrontendBaseUrl(req)

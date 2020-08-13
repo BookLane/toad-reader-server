@@ -223,15 +223,25 @@ const util = {
     return s;
   },
 
-  getProtocol: req => (
-    (req.secure || req.headers['x-forwarded-proto'] === 'https' || process.env.REQUIRE_HTTPS)
+  getProtocol: ({ req, env }) => (
+    (
+      env
+        ? env !== 'dev'
+        : (
+          req.secure
+          || req.headers['x-forwarded-proto'] === 'https'
+          || process.env.REQUIRE_HTTPS
+        )
+    )
       ? 'https' 
       : 'http'
   ),
 
-  getBackendBaseUrl: req => `${util.getProtocol(req)}://${req.headers.host}`,
-  getFrontendBaseUrl: req => `${util.getProtocol(req)}://${util.getIDPDomain(req.headers.host)}`,
-  // getFrontendBaseUrl does not (and should not) get a beta base url
+  // The next two functions are used for public canonical links. Eg. for share pages, xapi statements, and LTI launch links.
+  // (getFrontendBaseUrl does not (and should not) get a beta base url.)
+  // (For other things, use getDataOrigin and getFrontEndOrigin.)
+  getBackendBaseUrl: req => `${util.getProtocol({ req })}://${req.headers.host}`,
+  getFrontendBaseUrl: req => `${util.getProtocol({ req })}://${util.getIDPDomain(req.headers)}`,
 
   // xAPI statement utils below
 
@@ -283,14 +293,14 @@ const util = {
     });
   },
 
-  getDataDomain: domain => {
+  getDataDomain: ({ domain, env }) => {
 
-    if(process.env.IS_DEV) {
+    if(env ? env === 'dev' : process.env.IS_DEV) {
       // dev environment
       return `${process.env.DEV_NETWORK_IP || `localhost`}:8080`
     }
   
-    if(process.env.IS_STAGING) {
+    if(env ? env === 'staging' : process.env.IS_STAGING) {
       // staging environment
       return `${dashifyDomain(domain)}.data.staging.toadreader.com`
     }
@@ -300,30 +310,49 @@ const util = {
   
   },
 
-  getDataOrigin: ({ domain, protocol=`https` }={}) => `${process.env.IS_DEV ? `http` : protocol}://${util.getDataDomain(domain)}`,
+  getDataOrigin: ({ domain, protocol=`https`, env }={}) => (
+    `${
+      (env ? env === 'dev' : process.env.IS_DEV)
+        ? `http`
+        : protocol
+    }://${util.getDataDomain({ domain, env })}`
+  ),
 
-  getIDPDomain: host => process.env.IS_DEV ? `${process.env.DEV_NETWORK_IP || `localhost`}:19006` : undashifyDomain(host.split('.')[0]),
+  getIDPDomain: ({ host, env }) => (
+    (env ? env === 'dev' : process.env.IS_DEV)
+      ? `${process.env.DEV_NETWORK_IP || `localhost`}:19006`
+      : (
+        undashifyDomain(host.split('.')[0])
+      )
+  ),
 
-  getFrontEndOrigin: req => {
+  getFrontEndOrigin: ({ req, env }) => {
 
-    let domain = util.getIDPDomain(req.headers.host)
+    let domain = util.getIDPDomain({ host: req.headers.host, env })
 
-    if(process.env.IS_DEV) {
+    if(env ? env === 'dev' : process.env.IS_DEV) {
       domain = `${process.env.DEV_NETWORK_IP || `localhost`}:19006`
     }
 
-    if(process.env.IS_STAGING) {
+    if(env ? env === 'staging' : process.env.IS_STAGING) {
       domain = req.headers.host.replace('.data', '')
     }
 
     const betaUrlMatch = (req.headers.referer || "").match(/^https?:\/\/([^\/.]*\.beta\.toadreader\.com)(\/|$)/)
-    if(betaUrlMatch || req.query.isBeta) {
+    if(env ? env === 'beta' : (betaUrlMatch || req.query.isBeta)) {
       domain = req.headers.host.replace('.data', '.beta')
     }
 
-    return `${util.getProtocol(req)}://${domain}`
+    return `${util.getProtocol({ req, env })}://${domain}`
 
   },
+
+  escapeHTML: text => (
+    text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+  ),
 
   getUserInfo: async ({
     idp,
@@ -907,7 +936,7 @@ const util = {
     const [ idpRow ] = await util.runQuery({
       query: `SELECT id, ${jwtColInIdp} FROM idp WHERE domain=:domain`,
       vars: {
-        domain: util.getIDPDomain(req.headers.host),
+        domain: util.getIDPDomain(req.headers),
       },
       connection,
       next,
@@ -941,7 +970,7 @@ const util = {
 
     connection.query(
       'SELECT language FROM `idp` WHERE domain=?',
-      [util.getIDPDomain(req.headers.host)],
+      [util.getIDPDomain(req.headers)],
       (err, rows) => {
         if (err) return next(err)
   

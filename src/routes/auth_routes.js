@@ -169,7 +169,7 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
 
       const hashAddOn = req.query.hash ? `&hash=${encodeURIComponent(req.query.hash)}` : ``
 
-      res.redirect(`${util.getFrontEndOrigin(req)}?loginInfo=${encodeURIComponent(JSON.stringify(loginInfo))}${hashAddOn}`)
+      res.redirect(`${util.getFrontEndOrigin({ req })}?loginInfo=${encodeURIComponent(JSON.stringify(loginInfo))}${hashAddOn}`)
     }
   )
 
@@ -263,6 +263,68 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
   //   }
   // );
 
+  app.get('/urls/:domain', 
+    (req, res) => {
+      const { domain } = req.params
+
+      const getLink = url => `<a href="${url.replace(/"/g, '&quot;')}">${util.escapeHTML(url)}</a>`
+
+      res.send(`
+        <html>
+          <head>
+          </head>
+          <body>
+            ${
+              [
+                'dev',
+                'staging',
+                'beta',
+                'production',
+              ]
+                .map(env => {
+                  const host = util.getDataDomain({ domain, env })
+                  const frontendOrigin = (
+                    util.getFrontEndOrigin({
+                      req: {
+                        headers: {
+                          host,
+                        },
+                        query: {
+                          isBeta: env === 'beta',
+                        },
+                      },
+                      env,
+                    })
+                  )
+                  const backendOrigin = util.getDataOrigin({ domain, env })
+
+
+                  return `
+                    <div style="
+                      padding: 10px 0;
+                    ">
+                      <div style="
+                        margin-bottom: 5px;
+                      ">
+                        ======== <b>${env}</b> ========
+                      </div>
+                      <div>
+                        ${getLink(frontendOrigin)}
+                      </div>
+                      <div>
+                        ${getLink(backendOrigin)}
+                      </div>
+                    </div>
+                  `
+                })
+                .join('\n')
+            }
+          </body>
+        </html>
+      `)
+    }
+  );
+
   app.get('/Shibboleth.sso/Metadata', 
     function(req, res) {
       log('Metadata request');
@@ -352,7 +414,7 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
         connection.query(
           `SELECT * FROM idp WHERE domain=:domain`,
           {
-            domain: util.getIDPDomain(req.headers.host),
+            domain: util.getIDPDomain(req.headers),
           },
           async (err2, row2) => {
             if(err2) return next(err2)

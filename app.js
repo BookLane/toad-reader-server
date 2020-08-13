@@ -62,7 +62,7 @@ const corsOptionsDelegate = (req, callback) => {
   if(process.env.IS_DEV) {
     corsOptions.origin = true
   } else {
-    corsOptions.origin = util.getFrontEndOrigin(req)
+    corsOptions.origin = util.getFrontEndOrigin({ req })
   }
 
   callback(null, corsOptions)
@@ -331,7 +331,7 @@ connection.query('SELECT * FROM `idp` WHERE entryPoint IS NOT NULL',
 
       passport.use(row.id, samlStrategy)
 
-      authFuncs[util.getDataDomain(row.domain)] = authFuncs[row.id] = {
+      authFuncs[util.getDataDomain(row)] = authFuncs[row.id] = {
         getMetaData: function() {
           return samlStrategy.generateServiceProviderMetadata(row.spcert, row.spcert)
         },
@@ -401,7 +401,7 @@ function ensureAuthenticated(req, res, next) {
     
     log('Checking if IDP requires authentication')
     connection.query('SELECT * FROM `idp` WHERE domain=?',
-      [util.getIDPDomain(req.headers.host)],
+      [util.getIDPDomain(req.headers)],
       function (err, rows) {
         if (err) return next(err)
         const idp = rows[0]

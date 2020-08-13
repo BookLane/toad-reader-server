@@ -4,11 +4,6 @@ const { i18n } = require("inline-i18n")
 
 const superAdminEmail = 'admin@resourcingeducation.com'
 
-const escapeHTML = text => text
-  .replace(/&/g, "&amp;")
-  .replace(/</g, "&lt;")
-  .replace(/>/g, "&gt;")
-
 const sendEmail = input => {
 
   if(input instanceof Array) {
@@ -34,7 +29,7 @@ const sendEmail = input => {
     connection.query(
       `SELECT * FROM idp WHERE domain=:domain`,
       {
-        domain: util.getIDPDomain(req.headers.host),
+        domain: util.getIDPDomain(req.headers),
       },
       (err, rows) => {
         if(err) {
@@ -47,7 +42,7 @@ const sendEmail = input => {
           <div style="background-color: #F7F7F7"; padding: 0 20px;">
             <div style="max-width: 650px; margin: 0 auto;">
               <div style="text-align: center; padding: 20px 0 10px;">
-                <a href="https://${domain}" style="text-decoration: none; font-size: 18px; color: black;">${escapeHTML(name)}</a>
+                <a href="https://${domain}" style="text-decoration: none; font-size: 18px; color: black;">${util.escapeHTML(name)}</a>
               </div>  
               <div style="border: 1px solid rgba(0,0,0,.1); border-radius: 5px; padding: 20px; background: white; font-size: 15px;">
                 <div style="margin-bottom: 20px;">${i18n("Hi,", {}, { locale })}</div>
@@ -56,7 +51,7 @@ const sendEmail = input => {
               <div style="padding: 10px 20px 20px 20px; font-size: 12px; text-align: center;">
                 <div>
                   <a href="https://${domain}">
-                    ${escapeHTML(domain)}
+                    ${util.escapeHTML(domain)}
                   </a>
                 </div>
               </div> 
