@@ -308,6 +308,17 @@ connection.query('SELECT * FROM `idp` WHERE entryPoint IS NOT NULL',
       return
     }
 
+    // next block is temporary
+    rows = rows
+      .map(row => ([
+        row,
+        {
+          ...row,
+          old: true,
+        },
+      ]))
+      .flat()
+
     rows.forEach(function(row) {
       const baseUrl = util.getDataOrigin(row)
       const samlStrategy = new saml.Strategy(
