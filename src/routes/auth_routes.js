@@ -211,8 +211,8 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
     async (req, res, next) => {
       const userId = req.user.id
 
-      if(authFuncs[req.user.idpId]) {
-        authFuncs[req.user.idpId].logout(req, res, next);
+      if(authFuncs[req.headers.host]) {
+        authFuncs[req.headers.host].logout(req, res, next);
       } else {
         res.redirect(`/logout/callback${req.query.noredirect ? `?noredirect=1` : ``}`);
       }
@@ -250,18 +250,6 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
       }
     }
   );
-
-  // app.get('/Shibboleth.sso/:idpId/Metadata', 
-  //   function(req, res) {
-  //     log('Metadata request');
-  //     res.type('application/xml');
-  //     res.status(200).send(
-  //       authFuncs[req.params.idpId]
-  //        ? authFuncs[req.params.idpId].getMetaData()
-  //        : ""
-  //     );
-  //   }
-  // );
 
   app.get('/urls/:domain', 
     (req, res) => {
