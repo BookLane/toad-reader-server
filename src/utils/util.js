@@ -1004,6 +1004,11 @@ const util = {
     new Promise(resolve => {
       const { sql } = connection.query(
         query || queries.join(';'),
+        // The following did not seem to work
+        // {
+        //   sql: query || queries.join(';'),
+        //   timeout: 1000 * 10,
+        // },
         vars,
         (err, result) => {
           if(err) return next(err)

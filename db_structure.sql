@@ -7,7 +7,7 @@
 #
 # Host: localhost (MySQL 5.7.27)
 # Database: ToadReader
-# Generation Time: 2020-07-31 21:09:40 +0000
+# Generation Time: 2020-08-24 22:06:23 +0000
 # ************************************************************
 
 
@@ -419,7 +419,13 @@ CREATE TABLE `reading_session` (
   `spineIdRef` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
   `read_at` datetime(3) NOT NULL,
   `duration_in_seconds` int(11) NOT NULL,
-  PRIMARY KEY (`id`)
+  PRIMARY KEY (`id`),
+  KEY `user_id` (`user_id`),
+  KEY `book_id` (`book_id`),
+  KEY `spineIdRef` (`spineIdRef`),
+  KEY `read_at` (`read_at`),
+  KEY `duration_in_seconds` (`duration_in_seconds`),
+  KEY `book_id_2` (`book_id`,`user_id`,`spineIdRef`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 
