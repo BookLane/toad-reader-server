@@ -464,10 +464,12 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         await util.updateComputedBookAccess({ idpId: req.user.idpId, bookId: bookRow.id, connection, log })
 
         log('Import successful', 2)
-        res.send({
-          success: true,
-          bookId: bookRow.id
-        })
+        try {  // If everything was successful, but the connection timed out, don't delete it.
+          res.send({
+            success: true,
+            bookId: bookRow.id
+          })
+        } catch(e) {}
 
       } catch(err) {
 
@@ -487,7 +489,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         } catch(err2) {}
   
         if(bookRow) {
-          deleteBookIfUnassociated(bookRow.id, next)
+          await deleteBookIfUnassociated(bookRow.id, next)
           await util.updateComputedBookAccess({ idpId: req.user.idpId, bookId: bookRow.id, connection, log })
         }
   
