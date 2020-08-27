@@ -14,7 +14,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
         res.status(403).send({ error: 'Forbidden' });
       }
   
-      log(['Attempting patch', req.body]);
+      log(['Attempting patch', JSON.stringify(req.body)]);
 
       // A JSON array of user-data book objects is sent to the Readium server,
       // which contains the portions that need to be added, updated or deleted.
