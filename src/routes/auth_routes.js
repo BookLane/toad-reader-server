@@ -179,7 +179,7 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
       req.query.RelayState = JSON.stringify({
         cookieOverride: util.getCookie(req),
       })
-      passport.authenticate(req.params.idpId, { failureRedirect: '/login/fail' })(req, res, next);
+      passport.authenticate(req.headers.host, { failureRedirect: '/login/fail' })(req, res, next);
     },
     function (req, res) {
       res.redirect('/');
@@ -189,7 +189,7 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
   app.post('/login/:idpId/callback',
     function(req, res, next) {
       log('Authenticate user (callback)', 2);
-      passport.authenticate(req.params.idpId, { failureRedirect: '/login/fail' })(req, res, next);
+      passport.authenticate(req.headers.host, { failureRedirect: '/login/fail' })(req, res, next);
     },
     function(req, res) {
       var loginRedirect = req.session.loginRedirect || '/confirmlogin';

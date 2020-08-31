@@ -340,10 +340,11 @@ connection.query('SELECT * FROM `idp` WHERE entryPoint IS NOT NULL',
         }
       )
 
-      // ternary is temporary
-      passport.use(row.old ? `old-${row.id}` : row.id, samlStrategy)
+      const dataDomain = util.getDataDomain(row)
 
-      authFuncs[util.getDataDomain(row)] = {
+      passport.use(dataDomain, samlStrategy)
+
+      authFuncs[dataDomain] = {
         getMetaData: function() {
           return samlStrategy.generateServiceProviderMetadata(row.spcert, row.spcert)
         },
