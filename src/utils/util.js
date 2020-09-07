@@ -324,7 +324,13 @@ const util = {
   // (getFrontendBaseUrl does not (and should not) get a beta base url.)
   // (For other things, use getDataOrigin and getFrontEndOrigin.)
   getBackendBaseUrl: req => `${util.getProtocol({ req })}://${req.headers.host}`,
-  getFrontendBaseUrl: req => `${util.getProtocol({ req })}://${util.getIDPDomain(req.headers)}`,
+  getFrontendBaseUrl: req => {
+    if(req.headers.host.split('.')[2] === 'staging') {
+      return util.getFrontEndOrigin({ req, env: 'staging' })
+    } else {
+      return `${util.getProtocol({ req })}://${util.getIDPDomain(req)}`
+    }
+  },
 
   // xAPI statement utils below
 
@@ -403,7 +409,6 @@ const util = {
     }://${util.getDataDomain({ domain, env, old })}`
   ),
 
-  // old param is temporary
   getIDPDomain: ({ host, env }) => (
     (env ? env === 'dev' : process.env.IS_DEV)
       ? `${process.env.DEV_NETWORK_IP || `localhost`}:19006`
