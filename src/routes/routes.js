@@ -119,8 +119,20 @@ module.exports = function (app, s3, connection, passport, authFuncs, ensureAuthe
     });
   }
 
+  // serve the cover images for dev
+  app.get('/epub_content/covers/:bookSlug', (req, res, next) => {
+    if(!process.env.IS_DEV) {
+      res.status(404).send({ error: 'Unexpected request' })
+    }
+
+    log('Deliver DEV book cover')
+    getAssetFromS3(req, res, next)
+  })
+
   // serve the cover images without need of login (since it is used on the sharing page)
   app.get('/epub_content/**', function (req, res, next) {
+    // TODO: Delete this after getting all tenants working with cloudfront
+
     var urlWithoutQuery = req.url.replace(/(\?.*)?$/, '').replace(/^\/book/,'').replace(/%20/g, ' ');
     var urlPieces = urlWithoutQuery.split('/');
     var bookId = parseInt((urlPieces[2] || '0').replace(/^book_([0-9]+).*$/, '$1'));
@@ -205,15 +217,18 @@ module.exports = function (app, s3, connection, passport, authFuncs, ensureAuthe
   app.get('*', function (req, res, next) {
     var urlWithoutQuery = req.url.replace(/(\?.*)?$/, '').replace(/^\/book/,'').replace(/%20/g, ' ');
 
+    // TODO: Change this to only work with DEV after getting all tenants working with cloudfront
+
     // Cookies do not get sent with web fonts referenced in css. Thus, I have opened access to
     // fonts. When I get all epub files going through cloudfront, I will no longer need this.
     const isFontFile = ['eot', 'woff', 'woff2', 'ttf', 'otf'].includes(urlWithoutQuery.toLowerCase().split('.').pop())
 
     // temporarily remove authentication of assets for safari
-    const isSafari = /^((?!chrome|android).)*safari/i.test(req.headers['user-agent'])
     const isAsset = !/^[^?]+\.(epub|x?html|opf|ncx|xml)(?:\?.*|$)/i.test(req.url)
 
-    if(isFontFile || (isSafari && isAsset)) {
+    // TODO: Lock this back down to font files only
+    // if(isFontFile) {
+    if(isFontFile || isAsset) {
       getAssetFromS3(req, res, next);
     } else {
       next();
@@ -229,6 +244,7 @@ module.exports = function (app, s3, connection, passport, authFuncs, ensureAuthe
 
     // check that they have access if this is a book
     if(urlPieces[1] == 'epub_content') {
+      // TODO: Change this to only work with DEV after getting all tenants working with cloudfront
 
       const accessInfo = util.hasAccess({ bookId, req, connection, log, next })
 

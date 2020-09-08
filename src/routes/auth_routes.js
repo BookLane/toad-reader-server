@@ -207,8 +207,21 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
   );
 
   app.get('/logout',
+    async (req, res, next) => {
+      if(req.isAuthenticated()) return next()
+
+      if(req.query.noredirect) {
+        res.send({ success: true, detail: 'was not logged in' })
+      } else {
+        res.redirect(util.getFrontendBaseUrl(req))
+      }
+    }
+  )
+
+  app.get('/logout',
     ensureAuthenticated,
     async (req, res, next) => {
+
       const userId = req.user.id
 
       if(authFuncs[req.headers.host]) {
@@ -216,6 +229,8 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
       } else {
         res.redirect(`/logout/callback${req.query.noredirect ? `?noredirect=1` : ``}`);
       }
+
+      req.logout()  // do this after the redirect (and not just in the callback) since Safari will not send cookies in the iframe so that SLO will not work
 
       if(req.headers['x-push-token'] && req.headers['x-push-token'] !== 'none') {
         // delete push token
@@ -241,15 +256,15 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
 
   app.all(['/logout/callback', '/login'],
     function (req, res) {
-      log('Logout callback (will delete cookie)', 2);
-      req.logout();
+      log('Logout callback (will delete cookie)', 2)
+      req.logout()  // this will not work on Safari any longer since it will not send cookies in an iframe
       if(req.query.noredirect) {
-        res.send({ success: true });
+        res.send({ success: true })
       } else {
-        res.redirect('/');
+        res.redirect(util.getFrontendBaseUrl(req))
       }
     }
-  );
+  )
 
   app.get('/urls/:domain', 
     (req, res) => {

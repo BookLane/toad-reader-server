@@ -177,7 +177,9 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         }
   
         const putEPUBFile = async (relfilepath, body) => {
-          const key = `epub_content/book_${bookRow.id}/${relfilepath}`
+          const key = relfilepath
+            ? `epub_content/book_${bookRow.id}/${relfilepath}`
+            : `epub_content/covers/book_${bookRow.id}.png`
           
           log(['Upload file to S3', key])
   
@@ -269,11 +271,11 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         if(coverHref) {
           const imgData = await (
             sharp(`${toUploadDir}/${coverHref}`)
-              .resize(75)
+              .resize(284)  // twice of the 142px width that is shown on the share page
               .png()
               .toBuffer()
           )
-          await putEPUBFile('cover_thumbnail_created_on_import.png', imgData)
+          await putEPUBFile(null, imgData)
         }
 
         // create and save search index

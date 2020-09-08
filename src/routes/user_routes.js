@@ -3,6 +3,19 @@ const fs = require('fs')
 const util = require('../utils/util')
 const { i18n } = require("inline-i18n")
 const md5 = require('md5')
+const AWS = require('aws-sdk')
+
+const cloudFront = process.env.IS_DEV ? null : new AWS.CloudFront.Signer(
+  process.env.CLOUDFRONT_KEY_PAIR_ID,
+  process.env.CLOUDFRONT_PRIVATE_KEY.replace(/\\n/g, "\n"),
+)
+
+const getSignedCookieAsync = params => new Promise((resolve, reject) => {
+  cloudFront.getSignedCookie(params, (err, data) => {
+    if(err) return reject(err)
+    resolve(data)
+  })
+})
 
 module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensureAuthenticatedAndCheckIDPWithRedirect, log) {
 
@@ -40,7 +53,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
     res.send(returnData);
   })
 
-  const sendSharePage = async ({ share_quote, note, title, author, fullname, coverHref, book_id, spineIdRef, cfi, language, domain, inIframe, req, res, next }) => {
+  const sendSharePage = async ({ share_quote, note, title, author, fullname, book_id, spineIdRef, cfi, language, domain, inIframe, req, res, next }) => {
 
     if(!share_quote) {
       return res.send("Not found.")
@@ -55,7 +68,6 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
     }
 
     const frontendBaseUrl = util.getFrontendBaseUrl(req)
-    const backendBaseUrl = util.getBackendBaseUrl(req)
     let abridgedNote = note || ' '
     if(abridgedNote.length > 116) {
       abridgedNote = abridgedNote.substring(0, 113) + '...'
@@ -70,7 +82,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
       .replace(/{{url_noquotes}}/g, urlWithoutEditing.replace(/"/g, '&quot;'))
       .replace(/{{url_escaped}}/g, encodeURIComp(urlWithoutEditing))
       .replace(/{{read_here_url}}/g, `${frontendBaseUrl}/#/book/${book_id}/#${spineIdRef ? encodeURIComponent(JSON.stringify({ latestLocation: { spineIdRef, cfi } })) : ``}`)
-      .replace(/{{book_image_url}}/g, backendBaseUrl + '/' + coverHref)
+      .replace(/{{book_image_url}}/g, `${frontendBaseUrl}/epub_content/covers/book_${book_id}.png`)
       .replace(/{{book_title}}/g, title)
       .replace(/{{book_author}}/g, author)
       .replace(/{{comment}}/g, i18n("Comment", {}, { locale }))
@@ -101,7 +113,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
     log(['Find info for share page', req.params.shareCode]);
     const highlight = (await util.runQuery({
       query: `
-        SELECT h.share_quote, h.note, h.spineIdRef, h.cfi, h.book_id, b.title, b.author, b.coverHref, u.fullname, i.language, i.domain
+        SELECT h.share_quote, h.note, h.spineIdRef, h.cfi, h.book_id, b.title, b.author, u.fullname, i.language, i.domain
         FROM highlight as h
           LEFT JOIN book as b ON (b.id=h.book_id)
           LEFT JOIN user as u ON (u.id=h.user_id)
@@ -572,6 +584,60 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
       }
     });
   });
+
+  // Get a signed cookie for retrieving book content
+  // read.biblemesh.com/book_cookies/{book_id}.json
+  app.get(
+    '/book_cookies/:bookId.json',
+    ensureAuthenticatedAndCheckIDP,
+    async (req, res, next) => {
+
+      if(process.env.IS_DEV) {
+        res.status(404).send({ error: '/book_cookies does not work on dev' })
+        return
+      }
+
+      const { bookId } = req.params
+
+      // See if they have access to this book
+      const accessInfo = await util.hasAccess({ bookId, req, connection, log, next })
+
+      if(!accessInfo) {
+        log(['Forbidden: user does not have access to this book and so a cookie was not created'], 3)
+        res.status(403).send({ error: 'Forbidden' })
+        return
+      }
+
+      // Get the cookie
+      const policy = JSON.stringify({
+        Statement: [
+          {
+            Resource: `${util.getFrontEndOrigin({ req })}/epub_content/book_${bookId}/*`,
+            Condition: {
+              DateLessThan: {
+                'AWS:EpochTime': Math.floor(Date.now() / 1000) + 60 * 60 * 24,  // in seconds (not ms)
+              },
+            },
+          },
+        ],
+      })
+
+      try {
+
+        const cookies = await getSignedCookieAsync({
+          policy,
+        })
+
+        res.send(cookies)
+
+      } catch(err) {
+        log(['Error getting signed cookie', err], 3)
+        res.status(404).send({ error: 'Internal error' })
+        return
+      }
+
+    },
+  )
 
   // get epub_library.json with library listing for given user
   app.get('/epub_content/epub_library.json', ensureAuthenticatedAndCheckIDP, function (req, res, next) {
