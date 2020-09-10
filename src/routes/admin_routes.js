@@ -3,6 +3,7 @@ const multiparty = require('multiparty')
 const admzip = require('adm-zip')
 const sharp = require('sharp')
 const fetch = require('node-fetch')
+const mime = require('mime')
 
 const util = require('../utils/util')
 const parseEpub = require('../utils/parseEpub')
@@ -188,6 +189,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
             Key: key,
             Body: body,
             ContentLength: body.byteCount,
+            ContentType: mime.getType(key),
           }).promise()
   
           log(['...uploaded to S3', key])
@@ -576,6 +578,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
             Key: key,
             Body: body,
             ContentLength: body.byteCount,
+            ContentType: mime.getType(key),
           }, (err, data) => {
             // clean up
             deleteFolderRecursive(tmpDir)

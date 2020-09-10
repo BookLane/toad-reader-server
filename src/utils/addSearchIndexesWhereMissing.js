@@ -1,6 +1,7 @@
 const parseEpub = require('./parseEpub')
 const { getIndexedBook } = require('./indexEpub')
 const { runQuery, getFromS3, convertJsonColsToStrings } = require('./util')
+const mime = require('mime')
 
 module.exports = async ({ s3, connection, next, log }) => {
 
@@ -63,6 +64,7 @@ module.exports = async ({ s3, connection, next, log }) => {
         Key: key,
         Body: body,
         ContentLength: body.byteCount,
+        ContentType: mime.getType(key),
       }, (err, data) => {
         if(err) {
           log(['SearchIndexing: ...FAILED to upload to S3', key], 3)
