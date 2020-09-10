@@ -410,6 +410,18 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
           })
         }
 
+        // From this point, we expect it to be successful. Send some info to keep the connection alive.
+        res.set('Content-Type', 'application/json')
+        res.write(`{`)
+        let timeOfLastResponseWrite = Date.now()
+        let writeResponseIndex = 0
+        const addToResponseToKeepAlive = () => {
+          if(Date.now() > timeOfLastResponseWrite + 1000*30) {
+            res.write(`"ignore-${writeResponseIndex++}":0,`)
+            timeOfLastResponseWrite = Date.now()
+          }
+        }
+
         const numInsertsAtOnce = 100
 
         // save search index to db (needs to be down here after bookRow.id gets updated if replaceExisting is true)
@@ -429,6 +441,8 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
             connection,
             next,
           })
+
+          addToResponseToKeepAlive()
         }
 
         // save search index terms to db (needs to be down here after bookRow.id gets updated if replaceExisting is true)
@@ -448,6 +462,8 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
             connection,
             next,
           })
+
+          addToResponseToKeepAlive()
         }
 
         // these need to be down here after bookRow.id gets updated if replaceExisting is true
@@ -469,10 +485,12 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
 
         log('Import successful', 2)
         try {  // If everything was successful, but the connection timed out, don't delete it.
-          res.send({
-            success: true,
-            bookId: bookRow.id
-          })
+          res.write(
+            `"success": true,` +
+            `"bookId": ${bookRow.id}` +
+            `}`
+          )
+          res.end()
         } catch(e) {}
 
       } catch(err) {
