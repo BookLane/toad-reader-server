@@ -28,6 +28,13 @@ const normalizeHTMLText = text => text.replace(/\s\s+/g, ' ')
 
 const getEpubTextNodeDocuments = async ({ spineItemPath, spineIdRef, documentIndex, searchTermCounts, log }) => {
 
+  if(!/\.x?html$/i.test(spineItemPath)) {
+    return {
+      documents: [],
+      updatedDocumentIndex: documentIndex,
+    }
+  }
+
   const spineXHTML = (
     /^epub_content\/book_/.test(spineItemPath)
       ? await getFromS3(spineItemPath)
