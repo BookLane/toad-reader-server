@@ -141,10 +141,13 @@ const getEpubTextNodeDocuments = async ({ spineItemPath, spineIdRef, documentInd
     })
     .filter(Boolean)
 
-    return {
-      documents,
-      updatedDocumentIndex: documentIndex,
-    }
+  window.close()
+  await new Promise(resolve => setTimeout(resolve))  // needed to prevent JSDOM memory leak
+
+  return {
+    documents,
+    updatedDocumentIndex: documentIndex,
+  }
 }
 
 module.exports = getEpubTextNodeDocuments

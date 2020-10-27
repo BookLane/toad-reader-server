@@ -22,6 +22,8 @@ const getIndexedBook = async ({ baseUri, spines, log }) => {
   let documentIndex = 0
   const searchTermCounts = {}
 
+  log(`SearchIndexing: preparing to begin indexing // Current memory usage: ${parseInt(process.memoryUsage().rss/1000000)} mb`)
+
   for(let spine of spines) {
     const spineItemPath = `${baseUri}/${spine.path}`
 
@@ -31,7 +33,9 @@ const getIndexedBook = async ({ baseUri, spines, log }) => {
       process.stdout.clearLine()
       process.stdout.cursorTo(0)
       process.stdout.write(`SearchIndexing: Parsing spine ${spineIndex} of ${spines.length}`)
-    } catch(e) {}
+    } catch(e) {
+      // log([`SearchIndexing: Parsing spine ${spineIndex} of ${spines.length} (document index: ${documentIndex})`, `${parseInt(process.memoryUsage().rss/1000000)} mb`])
+    }
 
     try {
       const { updatedDocumentIndex, documents } = await getEpubTextNodeDocuments({ spineItemPath, spineIdRef: spine.idref, documentIndex, searchTermCounts, log })
@@ -42,7 +46,7 @@ const getIndexedBook = async ({ baseUri, spines, log }) => {
       log([`SearchIndexing: Spine not found when creating search index.`, spineItemPath], 3)
     }
 
-    const maxNumSecs = 60
+    const maxNumSecs = 120
     if(
       Date.now() - startTime > 1000 * maxNumSecs
       || (
@@ -56,12 +60,31 @@ const getIndexedBook = async ({ baseUri, spines, log }) => {
       } catch(e) {}
       throw new Error(`Search indexing taking too long. Got through ${spineIndex} of ${spines.length} spines. Giving up: ${baseUri}`)
     }
+
+    const memoryUsageInMB = parseInt(process.memoryUsage().rss/1000000)
+
+    if(memoryUsageInMB > 500) {
+      throw new Error(`EPUB search index overloading memory (~${memoryUsageInMB} mb)`)
+
+    } else if(global.gc && spineIndex % 10 === 0 && memoryUsageInMB > 250) {
+      try {
+        process.stdout.clearLine()
+        process.stdout.cursorTo(0)
+      } catch(e) {}
+          
+      log(`Collect garbage as memory exceeding 250 mb...`)
+      global.gc()
+    }
+
   }
 
   try {
     process.stdout.clearLine()
     process.stdout.cursorTo(0)
   } catch(e) {}
+
+  log(`SearchIndexing: parsing done // Current memory usage: ${parseInt(process.memoryUsage().rss/1000000)} mb`)
+  log(`SearchIndexing: converting to JSON...`)
 
   const indexObj = currentMiniSearch.toJSON()
   const jsonStr = JSON.stringify(indexObj)

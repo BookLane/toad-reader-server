@@ -422,7 +422,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
           }
         }
 
-        const numInsertsAtOnce = 100
+        const numInsertsAtOnce = 500
 
         // save search index to db (needs to be down here after bookRow.id gets updated if replaceExisting is true)
         const storedFields = Object.values(indexObj.storedFields)
@@ -433,11 +433,15 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
 
           log([`INSERT ${numInsertsAtOnce} book_textnode_index rows from index ${i}...`], 2)
           await util.runQuery({
-            queries: chunk.map(() => 'INSERT INTO book_textnode_index SET ?'),
-            vars: chunk.map(textnodeInfo => ({
-              ...textnodeInfo,
-              book_id: bookRow.id,
-            })),
+            query: `INSERT INTO book_textnode_index (id, book_id, spineIdRef, text, hitIndex, context) VALUES ${chunk.map(x => `(?,?,?,?,?,?)`).join(',')}`,
+            vars: chunk.map(textnodeInfo => ([
+              textnodeInfo.id,
+              bookRow.id,
+              textnodeInfo.spineIdRef,
+              textnodeInfo.text,
+              textnodeInfo.hitIndex,
+              textnodeInfo.context,
+            ])).flat(),
             connection,
             next,
           })
@@ -453,12 +457,12 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
 
           log([`INSERT ${numInsertsAtOnce} book_textnode_index_term rows from index ${i}...`], 2)
           await util.runQuery({
-            queries: chunk.map(() => 'INSERT INTO book_textnode_index_term SET ?'),
-            vars: chunk.map(searchTerm => ({
-              term: searchTerm,
-              count: searchTermCounts[searchTerm],
-              book_id: bookRow.id,
-            })),
+            query: `INSERT INTO book_textnode_index_term (term, count, book_id) VALUES ${chunk.map(x => `(?,?,?)`).join(',')}`,
+            vars: chunk.map(searchTerm => ([
+              searchTerm,
+              searchTermCounts[searchTerm],
+              bookRow.id,
+            ])).flat(),
             connection,
             next,
           })
@@ -510,13 +514,19 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
           }
         } catch(err2) {}
   
-        if(bookRow) {
-          await deleteBookIfUnassociated(bookRow.id, next)
-          await util.updateComputedBookAccess({ idpId: req.user.idpId, bookId: bookRow.id, connection, log })
+        try {
+
+          if(bookRow) {
+            await deleteBookIfUnassociated(bookRow.id, next)
+            await util.updateComputedBookAccess({ idpId: req.user.idpId, bookId: bookRow.id, connection, log })
+          }
+
+          deleteFolderRecursive(tmpDir)
+  
+        } catch(err3) {
+          log(['Error in responding to import error!', err3.message], 3)
         }
-  
-        deleteFolderRecursive(tmpDir)
-  
+
         res.status(400).send({
           errorType: /^[-_a-z]+$/.test(err.message) ? err.message : "biblemesh_unable_to_process",
           maxMB: req.user.idpMaxMBPerBook,
