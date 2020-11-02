@@ -54,7 +54,7 @@ module.exports = function (app, s3, connection, passport, authFuncs, ensureAuthe
   require('./xapi_routes')(app, connection, ensureAuthenticatedAndCheckIDP, log);
 
   var getAssetFromS3 = function(req, res, next, notFoundCallback) {
-    var urlWithoutQuery = req.url.replace(/(\?.*)?$/, '').replace(/^\/book/,'').replace(/%20/g, ' ');
+    var urlWithoutQuery = req.originalUrl.replace(/(\?.*)?$/, '').replace(/^\/book/,'').replace(/%20/g, ' ');
     var params = {
       Bucket: process.env.S3_BUCKET,
       Key: urlWithoutQuery.replace(/^\//,'')
@@ -133,7 +133,7 @@ module.exports = function (app, s3, connection, passport, authFuncs, ensureAuthe
   app.get('/epub_content/**', function (req, res, next) {
     // TODO: Delete this after getting all tenants working with cloudfront
 
-    var urlWithoutQuery = req.url.replace(/(\?.*)?$/, '').replace(/^\/book/,'').replace(/%20/g, ' ');
+    var urlWithoutQuery = req.originalUrl.replace(/(\?.*)?$/, '').replace(/^\/book/,'').replace(/%20/g, ' ');
     var urlPieces = urlWithoutQuery.split('/');
     var bookId = parseInt((urlPieces[2] || '0').replace(/^book_([0-9]+).*$/, '$1'));
 
@@ -191,7 +191,7 @@ module.exports = function (app, s3, connection, passport, authFuncs, ensureAuthe
       };
 
       var getIco = function(idpId) {
-        req.url = '/tenant_assets/favicon-' + idpId + '.ico';
+        req.originalUrl = '/tenant_assets/favicon-' + idpId + '.ico';
         getAssetFromS3(req, res, next, getFallbackIco);
       }
 
@@ -215,7 +215,7 @@ module.exports = function (app, s3, connection, passport, authFuncs, ensureAuthe
 
   // serve the static font files
   app.get('*', function (req, res, next) {
-    var urlWithoutQuery = req.url.replace(/(\?.*)?$/, '').replace(/^\/book/,'').replace(/%20/g, ' ');
+    var urlWithoutQuery = req.originalUrl.replace(/(\?.*)?$/, '').replace(/^\/book/,'').replace(/%20/g, ' ');
 
     // TODO: Change this to only work with DEV after getting all tenants working with cloudfront
 
@@ -224,7 +224,7 @@ module.exports = function (app, s3, connection, passport, authFuncs, ensureAuthe
     const isFontFile = ['eot', 'woff', 'woff2', 'ttf', 'otf'].includes(urlWithoutQuery.toLowerCase().split('.').pop())
 
     // temporarily remove authentication of assets for safari
-    const isAsset = !/^[^?]+\.(epub|x?html|opf|ncx|xml)(?:\?.*|$)/i.test(req.url)
+    const isAsset = !/^[^?]+\.(epub|x?html|opf|ncx|xml)(?:\?.*|$)/i.test(req.originalUrl)
 
     // TODO: Lock this back down to font files only
     // if(isFontFile) {
@@ -238,7 +238,7 @@ module.exports = function (app, s3, connection, passport, authFuncs, ensureAuthe
 
   // serve the static files
   app.get('*', ensureAuthenticated, async (req, res, next) => {
-    const urlWithoutQuery = req.url.replace(/(\?.*)?$/, '').replace(/^\/book/,'').replace(/%20/g, ' ')
+    const urlWithoutQuery = req.originalUrl.replace(/(\?.*)?$/, '').replace(/^\/book/,'').replace(/%20/g, ' ')
     const urlPieces = urlWithoutQuery.split('/')
     const bookId = parseInt((urlPieces[2] || '0').replace(/^book_([0-9]+).*$/, '$1'))
 
