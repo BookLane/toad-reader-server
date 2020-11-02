@@ -518,6 +518,7 @@ app.use('/c/:cookieOverride/**', (req, res, next) => {
   const { cookieOverride } = req.params
   req.headers.cookie = cookieOverride
   req.originalUrl = req._parsedUrl.pathname = `/${req.params[0]}`
+  req.hasInitialCookiePathForEmbed = true
   next()
 })
 app.use(function(req, res, next) {
