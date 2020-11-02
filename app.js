@@ -514,6 +514,13 @@ function ensureAuthenticated(req, res, next) {
 
 app.use(bodyParser.json({ limit: '50mb' })) // for parsing application/json
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }))
+app.use('/c/:cookieOverride/**', (req, res, next) => {
+  const { cookieOverride } = req.params
+  req.headers.cookie = cookieOverride
+  req.originalUrl = req._parsedUrl.pathname = `/${req.params[0]}`
+  req.hasInitialCookiePathForEmbed = true
+  next()
+})
 app.use(function(req, res, next) {
   try {
     req.headers.cookie =
