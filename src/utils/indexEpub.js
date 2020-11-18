@@ -90,7 +90,7 @@ const getIndexedBook = async ({ baseUri, spines, log }) => {
   const jsonStr = JSON.stringify(indexObj)
   const mbSize = parseInt((jsonStr.length / (1000 * 1000)) + .5, 10)
 
-  if(mbSize > 15) {
+  if(mbSize > 50) {
     throw new Error(`EPUB content too massive (~${mbSize} mb) to create a search index: ${baseUri}`)
   }
 
@@ -100,6 +100,7 @@ const getIndexedBook = async ({ baseUri, spines, log }) => {
     indexObj,
     jsonStr,
     searchTermCounts,
+    noOfflineSearch: mbSize > 25,  // Indicates that there should not be an offline search index available, since it is too large for a phone.
   }
 }
 

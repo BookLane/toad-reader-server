@@ -281,12 +281,15 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         }
 
         // create and save search index
-        let indexObj, searchTermCounts
+        let indexObj, searchTermCounts, noOfflineSearch
         try {
           indexedBook = await getIndexedBook({ baseUri: toUploadDir, spines, log })
-          await putEPUBFile('search_index.json', indexedBook.jsonStr)
+          if(!indexedBook.noOfflineSearch) {
+            await putEPUBFile('search_index.json', indexedBook.jsonStr)
+          }
           indexObj = indexedBook.indexObj
           searchTermCounts = indexedBook.searchTermCounts
+          noOfflineSearch = indexedBook.noOfflineSearch
         } catch(e) {
           log(e.message, 3)
           throw Error(`search_indexing_failed`)
@@ -491,6 +494,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         try {  // If everything was successful, but the connection timed out, don't delete it.
           res.write(
             `"success": true,` +
+            (noOfflineSearch ? `"noOfflineSearch": true,` : ``) +
             `"bookId": ${bookRow.id}` +
             `}`
           )
