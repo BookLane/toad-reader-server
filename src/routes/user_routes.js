@@ -17,6 +17,13 @@ const getSignedCookieAsync = params => new Promise((resolve, reject) => {
   })
 })
 
+const getSignedUrlAsync = params => new Promise((resolve, reject) => {
+  cloudFront.getSignedUrl(params, (err, data) => {
+    if(err) return reject(err)
+    resolve(data)
+  })
+})
+
 module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensureAuthenticatedAndCheckIDPWithRedirect, log) {
 
   const encodeURIComp = function(comp) {
@@ -632,6 +639,63 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
 
       } catch(err) {
         log(['Error getting signed cookie', err], 3)
+        res.status(404).send({ error: 'Internal error' })
+        return
+      }
+
+    },
+  )
+
+  // Get a signed cookie for retrieving enhanced classroom content
+  // read.biblemesh.com/classroom_query_string/{classroomUid}.json
+  app.get(
+    '/classroom_query_string/:classroomUid.json',
+    ensureAuthenticatedAndCheckIDP,
+    async (req, res, next) => {
+
+      if(process.env.IS_DEV) {
+        res.status(404).send({ error: '/classroom_query_string does not work on dev' })
+        return
+      }
+
+      const { classroomUid } = req.params
+
+      // See if they have access to this book
+      const hasAccess = await util.hasClassroomAssetAccess({ classroomUid, req, connection, next })
+
+      if(!hasAccess) {
+        log(['Forbidden: user does not have access to this classroom and so a cookie was not created'], 3)
+        res.status(403).send({ error: 'Forbidden' })
+        return
+      }
+
+      const url = `${util.getFrontEndOrigin({ req })}/enhanced_assets/${classroomUid}/*`
+
+      // Get the cookie
+      const policy = JSON.stringify({
+        Statement: [
+          {
+            Resource: url,
+            Condition: {
+              DateLessThan: {
+                'AWS:EpochTime': Math.floor(Date.now() / 1000) + 60 * 60 * 24,  // in seconds (not ms)
+              },
+            },
+          },
+        ],
+      })
+
+      try {
+
+        const signedUrl = await getSignedUrlAsync({
+          policy,
+          url,
+        })
+
+        res.send({ queryString: `?${signedUrl.split('?')[1]}` })
+
+      } catch(err) {
+        log(['Error getting signed url', err], 3)
         res.status(404).send({ error: 'Internal error' })
         return
       }

@@ -15,7 +15,7 @@
   "dependencies": {
     "adm-zip": "0.4.13",
     "array-flat-polyfill": "^1.0.1",
-    "aws-sdk": "2.541.0",
+    "aws-sdk": "2.799.0",
     "body-parser": "1.19.0",
     "connect-redis": "3.2.0",
     "cookie-parser": "1.4.4",

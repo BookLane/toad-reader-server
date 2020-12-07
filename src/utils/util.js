@@ -751,6 +751,48 @@ const util = {
 
   }),
 
+  hasClassroomAssetAccess: async ({ classroomUid, req, connection, next }) => {
+
+    if(!req.isAuthenticated()) return false
+
+    const isDefaultClassroomUid = /^[0-9]+-[0-9]+$/.test(classroomUid)
+    const now = util.timestampToMySQLDatetime()
+
+    const rows = await util.runQuery({
+      query: `
+        SELECT c.uid
+        FROM classroom as c
+          LEFT JOIN classroom_member as cm_me ON (cm_me.classroom_uid=c.uid)
+          LEFT JOIN book_instance as bi ON (bi.book_id=c.book_id)
+        WHERE c.uid=:classroomUid
+          AND c.idp_id=:idpId
+          AND c.deleted_at IS NULL
+          ${isDefaultClassroomUid ? `
+            AND bi.version IN ('PUBLISHER', 'INSTRUCTOR', 'ENHANCED')
+          ` : `
+            AND cm_me.user_id=:userId
+            AND cm_me.deleted_at IS NULL
+            AND bi.version IN ('INSTRUCTOR', 'ENHANCED')
+          `}
+          AND bi.idp_id=:idpId
+          AND bi.user_id=:userId
+          AND (bi.expires_at IS NULL OR bi.expires_at>:now)
+          AND (bi.enhanced_tools_expire_at IS NULL OR bi.enhanced_tools_expire_at>:now)
+      `,
+      vars: {
+        classroomUid,
+        idpId: req.user.idpId,
+        userId: req.user.id,
+        now,
+      },
+      connection,
+      next,
+    })
+
+    return rows.length === 1
+
+  },
+
   updateComputedBookAccess: ({ idpId, userId, bookId, connection, log }) => new Promise(resolve => {
 
     // idpId and connection are required
