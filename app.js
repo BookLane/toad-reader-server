@@ -434,14 +434,26 @@ function ensureAuthenticated(req, res, next) {
 
           } else {
 
-            switch(process.env.AUTH_METHOD_OVERRIDE || idp.authMethod) {
+            const authMethod = (
+              process.env.AUTH_METHOD_OVERRIDE
+              || (
+                req.query.embedAuthJWT
+                && 'EMBED_AUTH_JWT'  // a form of session sharing
+              )
+              || idp.authMethod
+            )
 
+            switch(authMethod) {
+
+              case 'EMBED_AUTH_JWT':
               case 'SESSION_SHARING': {
+
+                const sessionSharingAsRecipientInfo = util.parseSessionSharingAsRecipientInfo(idp)
 
                 try {
 
-                  const sessionSharingAsRecipientInfo = util.parseSessionSharingAsRecipientInfo(idp)
-                  const token = jwt.verify(req.cookies[sessionSharingAsRecipientInfo.cookie], sessionSharingAsRecipientInfo.secret)
+                  const jwtToDecode = authMethod === 'EMBED_AUTH_JWT' ? req.query.embedAuthJWT : req.cookies[sessionSharingAsRecipientInfo.cookie]
+                  const token = jwt.verify(jwtToDecode, sessionSharingAsRecipientInfo.secret)
 
                   const logInSessionSharingUser = loginInfo => {
                     // the IDP does authentication via session-sharing
@@ -473,7 +485,8 @@ function ensureAuthenticated(req, res, next) {
                   }
 
                 } catch(e) {
-                  res.redirect(sessionSharingAsRecipientInfo.loginUrl || '/session-sharing-setup-error')
+                  log(['Error logging in with session-sharing', e], 3)
+                  res.redirect((sessionSharingAsRecipientInfo || {}).loginUrl || '/session-sharing-setup-error')
                 }
 
                 break
