@@ -270,16 +270,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         bookRow.isbn = isbn || ''
         bookRow.updated_at = util.timestampToMySQLDatetime()
 
-        if(coverHref) {
-          const imgData = await (
-            sharp(`${toUploadDir}/${coverHref}`)
-              .resize(284)  // twice of the 142px width that is shown on the share page
-              .png()
-              .toBuffer()
-          )
-          await putEPUBFile(null, imgData)
-        }
-
         // create and save search index
         let indexObj, searchTermCounts, noOfflineSearch
         try {
@@ -294,9 +284,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
           log(e.message, 3)
           throw Error(`search_indexing_failed`)
         }
-
-        // clean up
-        deleteFolderRecursive(tmpDir)
 
         // check if book already exists in same idp group
         log('Look for identical book in idp group')
@@ -332,6 +319,9 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         })
 
         if(rows.length === 1 && !replaceExisting) {
+
+          // clean up
+          deleteFolderRecursive(tmpDir)
 
           // delete book
           await deleteBook(bookRow.id, next)
@@ -473,9 +463,21 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
           addToResponseToKeepAlive()
         }
 
-        // these need to be down here after bookRow.id gets updated if replaceExisting is true
-        bookRow.coverHref = `epub_content/book_${bookRow.id}/${coverHref}`
+        // following block needs to be down here after bookRow.id gets updated if replaceExisting is true
         bookRow.rootUrl = `epub_content/book_${bookRow.id}`
+        if(coverHref) {
+          bookRow.coverHref = `epub_content/book_${bookRow.id}/${coverHref}`
+          const imgData = await (
+            sharp(`${toUploadDir}/${coverHref}`)
+              .resize(284)  // twice of the 142px width that is shown on the share page
+              .png()
+              .toBuffer()
+          )
+          await putEPUBFile(null, imgData)
+        }
+
+        // clean up
+        deleteFolderRecursive(tmpDir)
 
         log(['Update book row', bookRow.id, bookRow], 2)
         await util.runQuery({
