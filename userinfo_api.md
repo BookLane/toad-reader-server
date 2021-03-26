@@ -1,15 +1,17 @@
 ## Introduction
 
+### Concept
+
 Our simple server-to-server API includes two pieces:
 
-1. A “pull” (GET request)) where by our server asks your server for the list of books and subscriptions a user has access to. (This is called whenever the user logs in.)
-2. A “push” (POST request) where by your server sends the updated list of books and subscriptions a user has access to. (Should be called whenever this list would change, such as when a user makes a purchase.)
+1. A “pull” (GET request) whereby our server asks your server for the list of books and subscriptions a user has access to. (This is called whenever the user logs in.)
+2. A “push” (POST request) whereby your server sends the updated list of books and subscriptions a user has access to. (Should be called whenever these lists change, such as when a user makes a purchase.)
 
 All `payload` request parameters and return values are encoded as JWT's with a secret token of your choosing held by you (the tenant) and Toad Reader.
 
 ### Identifying the user
 
-For tenants who have opted to use Toad Reader's email login for user authentication (recommended), the `idpUserId` will be the user's email.
+For tenants who have opted to use Toad Reader's email login for user authentication (recommended), the `idpUserId` will be the user's email address.
 
 For tenants using Shibboleth for SSO authentication with Toad Reader, the `idpUserId` can be any unique user identifier from your system. It must match the value of the same parameter in the Shibboleth metadata.
 
