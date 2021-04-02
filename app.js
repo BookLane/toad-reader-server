@@ -354,7 +354,10 @@ connection.query('SELECT * FROM `idp` WHERE entryPoint IS NOT NULL',
           switch(process.env.AUTH_METHOD_OVERRIDE || row.authMethod) {
             case 'SESSION_SHARING': {
               log('Redirect to session-sharing SLO')
-              res.redirect(row.sessionSharingAsRecipientInfo.logoutUrl || '/session-sharing-setup-error')
+              res.redirect(
+                row.sessionSharingAsRecipientInfo.logoutUrl
+                || `${util.getFrontendBaseUrl(req)}#/error#${encodeURIComponent(JSON.stringify({ message: "Your session has timed out. Please log out and log back in again.", widget: 1 }))}`
+              )
               break
             }
             case 'SHIBBOLETH': {
@@ -486,7 +489,10 @@ function ensureAuthenticated(req, res, next) {
 
                 } catch(e) {
                   log(['Error logging in with session-sharing', e], 3)
-                  res.redirect((sessionSharingAsRecipientInfo || {}).loginUrl || '/session-sharing-setup-error')
+                  res.redirect(
+                    (sessionSharingAsRecipientInfo || {}).loginUrl
+                    || `${util.getFrontendBaseUrl(req)}#/error#${encodeURIComponent(JSON.stringify({ message: "Your session has timed out. Please log out and log back in again.", widget: 1 }))}`
+                  )
                 }
 
                 break
