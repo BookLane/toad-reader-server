@@ -47,11 +47,12 @@ const getIndexedBook = async ({ baseUri, spines, log }) => {
     }
 
     const maxNumSecs = 120
+    const minSecsToAttempt = 10
     if(
       Date.now() - startTime > 1000 * maxNumSecs
       || (
-        Date.now() - startTime > 1000 * 5
-        && spineIndex/spines.length < 5/maxNumSecs
+        Date.now() - startTime > 1000 * minSecsToAttempt
+        && spineIndex/spines.length < minSecsToAttempt/maxNumSecs
       )
     ) {
       try {
