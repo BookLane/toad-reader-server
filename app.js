@@ -370,6 +370,10 @@ connection.query('SELECT * FROM `idp` WHERE entryPoint IS NOT NULL',
                   //redirect to the IdP Logout URL
                   res.redirect(req2)
                 })
+              } else {
+                // not sure why it gets here sometimes, but it does
+                log('No ssoData. Skipping SLO and redirecting to /logout/callback.', 2)
+                res.redirect("/logout/callback")
               }
               break
             }
