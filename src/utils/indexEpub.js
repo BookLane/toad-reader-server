@@ -22,6 +22,8 @@ const getIndexedBook = async ({ baseUri, spines, log }) => {
   let documentIndex = 0
   const searchTermCounts = {}
 
+  global.gc && global.gc()
+
   log(`SearchIndexing: preparing to begin indexing // Current memory usage: ${parseInt(process.memoryUsage().rss/1000000)} mb`)
 
   for(let spine of spines) {
@@ -73,7 +75,7 @@ const getIndexedBook = async ({ baseUri, spines, log }) => {
         process.stdout.cursorTo(0)
       } catch(e) {}
           
-      log(`Collect garbage as memory exceeding 250 mb...`)
+      log(`Collect garbage as memory exceeding 250 mb (currently ~${memoryUsageInMB} mb)...`)
       global.gc()
     }
 
