@@ -273,7 +273,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         // create and save search index
         let indexObj, searchTermCounts, noOfflineSearch
         try {
-          indexedBook = await getIndexedBook({ baseUri: toUploadDir, spines, log })
+          const indexedBook = await getIndexedBook({ baseUri: toUploadDir, spines, log })
           if(!indexedBook.noOfflineSearch) {
             await putEPUBFile('search_index.json', indexedBook.jsonStr)
           }
