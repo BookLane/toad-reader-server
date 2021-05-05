@@ -282,7 +282,15 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
           noOfflineSearch = indexedBook.noOfflineSearch
         } catch(e) {
           log(e.message, 3)
-          throw Error(`search_indexing_failed`)
+          if(/^Search indexing taking too long/.test(e.message)) {
+            throw Error(`search_indexing_too_slow`)
+          } else if(/^EPUB content too massive/.test(e.message)) {
+            throw Error(`text_content_too_massive_for_search_indexing`)
+          } else if(/^EPUB search index overloading memory/.test(e.message)) {
+            throw Error(`search_indexing_memory_overload`)
+          } else {
+            throw Error(`search_indexing_failed`)
+          }
         }
 
         // check if book already exists in same idp group
