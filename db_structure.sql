@@ -333,7 +333,7 @@ CREATE TABLE `idp` (
   `xapiMaxBatchSize` int(11) DEFAULT NULL,
   `readingSessionsOn` tinyint(1) NOT NULL DEFAULT '0',
   `consentText` text COLLATE utf8_bin,
-  `maxMBPerBook` int(11) NOT NULL DEFAULT '40',
+  `maxMBPerBook` int(11) NOT NULL DEFAULT '20',
   `maxMBPerFile` int(11) NOT NULL DEFAULT '15',
   `googleAnalyticsCode` text COLLATE utf8_bin,
   `language` varchar(5) COLLATE utf8_bin DEFAULT NULL,
