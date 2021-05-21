@@ -455,6 +455,7 @@ const util = {
     const version = '1.0'
     const payload = jwt.sign({ idpUserId }, idp.userInfoJWT)
     const connectorCharacter = /\?/.test(idp.userInfoEndpoint) ? `&` : `?`
+    let jwtStr
 
     try {
 
@@ -465,7 +466,7 @@ const util = {
         // next('Bad login.')
       }
 
-      const jwtStr = await response.text()
+      jwtStr = await response.text()
       const jwtObj = jwt.verify(jwtStr, idp.userInfoJWT)
 
       log(['Response from userInfoEndpoint', jwtObj], 1)
@@ -477,6 +478,7 @@ const util = {
 
     } catch (err) {
       log(['Fetch to userInfoEndpoint failed', err.message], 3)
+      log(['Fetch response:', jwtStr], 3)
       // next('Bad login.')
     }
 
