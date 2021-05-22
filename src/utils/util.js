@@ -455,11 +455,11 @@ const util = {
     const version = '1.0'
     const payload = jwt.sign({ idpUserId }, idp.userInfoJWT)
     const connectorCharacter = /\?/.test(idp.userInfoEndpoint) ? `&` : `?`
-    let jwtStr
+    let response, jwtStr
 
     try {
 
-      const response = await fetch(`${idp.userInfoEndpoint}${connectorCharacter}version=${version}&payload=${payload}`)
+      response = await fetch(`${idp.userInfoEndpoint}${connectorCharacter}version=${version}&payload=${payload}`)
 
       if(response.status !== 200) {
         log(['Invalid response from userInfoEndpoint'], 3)
@@ -478,7 +478,7 @@ const util = {
 
     } catch (err) {
       log(['Fetch to userInfoEndpoint failed', err.message], 3)
-      log(['Fetch response:', jwtStr], 3)
+      log(['Fetch response:', jwtStr, response.status, response.headers], 3)
       // next('Bad login.')
     }
 
@@ -1089,7 +1089,7 @@ const util = {
       req.idpId = parseInt(idpRow.id, 10)
       req.payload_decoded = jwt.verify(req.params.payload || req.body.payload, idpRow[jwtColInIdp])
     } catch(err) {
-      log(["Invalid payload.", req.headers.host, req.params.payload || req.body.payload, jwtColInIdp, err], 3)
+      log(["Invalid payload.", req.headers.host, req.params.payload || req.body.payload, req.body, jwtColInIdp, err], 3)
       if(!ignoreError) {
         return res.status(403).send({ success: false })
       }
