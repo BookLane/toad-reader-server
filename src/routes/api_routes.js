@@ -5,7 +5,7 @@ module.exports = function (app, connection, log) {
   app.post('/updateuserinfo',
     util.decodeJWT({ jwtColInIdp: 'userInfoJWT', connection, log }),
     (req, res, next) => {
-      log(["/updateuserinfo post", req.body, req.payload_decoded], 2)
+      log(["/updateuserinfo post", req.body, JSON.stringify(req.payload_decoded, null, 2)], 2)
 
       util.updateUserInfo({
         connection,

@@ -506,7 +506,7 @@ const util = {
     //   ]
     // }
 
-    log(['Attempt to update userInfo', userInfo], 1)
+    log(['Attempt to update userInfo', JSON.stringify(userInfo, null, 2)], 1)
 
     const { idpUserId, email, fullname, adminLevel, forceResetLoginBefore, ssoData } = userInfo
 
