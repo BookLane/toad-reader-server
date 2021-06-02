@@ -160,6 +160,10 @@ String
 }
 ```
 
+### Notes
+
+- If `flags` contains an item with the value `trial`, then a "Trial" indicator will be seen in the user’s library. No other flags are used at this time.
+
 ### Simple example of typical usage
 ```json
 {
