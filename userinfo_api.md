@@ -87,7 +87,14 @@ String
 
 #### On Success: `[User Info Payload]` (see below)
 
-#### On Error (eg. idpUserId or accessCode not valid): HTTP Status Code `400`
+#### On Error (eg. idpUserId or accessCode not valid): HTTP Status Code `400`, optionally including an error message to be passed on to the user
+
+##### Example error response
+```json
+{
+  "errorMessage": "This code is expired."
+}
+```
 
 ### Notes
 

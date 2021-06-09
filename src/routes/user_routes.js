@@ -845,7 +845,14 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
           log,
         })
       } catch(err) {
-        res.status(400).send()
+        const apiErrorPrefix = /^API:/
+        res.status(400).send(
+          apiErrorPrefix.test(err.message)
+            ? {
+              errorMessage: err.message.replace(apiErrorPrefix, ''),
+            }
+            : ''
+        )
         return
       }
 

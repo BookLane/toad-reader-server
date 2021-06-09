@@ -498,7 +498,6 @@ const util = {
     let response, jwtStr, userInfo
 
     try {
-
       const options = {
         method: 'post',
         body: JSON.stringify({
@@ -512,8 +511,14 @@ const util = {
 
       response = await fetch(idp.accessCodeEndpoint, options)
 
+      if(response.status === 400) {
+        const { errorMessage }  = await response.json() || {}
+        if(errorMessage) throw new Error(`API:${errorMessage}`)
+        throw new Error(`Invalid 400 response from accessCodeEndpoint`)
+      }
+
       if(response.status !== 200) {
-        throw `Invalid response from accessCodeEndpoint`
+        throw new Error(`Invalid response from accessCodeEndpoint`)
       }
 
       jwtStr = await response.text()
@@ -522,9 +527,9 @@ const util = {
       log(['Response from accessCodeEndpoint', userInfo], 1)
 
     } catch (err) {
-      log(['POST to accessCodeEndpoint failed', err.message], 3)
+      log(['POST to accessCodeEndpoint failed', err], 3)
       log(['POST response:', jwtStr, (response || {}).status, (response || {}).headers], 3)
-      next('accessCodeEndpoint POST returned error: ' + err.message)
+      throw err
     }
 
     await util.updateUserInfo({ connection, log, userInfo, idpId: idp.id, next })
