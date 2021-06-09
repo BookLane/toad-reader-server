@@ -39,7 +39,6 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
         isAdmin: req.user.isAdmin,
         idpId: req.user.idpId,
         idpName: req.user.idpName,
-        idpAccessCodeInfo: req.user.idpAccessCodeInfo,
         idpAssetsBaseUrl: 'https://s3.amazonaws.com/' + process.env.S3_BUCKET + '/tenant_assets/',
         idpLang: req.user.idpLang || 'en',
         idpExpire: req.user.idpExpire,
@@ -698,8 +697,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
     },
   )
 
-  // get epub_library.json with library listing for given user
-  app.get('/epub_content/epub_library.json', ensureAuthenticatedAndCheckIDP, function (req, res, next) {
+  const getLibrary = function (req, res, next) {
 
     const now = util.timestampToMySQLDatetime();
 
@@ -802,7 +800,58 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
 
       }
     )
-  })
+  }
+
+  // get epub_library.json with library listing for given user
+  app.get(
+    '/epub_content/epub_library.json',
+    ensureAuthenticatedAndCheckIDP,
+    getLibrary,
+  )
+
+  app.post(
+    '/submitaccesscode',
+    ensureAuthenticatedAndCheckIDP,
+    async (req, res, next) => {
+
+      const [ idp={} ] = await util.runQuery({
+        query: 'SELECT * FROM idp WHERE domain=:domain',
+        vars: {
+          domain: util.getIDPDomain(req.headers),
+        },
+        connection,
+        next,
+      })
+
+      if(!req.body.accessCode) {
+        log(['Missing access code on /submitaccesscode post', req.body], 3)
+        res.status(400).send()
+        return
+      }
+
+      if(!idp.accessCodeEndpoint) {
+        log(['Configuration not set up for /submitaccesscode', idp], 3)
+        res.status(400).send()
+        return
+      }
+
+      try {
+        await util.submitAccessCode({
+          accessCode: req.body.accessCode,
+          idp,
+          idpUserId: req.user.userIdFromIdp,
+          next,
+          connection,
+          log,
+        })
+      } catch(err) {
+        res.status(400).send()
+        return
+      }
+
+      return getLibrary(req, res, next)
+    },
+  )
  
   app.post('/addpushtoken', ensureAuthenticatedAndCheckIDP, async (req, res, next) => {
 

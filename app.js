@@ -153,12 +153,12 @@ const deserializeUser = ({ userId, ssoData, next }) => new Promise(resolve => {
   
   const fields = `
     user.id,
+    user.user_id_from_idp,
     user.email,
     user.fullname,
     user.adminLevel,
     user.idp_id,
     idp.name,
-    idp.accessCodeInfo,
     idp.language,
     idp.androidAppURL,
     idp.iosAppURL,
@@ -185,20 +185,15 @@ const deserializeUser = ({ userId, ssoData, next }) => new Promise(resolve => {
 
       const row = rows[0]
 
-      let idpAccessCodeInfo = null
-      try {
-        idpAccessCodeInfo = JSON.parse(row.accessCodeInfo)
-      } catch(err) {}
-
       const user = {
         id: row.id,
+        userIdFromIdp: row.user_id_from_idp,
         email: row.email,
         fullname: row.fullname,
         isAdmin: [ 'SUPER_ADMIN', 'ADMIN' ].includes(row.adminLevel),
         ssoData,
         idpId: row.idp_id,
         idpName: row.name,
-        idpAccessCodeInfo,
         idpLang: row.language || 'en',
         idpAndroidAppURL: row.androidAppURL,
         idpIosAppURL: row.iosAppURL,

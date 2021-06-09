@@ -7,7 +7,7 @@
 #
 # Host: localhost (MySQL 8.0.22)
 # Database: ToadReader
-# Generation Time: 2021-06-07 20:03:19 +0000
+# Generation Time: 2021-06-09 14:01:19 +0000
 # ************************************************************
 
 
@@ -313,7 +313,6 @@ CREATE TABLE `idp` (
   `name` text CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `domain` varchar(253) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL DEFAULT '',
   `fromEmail` text CHARACTER SET utf8 COLLATE utf8_general_ci,
-  `accessCodeInfo` text COLLATE utf8_bin,
   `authMethod` enum('SESSION_SHARING','SHIBBOLETH','EMAIL','NONE_OR_EMAIL') CHARACTER SET utf8 COLLATE utf8_bin NOT NULL DEFAULT 'NONE_OR_EMAIL',
   `sessionSharingAsRecipientInfo` text CHARACTER SET utf8 COLLATE utf8_bin,
   `entryPoint` text CHARACTER SET utf8 COLLATE utf8_bin,
@@ -325,6 +324,7 @@ CREATE TABLE `idp` (
   `internalJWT` text CHARACTER SET utf8 COLLATE utf8_bin,
   `userInfoEndpoint` varchar(255) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
   `userInfoJWT` text CHARACTER SET utf8 COLLATE utf8_bin,
+  `accessCodeEndpoint` text CHARACTER SET utf8 COLLATE utf8_bin,
   `androidAppURL` text CHARACTER SET utf8 COLLATE utf8_bin,
   `iosAppURL` text CHARACTER SET utf8 COLLATE utf8_bin,
   `xapiOn` tinyint(1) NOT NULL DEFAULT '0',

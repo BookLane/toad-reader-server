@@ -60,7 +60,7 @@ String
 
 ### Method: POST
 
-### Parameters:
+### Body Parameters:
 
 #### `version`
 ```

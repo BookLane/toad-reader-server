@@ -478,11 +478,56 @@ const util = {
 
     } catch (err) {
       log(['Fetch to userInfoEndpoint failed', err.message], 3)
-      log(['Fetch response:', jwtStr, response.status, response.headers], 3)
+      log(['Fetch response:', jwtStr, (response || {}).status, (response || {}).headers], 3)
       // next('Bad login.')
     }
 
     return await util.updateUserInfo({ connection, log, userInfo, idpId: idp.id, updateLastLoginAt: true, next })
+
+  },
+
+  submitAccessCode: async ({
+    accessCode,
+    idp,
+    idpUserId,
+    next,
+    connection,
+    log,
+  }) => {
+
+    let response, jwtStr, userInfo
+
+    try {
+
+      const options = {
+        method: 'post',
+        body: JSON.stringify({
+          version: '1.0',
+          payload: jwt.sign({ idpUserId, accessCode }, idp.userInfoJWT),
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }
+
+      response = await fetch(idp.accessCodeEndpoint, options)
+
+      if(response.status !== 200) {
+        throw `Invalid response from accessCodeEndpoint`
+      }
+
+      jwtStr = await response.text()
+      userInfo = jwt.verify(jwtStr, idp.userInfoJWT)
+
+      log(['Response from accessCodeEndpoint', userInfo], 1)
+
+    } catch (err) {
+      log(['POST to accessCodeEndpoint failed', err.message], 3)
+      log(['POST response:', jwtStr, (response || {}).status, (response || {}).headers], 3)
+      next('accessCodeEndpoint POST returned error: ' + err.message)
+    }
+
+    await util.updateUserInfo({ connection, log, userInfo, idpId: idp.id, next })
 
   },
 
