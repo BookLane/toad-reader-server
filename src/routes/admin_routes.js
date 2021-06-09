@@ -125,7 +125,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
 
     if(!req.user.isAdmin) {
       log('No permission to delete book', 3);
-      res.status(403).send({ errorType: "biblemesh_no_permission" });
+      res.status(403).send({ errorType: "no_permission" });
       return;
     }
 
@@ -173,10 +173,18 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
 
       try {
 
-        if(!req.user.isAdmin) {
-          throw new Error(`biblemesh_no_permission`)
+        if(
+          req.tenantAuthInfo
+          && (req.tenantAuthInfo || {}).action !== 'importbook'
+          && (req.tenantAuthInfo || {}).domain !== util.getIDPDomain(req.headers)
+        ) {
+          throw new Error(`invalid_tenant_auth`)
         }
-  
+
+        if(!req.tenantAuthInfo && !req.user.isAdmin) {
+          throw new Error(`no_permission`)
+        }
+
         const putEPUBFile = async (relfilepath, body) => {
           const key = relfilepath
             ? `epub_content/book_${bookRow.id}/${relfilepath}`
@@ -211,14 +219,14 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         const filename = file.originalFilename
 
         if(!filename) {
-          throw new Error(`biblemesh_invalid_filename`)
+          throw new Error(`invalid_filename`)
         }
 
         const priceMatch = filename.match(/\$([0-9]+)\.([0-9]{2})(\.[^\.]+)?$/)
         const epubSizeInMB = Math.ceil(file.size/1024/1024)
 
         if(epubSizeInMB > req.user.idpMaxMBPerBook) {
-          throw new Error(`biblemesh_file_too_large`)
+          throw new Error(`file_too_large`)
         }
 
         bookRow = {
@@ -261,7 +269,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         const { title, author, isbn, coverHref, spines, success } = await parseEpub({ baseUri: toUploadDir, log })
 
         if(!success) {
-          throw Error(`biblemesh_unable_to_process`)
+          throw Error(`unable_to_process`)
         }
 
         // prep to insert the book row
@@ -542,7 +550,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         }
 
         res.status(400).send({
-          errorType: /^[-_a-z]+$/.test(err.message) ? err.message : "biblemesh_unable_to_process",
+          errorType: /^[-_a-z]+$/.test(err.message) ? err.message : "unable_to_process",
           maxMB: req.user.idpMaxMBPerBook,
         })
       }
@@ -550,7 +558,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
     })
 
     form.on('error', err => {
-      res.status(400).send({ errorType: `biblemesh_bad_file` })
+      res.status(400).send({ errorType: `bad_file` })
     })
 
     form.parse(req)
@@ -597,7 +605,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
 
           if(!filename || !/-[0-9]+\.[^.]+$/.test(filename)) {
             deleteFolderRecursive(tmpDir)
-            res.status(400).send({ errorType: "biblemesh_invalid_filename" })
+            res.status(400).send({ errorType: "invalid_filename" })
             return
           }
 
@@ -605,7 +613,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
 
           if(fileSizeInMB > req.user.idpMaxMBPerFile) {
             res.status(400).send({
-              errorType: "biblemesh_file_too_large",
+              errorType: "file_too_large",
               maxMB: req.user.idpMaxMBPerFile,
             })
             return
@@ -638,7 +646,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         form.on('error', err => {
           log(['importfile error', err], 3)
           deleteFolderRecursive(tmpDir)
-          res.status(400).send({ errorType: "biblemesh_bad_file" })
+          res.status(400).send({ errorType: "bad_file" })
         })
 
         form.parse(req)
@@ -653,7 +661,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
 
     if(!req.user.isAdmin) {
       log('No permission to modify subscriptions', 3)
-      res.status(403).send({ errorType: "biblemesh_no_permission" })
+      res.status(403).send({ errorType: "no_permission" })
       return
     }
 
@@ -705,7 +713,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
 
     if(bookOnIdp.length === 0) {
       log('No permission to modify subscriptions on this book', 3)
-      res.status(403).send({ errorType: "biblemesh_no_permission" })
+      res.status(403).send({ errorType: "no_permission" })
       return
     }
 
@@ -754,7 +762,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
       })
     })) {
       log('No permission to add requested subscription', 3)
-      res.status(403).send({ errorType: "biblemesh_no_permission" })
+      res.status(403).send({ errorType: "no_permission" })
       return
     }
 
@@ -776,7 +784,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
 
     if(!req.user.isAdmin) {
       log('No permission to view usage costs', 3)
-      res.status(403).send({ errorType: "biblemesh_no_permission" })
+      res.status(403).send({ errorType: "no_permission" })
       return
     }
 

@@ -20,7 +20,7 @@ module.exports = function (app, s3, connection, passport, authFuncs, ensureAuthe
   //           if(redirectOnExpire) {
   //             return res.redirect('https://' + process.env.APP_URL + '?domain_expired=1');
   //           } else {
-  //             return res.status(403).send({ errorType: "biblemesh_no_idp" });
+  //             return res.status(403).send({ errorType: "no_idp" });
   //           }
   //         }
 
@@ -268,7 +268,7 @@ module.exports = function (app, s3, connection, passport, authFuncs, ensureAuthe
 
       if(!hasAccess) {
         log('No permission to view file', 3)
-        res.status(403).send({ errorType: "biblemesh_no_permission" })
+        res.status(403).send({ errorType: "no_permission" })
         return
       }
 

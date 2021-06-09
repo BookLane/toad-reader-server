@@ -4,7 +4,7 @@ var threadIdx = 0;
 
 module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log) {
 
-  // read.biblemesh.com/reportReading
+  // books.toadreader.com/reportReading
   app.post('/reportReading', ensureAuthenticatedAndCheckIDP, function (req, res, next) {
 
     if(!req.user.idpXapiOn && !req.user.idpReadingSessionsOn) {

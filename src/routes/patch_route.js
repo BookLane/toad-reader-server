@@ -5,7 +5,7 @@ const patchClassrooms = require('./patch_keys/patch_classrooms')
 
 module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log) {
 
-  // read.biblemesh.com/users/{user_id}/books/{book_id}.json
+  // books.toadreader.com/users/{user_id}/books/{book_id}.json
   app.all('/users/:userId/books/:bookId.json', ensureAuthenticatedAndCheckIDP, function (req, res, next) {
 
     if(['PATCH', 'POST'].indexOf(req.method) != -1) {

@@ -209,15 +209,15 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
   });
 
   // Accepts GET method to retrieve the app
-  // read.biblemesh.com
-  // read.biblemesh.com/book/{book_id}
+  // books.toadreader.com
+  // books.toadreader.com/book/{book_id}
   app.get(['/', '/book/:bookId'], ensureAuthenticatedAndCheckIDPWithRedirect, function (req, res) {
     log(['Deliver index for user', req.user]);
     res.sendFile(path.join(process.cwd(), process.env.APP_PATH || '/index.html'))
   })
 
   // Accepts GET method to retrieve a book’s user-data
-  // read.biblemesh.com/users/{user_id}/books/{book_id}.json
+  // books.toadreader.com/users/{user_id}/books/{book_id}.json
   app.get('/users/:userId/books/:bookId.json', ensureAuthenticatedAndCheckIDP, function (req, res, next) {
 
     if(parseInt(req.params.userId, 10) !== req.user.id) {
@@ -587,7 +587,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
   });
 
   // Get a signed cookie for retrieving book content
-  // read.biblemesh.com/book_cookies/{book_id}.json
+  // books.toadreader.com/book_cookies/{book_id}.json
   app.get(
     '/book_cookies/:bookId.json',
     ensureAuthenticatedAndCheckIDP,
@@ -641,7 +641,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
   )
 
   // Get a signed cookie for retrieving enhanced classroom content
-  // read.biblemesh.com/classroom_query_string/{classroomUid}.json
+  // books.toadreader.com/classroom_query_string/{classroomUid}.json
   app.get(
     '/classroom_query_string/:classroomUid.json',
     ensureAuthenticatedAndCheckIDP,

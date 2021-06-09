@@ -1296,7 +1296,7 @@ const util = {
 
     if(rows.length === 0) {
       log(['No permission to edit classroom', req], 3)
-      res.status(403).send({ errorType: "biblemesh_no_permission" })
+      res.status(403).send({ errorType: "no_permission" })
       return false
     }
 

@@ -149,6 +149,19 @@ passport.serializeUser((user, done) => {
   )
 })
 
+const getIdpPrefixedValues = row => ({
+  idpId: row.idp_id,
+  idpName: row.name,
+  idpLang: row.language || 'en',
+  idpAndroidAppURL: row.androidAppURL,
+  idpIosAppURL: row.iosAppURL,
+  idpXapiOn: row.xapiOn,
+  idpReadingSessionsOn: row.readingSessionsOn,
+  idpConsentText: row.consentText,
+  idpMaxMBPerBook: row.maxMBPerBook,
+  idpMaxMBPerFile: row.maxMBPerFile,
+})
+
 const deserializeUser = ({ userId, ssoData, next }) => new Promise(resolve => {
   
   const fields = `
@@ -192,16 +205,7 @@ const deserializeUser = ({ userId, ssoData, next }) => new Promise(resolve => {
         fullname: row.fullname,
         isAdmin: [ 'SUPER_ADMIN', 'ADMIN' ].includes(row.adminLevel),
         ssoData,
-        idpId: row.idp_id,
-        idpName: row.name,
-        idpLang: row.language || 'en',
-        idpAndroidAppURL: row.androidAppURL,
-        idpIosAppURL: row.iosAppURL,
-        idpXapiOn: row.xapiOn,
-        idpReadingSessionsOn: row.readingSessionsOn,
-        idpConsentText: row.consentText,
-        idpMaxMBPerBook: row.maxMBPerBook,
-        idpMaxMBPerFile: row.maxMBPerFile,
+        ...getIdpPrefixedValues(row),
       }
 
       resolve(user)
@@ -389,8 +393,36 @@ connection.query('SELECT * FROM `idp` WHERE entryPoint IS NOT NULL',
   }
 )
 
-function ensureAuthenticated(req, res, next) {
-  if (req.isAuthenticated()) {
+const ensureAuthenticated = async (req, res, next) => {
+
+  if(req.headers['x-tenant-auth']) {
+
+    const [ row={} ] = await util.runQuery({
+      query: 'SELECT * FROM idp WHERE domain=:domain',
+      vars: {
+        domain: util.getIDPDomain(req.headers),
+      },
+      connection,
+      next,
+    })
+
+    try {
+
+      req.tenantAuthInfo = jwt.verify(
+        req.headers['x-tenant-auth'],
+        row.userInfoJWT,
+        {
+          maxAge: '15m',
+        },
+      )
+
+      req.user = req.user || getIdpPrefixedValues(row)
+
+    } catch(err) {
+      next(err)
+    }
+
+  } else if (req.isAuthenticated()) {
     return next()
 
   } else if(
