@@ -777,7 +777,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
           }
         })
 
-        const hash = md5(rows)
+        const hash = md5(JSON.stringify(rows))
 
         if(hash === req.query.hash) {
           log(['No change to library.', rows.length])
