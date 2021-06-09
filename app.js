@@ -158,7 +158,7 @@ const deserializeUser = ({ userId, ssoData, next }) => new Promise(resolve => {
     user.adminLevel,
     user.idp_id,
     idp.name,
-    idp.useReaderTxt,
+    idp.accessCodeInfo,
     idp.language,
     idp.androidAppURL,
     idp.iosAppURL,
@@ -185,6 +185,11 @@ const deserializeUser = ({ userId, ssoData, next }) => new Promise(resolve => {
 
       const row = rows[0]
 
+      let idpAccessCodeInfo = null
+      try {
+        idpAccessCodeInfo = JSON.parse(row.accessCodeInfo)
+      } catch(err) {}
+
       const user = {
         id: row.id,
         email: row.email,
@@ -193,7 +198,7 @@ const deserializeUser = ({ userId, ssoData, next }) => new Promise(resolve => {
         ssoData,
         idpId: row.idp_id,
         idpName: row.name,
-        idpUseReaderTxt: row.useReaderTxt,
+        idpAccessCodeInfo,
         idpLang: row.language || 'en',
         idpAndroidAppURL: row.androidAppURL,
         idpIosAppURL: row.iosAppURL,

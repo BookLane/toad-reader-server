@@ -32,19 +32,14 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
 
   // get current milliseconds timestamp for syncing clock with the client
   app.get('/usersetup.json', ensureAuthenticatedAndCheckIDP, function (req, res) {
-    const [ firstname, ...lastnamePieces ] = req.user.fullname.split(' ')
-    const lastname = lastnamePieces.join(' ')
-
     var returnData = {
       userInfo: {
         id: req.user.id,
-        firstname,  // unneeded after I update all apps
-        lastname,  // unneeded after I update all apps
         fullname: req.user.fullname,
         isAdmin: req.user.isAdmin,
         idpId: req.user.idpId,
         idpName: req.user.idpName,
-        idpUseReaderTxt: req.user.idpUseReaderTxt,  // unneeded after I update all apps
+        idpAccessCodeInfo: req.user.idpAccessCodeInfo,
         idpAssetsBaseUrl: 'https://s3.amazonaws.com/' + process.env.S3_BUCKET + '/tenant_assets/',
         idpLang: req.user.idpLang || 'en',
         idpExpire: req.user.idpExpire,

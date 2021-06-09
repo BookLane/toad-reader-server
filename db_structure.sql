@@ -1,13 +1,13 @@
 # ************************************************************
 # Sequel Pro SQL dump
-# Version 4541
+# Version 5420
 #
-# http://www.sequelpro.com/
+# https://www.sequelpro.com/
 # https://github.com/sequelpro/sequelpro
 #
-# Host: localhost (MySQL 5.7.27)
+# Host: localhost (MySQL 8.0.22)
 # Database: ToadReader
-# Generation Time: 2020-08-24 22:06:23 +0000
+# Generation Time: 2021-06-07 20:03:19 +0000
 # ************************************************************
 
 
@@ -15,6 +15,7 @@
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
 /*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
 /*!40101 SET NAMES utf8 */;
+SET NAMES utf8mb4;
 /*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
@@ -24,15 +25,15 @@
 # ------------------------------------------------------------
 
 CREATE TABLE `book` (
-  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
-  `title` text CHARACTER SET utf8mb4 NOT NULL,
-  `author` text CHARACTER SET utf8mb4 NOT NULL,
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `title` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
+  `author` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
   `isbn` varchar(150) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
-  `coverHref` text CHARACTER SET utf8mb4,
-  `rootUrl` varchar(100) CHARACTER SET utf8mb4 DEFAULT '',
+  `coverHref` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci,
+  `rootUrl` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT '',
   `updated_at` datetime(3) NOT NULL,
-  `standardPriceInCents` int(11) DEFAULT NULL,
-  `epubSizeInMB` int(11) DEFAULT NULL,
+  `standardPriceInCents` int DEFAULT NULL,
+  `epubSizeInMB` int DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `rootUrl` (`rootUrl`),
   KEY `isbn` (`isbn`)
@@ -44,17 +45,17 @@ CREATE TABLE `book` (
 # ------------------------------------------------------------
 
 CREATE TABLE `book_download` (
-  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
-  `book_id` int(11) unsigned NOT NULL,
-  `idp_id` int(11) unsigned NOT NULL,
-  `user_id` int(11) NOT NULL,
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `book_id` int unsigned NOT NULL,
+  `idp_id` int unsigned NOT NULL,
+  `user_id` int NOT NULL,
   `downloaded_at` datetime(3) NOT NULL,
   PRIMARY KEY (`id`),
   KEY `book_id` (`book_id`),
   KEY `idp_id` (`idp_id`),
   KEY `user_id` (`user_id`),
   KEY `downloaded_at` (`downloaded_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
 
@@ -62,15 +63,15 @@ CREATE TABLE `book_download` (
 # ------------------------------------------------------------
 
 CREATE TABLE `book_instance` (
-  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
-  `idp_id` int(11) NOT NULL,
-  `book_id` int(11) unsigned NOT NULL,
-  `user_id` int(11) NOT NULL,
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `idp_id` int NOT NULL,
+  `book_id` int unsigned NOT NULL,
+  `user_id` int NOT NULL,
   `first_given_access_at` datetime(3) NOT NULL,
-  `version` enum('BASE','ENHANCED','PUBLISHER','INSTRUCTOR') CHARACTER SET utf8mb4 NOT NULL DEFAULT 'BASE',
+  `version` enum('BASE','ENHANCED','PUBLISHER','INSTRUCTOR') CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT 'BASE',
   `expires_at` datetime(3) DEFAULT NULL,
   `enhanced_tools_expire_at` datetime(3) DEFAULT NULL,
-  `flags` text CHARACTER SET utf8mb4,
+  `flags` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci,
   PRIMARY KEY (`id`),
   UNIQUE KEY `idp_id` (`idp_id`,`user_id`,`book_id`),
   KEY `idp_id_2` (`idp_id`),
@@ -88,16 +89,16 @@ CREATE TABLE `book_instance` (
 # ------------------------------------------------------------
 
 CREATE TABLE `book_textnode_index` (
-  `id` int(11) unsigned NOT NULL,
-  `book_id` int(11) unsigned NOT NULL,
+  `id` int unsigned NOT NULL,
+  `book_id` int unsigned NOT NULL,
   `spineIdRef` varchar(150) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
   `text` varchar(10000) NOT NULL DEFAULT '',
-  `hitIndex` int(11) unsigned NOT NULL,
+  `hitIndex` int unsigned NOT NULL,
   `context` text NOT NULL,
   PRIMARY KEY (`id`,`book_id`),
   KEY `book_id` (`book_id`),
   FULLTEXT KEY `text` (`text`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
 
@@ -105,13 +106,13 @@ CREATE TABLE `book_textnode_index` (
 # ------------------------------------------------------------
 
 CREATE TABLE `book_textnode_index_term` (
-  `book_id` int(11) unsigned NOT NULL,
+  `book_id` int unsigned NOT NULL,
   `term` varchar(150) NOT NULL DEFAULT '',
-  `count` int(11) unsigned NOT NULL,
+  `count` int unsigned NOT NULL,
   KEY `book_id` (`book_id`),
   KEY `term` (`term`),
   KEY `count` (`count`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
 
@@ -119,8 +120,8 @@ CREATE TABLE `book_textnode_index_term` (
 # ------------------------------------------------------------
 
 CREATE TABLE `book-idp` (
-  `book_id` int(11) unsigned NOT NULL,
-  `idp_id` int(11) unsigned NOT NULL,
+  `book_id` int unsigned NOT NULL,
+  `idp_id` int unsigned NOT NULL,
   `link_href` text CHARACTER SET utf8mb4 COLLATE utf8mb4_bin,
   `link_label` text CHARACTER SET utf8mb4 COLLATE utf8mb4_bin,
   PRIMARY KEY (`book_id`,`idp_id`)
@@ -133,8 +134,8 @@ CREATE TABLE `book-idp` (
 
 CREATE TABLE `classroom` (
   `uid` varchar(36) NOT NULL DEFAULT '',
-  `idp_id` int(11) unsigned NOT NULL,
-  `book_id` int(11) unsigned NOT NULL,
+  `idp_id` int unsigned NOT NULL,
+  `book_id` int unsigned NOT NULL,
   `name` varchar(255) NOT NULL DEFAULT '',
   `access_code` varchar(10) DEFAULT NULL,
   `instructor_access_code` varchar(10) DEFAULT NULL,
@@ -160,7 +161,7 @@ CREATE TABLE `classroom` (
   KEY `updated_at` (`updated_at`),
   KEY `deleted_at` (`deleted_at`),
   KEY `based_off_classroom_uid` (`based_off_classroom_uid`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
 
@@ -180,7 +181,7 @@ CREATE TABLE `classroom_group` (
   KEY `created_at` (`created_at`),
   KEY `updated_at` (`updated_at`),
   KEY `deleted_at` (`deleted_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
 
@@ -189,7 +190,7 @@ CREATE TABLE `classroom_group` (
 
 CREATE TABLE `classroom_member` (
   `classroom_uid` varchar(36) NOT NULL DEFAULT '',
-  `user_id` int(11) NOT NULL,
+  `user_id` int NOT NULL,
   `classroom_group_uid` varchar(36) DEFAULT NULL,
   `role` enum('STUDENT','INSTRUCTOR') NOT NULL DEFAULT 'STUDENT',
   `created_at` datetime(3) NOT NULL,
@@ -203,7 +204,7 @@ CREATE TABLE `classroom_member` (
   KEY `created_at` (`created_at`),
   KEY `updated_at` (`updated_at`),
   KEY `deleted_at` (`deleted_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
 
@@ -223,7 +224,7 @@ CREATE TABLE `classroom_schedule_date` (
   KEY `created_at` (`created_at`),
   KEY `updated_at` (`updated_at`),
   KEY `deleted_at` (`deleted_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
 
@@ -240,7 +241,7 @@ CREATE TABLE `classroom_schedule_date_item` (
   KEY `due_at` (`due_at`),
   KEY `spineIdRef` (`spineIdRef`),
   KEY `label` (`label`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
 
@@ -248,13 +249,13 @@ CREATE TABLE `classroom_schedule_date_item` (
 # ------------------------------------------------------------
 
 CREATE TABLE `computed_book_access` (
-  `idp_id` int(11) NOT NULL,
-  `book_id` int(11) unsigned NOT NULL,
-  `user_id` int(11) NOT NULL,
-  `version` enum('BASE','ENHANCED','PUBLISHER','INSTRUCTOR') CHARACTER SET utf8mb4 NOT NULL DEFAULT 'BASE',
+  `idp_id` int NOT NULL,
+  `book_id` int unsigned NOT NULL,
+  `user_id` int NOT NULL,
+  `version` enum('BASE','ENHANCED','PUBLISHER','INSTRUCTOR') CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT 'BASE',
   `expires_at` datetime(3) DEFAULT NULL,
   `enhanced_tools_expire_at` datetime(3) DEFAULT NULL,
-  `flags` text CHARACTER SET utf8mb4,
+  `flags` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci,
   UNIQUE KEY `idp_id` (`idp_id`,`user_id`,`book_id`),
   KEY `idp_id_2` (`idp_id`),
   KEY `book_id` (`book_id`),
@@ -271,7 +272,7 @@ CREATE TABLE `computed_book_access` (
 
 CREATE TABLE `embed_website` (
   `domain` varchar(253) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
-  `idp_id` int(11) unsigned NOT NULL,
+  `idp_id` int unsigned NOT NULL,
   PRIMARY KEY (`domain`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
@@ -281,15 +282,15 @@ CREATE TABLE `embed_website` (
 # ------------------------------------------------------------
 
 CREATE TABLE `highlight` (
-  `id` int(10) unsigned NOT NULL AUTO_INCREMENT COMMENT 'Only used for instructor_highlight to attach to.',
-  `user_id` int(11) NOT NULL,
-  `book_id` int(11) unsigned NOT NULL,
+  `id` int unsigned NOT NULL AUTO_INCREMENT COMMENT 'Only used for instructor_highlight to attach to.',
+  `user_id` int NOT NULL,
+  `book_id` int unsigned NOT NULL,
   `spineIdRef` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
   `cfi` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
-  `color` tinyint(3) unsigned NOT NULL,
-  `note` text CHARACTER SET utf8mb4 NOT NULL,
-  `share_code` varchar(10) CHARACTER SET utf8mb4 DEFAULT NULL,
-  `share_quote` text CHARACTER SET utf8mb4,
+  `color` tinyint unsigned NOT NULL,
+  `note` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
+  `share_code` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,
+  `share_quote` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci,
   `updated_at` datetime(3) NOT NULL,
   `deleted_at` datetime(3) NOT NULL DEFAULT '0000-01-01 00:00:00.000',
   PRIMARY KEY (`user_id`,`book_id`,`spineIdRef`,`cfi`,`deleted_at`),
@@ -308,35 +309,35 @@ CREATE TABLE `highlight` (
 # ------------------------------------------------------------
 
 CREATE TABLE `idp` (
-  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
-  `name` text COLLATE utf8_bin NOT NULL,
-  `domain` varchar(253) COLLATE utf8_bin NOT NULL DEFAULT '',
-  `fromEmail` text CHARACTER SET utf8,
-  `useReaderTxt` tinyint(4) NOT NULL,
-  `authMethod` enum('SESSION_SHARING','SHIBBOLETH','EMAIL','NONE_OR_EMAIL') COLLATE utf8_bin NOT NULL DEFAULT 'NONE_OR_EMAIL',
-  `sessionSharingAsRecipientInfo` text COLLATE utf8_bin,
-  `entryPoint` text COLLATE utf8_bin,
-  `logoutUrl` text COLLATE utf8_bin,
-  `nameQualifier` varchar(100) COLLATE utf8_bin DEFAULT '',
-  `idpcert` text COLLATE utf8_bin,
-  `spcert` text COLLATE utf8_bin,
-  `spkey` text COLLATE utf8_bin,
-  `internalJWT` text COLLATE utf8_bin,
-  `userInfoEndpoint` varchar(255) COLLATE utf8_bin DEFAULT '',
-  `userInfoJWT` text COLLATE utf8_bin,
-  `androidAppURL` text COLLATE utf8_bin,
-  `iosAppURL` text COLLATE utf8_bin,
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `name` text CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  `domain` varchar(253) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL DEFAULT '',
+  `fromEmail` text CHARACTER SET utf8 COLLATE utf8_general_ci,
+  `accessCodeInfo` text COLLATE utf8_bin,
+  `authMethod` enum('SESSION_SHARING','SHIBBOLETH','EMAIL','NONE_OR_EMAIL') CHARACTER SET utf8 COLLATE utf8_bin NOT NULL DEFAULT 'NONE_OR_EMAIL',
+  `sessionSharingAsRecipientInfo` text CHARACTER SET utf8 COLLATE utf8_bin,
+  `entryPoint` text CHARACTER SET utf8 COLLATE utf8_bin,
+  `logoutUrl` text CHARACTER SET utf8 COLLATE utf8_bin,
+  `nameQualifier` varchar(100) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT '',
+  `idpcert` text CHARACTER SET utf8 COLLATE utf8_bin,
+  `spcert` text CHARACTER SET utf8 COLLATE utf8_bin,
+  `spkey` text CHARACTER SET utf8 COLLATE utf8_bin,
+  `internalJWT` text CHARACTER SET utf8 COLLATE utf8_bin,
+  `userInfoEndpoint` varchar(255) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
+  `userInfoJWT` text CHARACTER SET utf8 COLLATE utf8_bin,
+  `androidAppURL` text CHARACTER SET utf8 COLLATE utf8_bin,
+  `iosAppURL` text CHARACTER SET utf8 COLLATE utf8_bin,
   `xapiOn` tinyint(1) NOT NULL DEFAULT '0',
-  `xapiEndpoint` text COLLATE utf8_bin,
-  `xapiUsername` text COLLATE utf8_bin,
-  `xapiPassword` text COLLATE utf8_bin,
-  `xapiMaxBatchSize` int(11) DEFAULT NULL,
+  `xapiEndpoint` text CHARACTER SET utf8 COLLATE utf8_bin,
+  `xapiUsername` text CHARACTER SET utf8 COLLATE utf8_bin,
+  `xapiPassword` text CHARACTER SET utf8 COLLATE utf8_bin,
+  `xapiMaxBatchSize` int DEFAULT NULL,
   `readingSessionsOn` tinyint(1) NOT NULL DEFAULT '0',
-  `consentText` text COLLATE utf8_bin,
-  `maxMBPerBook` int(11) NOT NULL DEFAULT '20',
-  `maxMBPerFile` int(11) NOT NULL DEFAULT '15',
-  `googleAnalyticsCode` text COLLATE utf8_bin,
-  `language` varchar(5) COLLATE utf8_bin DEFAULT NULL,
+  `consentText` text CHARACTER SET utf8 COLLATE utf8_bin,
+  `maxMBPerBook` int NOT NULL DEFAULT '20',
+  `maxMBPerFile` int NOT NULL DEFAULT '15',
+  `googleAnalyticsCode` text CHARACTER SET utf8 COLLATE utf8_bin,
+  `language` varchar(5) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
   `created_at` datetime(3) NOT NULL,
   `demo_expires_at` datetime(3) DEFAULT NULL,
   PRIMARY KEY (`id`),
@@ -353,8 +354,8 @@ CREATE TABLE `idp` (
 # ------------------------------------------------------------
 
 CREATE TABLE `idp_group_member` (
-  `idp_id` int(11) NOT NULL,
-  `idp_group_id` int(11) NOT NULL,
+  `idp_id` int NOT NULL,
+  `idp_group_id` int NOT NULL,
   PRIMARY KEY (`idp_id`,`idp_group_id`),
   KEY `idp_id` (`idp_id`),
   KEY `idp_group_id` (`idp_group_id`)
@@ -366,14 +367,14 @@ CREATE TABLE `idp_group_member` (
 # ------------------------------------------------------------
 
 CREATE TABLE `instructor_highlight` (
-  `highlight_id` int(11) unsigned NOT NULL,
+  `highlight_id` int unsigned NOT NULL,
   `classroom_uid` varchar(36) NOT NULL DEFAULT '',
   `created_at` datetime(3) NOT NULL,
   PRIMARY KEY (`highlight_id`,`classroom_uid`),
   KEY `highlight_id` (`highlight_id`),
   KEY `classroom_id` (`classroom_uid`),
   KEY `created_at` (`created_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
 
@@ -381,8 +382,8 @@ CREATE TABLE `instructor_highlight` (
 # ------------------------------------------------------------
 
 CREATE TABLE `latest_location` (
-  `user_id` int(11) NOT NULL,
-  `book_id` int(11) unsigned NOT NULL,
+  `user_id` int NOT NULL,
+  `book_id` int unsigned NOT NULL,
   `cfi` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
   `updated_at` datetime(3) NOT NULL,
   PRIMARY KEY (`user_id`,`book_id`),
@@ -395,8 +396,8 @@ CREATE TABLE `latest_location` (
 # ------------------------------------------------------------
 
 CREATE TABLE `push_token` (
-  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
-  `user_id` int(11) NOT NULL,
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` int NOT NULL,
   `token` varchar(255) NOT NULL DEFAULT '',
   `created_at` datetime(3) NOT NULL,
   `deleted_at` datetime(3) DEFAULT NULL,
@@ -405,7 +406,7 @@ CREATE TABLE `push_token` (
   KEY `user_id` (`user_id`),
   KEY `created_at` (`created_at`),
   KEY `deleted_at` (`deleted_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
 
@@ -413,12 +414,12 @@ CREATE TABLE `push_token` (
 # ------------------------------------------------------------
 
 CREATE TABLE `reading_session` (
-  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
-  `user_id` int(11) NOT NULL,
-  `book_id` int(11) NOT NULL,
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` int NOT NULL,
+  `book_id` int NOT NULL,
   `spineIdRef` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
   `read_at` datetime(3) NOT NULL,
-  `duration_in_seconds` int(11) NOT NULL,
+  `duration_in_seconds` int NOT NULL,
   PRIMARY KEY (`id`),
   KEY `user_id` (`user_id`),
   KEY `book_id` (`book_id`),
@@ -426,7 +427,7 @@ CREATE TABLE `reading_session` (
   KEY `read_at` (`read_at`),
   KEY `duration_in_seconds` (`duration_in_seconds`),
   KEY `book_id_2` (`book_id`,`user_id`,`spineIdRef`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
 
@@ -434,14 +435,14 @@ CREATE TABLE `reading_session` (
 # ------------------------------------------------------------
 
 CREATE TABLE `subscription` (
-  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
-  `idp_id` int(11) NOT NULL,
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `idp_id` int NOT NULL,
   `label` text NOT NULL,
   `deleted_at` datetime(3) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `idp_id` (`idp_id`),
   KEY `deleted_at` (`deleted_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
 
@@ -449,9 +450,9 @@ CREATE TABLE `subscription` (
 # ------------------------------------------------------------
 
 CREATE TABLE `subscription_instance` (
-  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
-  `subscription_id` int(11) unsigned NOT NULL,
-  `user_id` int(11) NOT NULL,
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `subscription_id` int unsigned NOT NULL,
+  `user_id` int NOT NULL,
   `first_given_access_at` datetime(3) NOT NULL,
   `expires_at` datetime(3) DEFAULT NULL,
   `enhanced_tools_expire_at` datetime(3) DEFAULT NULL,
@@ -470,9 +471,9 @@ CREATE TABLE `subscription_instance` (
 # ------------------------------------------------------------
 
 CREATE TABLE `subscription-book` (
-  `subscription_id` int(11) NOT NULL COMMENT 'When negative, this row represents a free book, automatically given to all users with the negated idp_id.',
-  `book_id` int(11) unsigned NOT NULL,
-  `version` enum('BASE','ENHANCED','PUBLISHER','INSTRUCTOR') CHARACTER SET utf8mb4 NOT NULL DEFAULT 'BASE',
+  `subscription_id` int NOT NULL COMMENT 'When negative, this row represents a free book, automatically given to all users with the negated idp_id.',
+  `book_id` int unsigned NOT NULL,
+  `version` enum('BASE','ENHANCED','PUBLISHER','INSTRUCTOR') CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT 'BASE',
   PRIMARY KEY (`subscription_id`,`book_id`),
   KEY `subscription_id` (`subscription_id`),
   KEY `book_id` (`book_id`),
@@ -490,7 +491,7 @@ CREATE TABLE `tool` (
   `classroom_group_uid` varchar(36) DEFAULT NULL,
   `spineIdRef` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
   `cfi` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
-  `ordering` int(11) unsigned NOT NULL,
+  `ordering` int unsigned NOT NULL,
   `name` varchar(255) NOT NULL DEFAULT '',
   `toolType` enum('QUIZ','NOTES_INSERT','LTI','VIDEO','QUESTION','POLL','DOCUMENT','IMAGES','AUDIO') NOT NULL DEFAULT 'NOTES_INSERT',
   `data` text NOT NULL,
@@ -518,7 +519,7 @@ CREATE TABLE `tool` (
   KEY `deleted_at` (`deleted_at`),
   KEY `currently_published_tool_uid` (`currently_published_tool_uid`),
   KEY `isDiscussion` (`isDiscussion`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
 
@@ -527,7 +528,7 @@ CREATE TABLE `tool` (
 
 CREATE TABLE `tool_engagement` (
   `uid` varchar(36) NOT NULL DEFAULT '',
-  `user_id` int(11) NOT NULL,
+  `user_id` int NOT NULL,
   `tool_uid` varchar(36) NOT NULL DEFAULT '',
   `text` text,
   `created_at` datetime(3) NOT NULL,
@@ -543,7 +544,7 @@ CREATE TABLE `tool_engagement` (
   KEY `submitted_at` (`submitted_at`),
   KEY `deleted_at` (`deleted_at`),
   KEY `score` (`score`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
 
@@ -552,13 +553,13 @@ CREATE TABLE `tool_engagement` (
 
 CREATE TABLE `tool_engagement_answer` (
   `tool_engagement_uid` varchar(36) NOT NULL DEFAULT '',
-  `question_index` int(10) unsigned NOT NULL,
-  `choice_index` int(10) unsigned NOT NULL,
+  `question_index` int unsigned NOT NULL,
+  `choice_index` int unsigned NOT NULL,
   PRIMARY KEY (`tool_engagement_uid`,`question_index`),
   KEY `tool_engagement_id` (`tool_engagement_uid`),
   KEY `question_index` (`question_index`),
   KEY `choice_index` (`choice_index`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
 
@@ -566,12 +567,12 @@ CREATE TABLE `tool_engagement_answer` (
 # ------------------------------------------------------------
 
 CREATE TABLE `user` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `user_id_from_idp` varchar(255) COLLATE utf8_unicode_ci NOT NULL DEFAULT '',
-  `idp_id` int(11) unsigned NOT NULL,
-  `email` varchar(255) CHARACTER SET utf8mb4 NOT NULL DEFAULT '',
-  `fullname` varchar(255) CHARACTER SET utf8mb4 NOT NULL DEFAULT '',
-  `adminLevel` enum('NONE','ADMIN','SUPER_ADMIN') CHARACTER SET utf8mb4 NOT NULL DEFAULT 'NONE',
+  `id` int NOT NULL AUTO_INCREMENT,
+  `user_id_from_idp` varchar(255) CHARACTER SET utf8 COLLATE utf8_unicode_ci NOT NULL DEFAULT '',
+  `idp_id` int unsigned NOT NULL,
+  `email` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT '',
+  `fullname` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT '',
+  `adminLevel` enum('NONE','ADMIN','SUPER_ADMIN') CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT 'NONE',
   `created_at` datetime(3) NOT NULL,
   `last_login_at` datetime(3) NOT NULL,
   PRIMARY KEY (`id`),
@@ -590,10 +591,10 @@ CREATE TABLE `user` (
 # ------------------------------------------------------------
 
 CREATE TABLE `xapiQueue` (
-  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
-  `idp_id` int(11) NOT NULL,
-  `statement` text CHARACTER SET utf8mb4 NOT NULL,
-  `unique_tag` varchar(40) CHARACTER SET utf8mb4 NOT NULL DEFAULT '',
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `idp_id` int NOT NULL,
+  `statement` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
+  `unique_tag` varchar(40) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT '',
   `created_at` datetime(3) NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `unique_tag` (`unique_tag`),
