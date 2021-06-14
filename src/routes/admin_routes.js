@@ -306,7 +306,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         const rows = await util.runQuery({
           query: `
             SELECT
-              b.id,
+              b.*,
               IF(bi.idp_id=:idpId, 1, 0) as alreadyBookInThisIdp
 
             FROM book as b
@@ -342,12 +342,22 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
           // delete book
           await deleteBook(bookRow.id, next)
 
+          const responseBase = {
+            success: true,
+            bookId: rows[0].id,
+            noOfflineSearch,  // not 100% accurate, but leaving it for now
+            title: rows[0].title,
+            author: rows[0].author,
+            isbn: rows[0].isbn,
+            thumbnailHref: `${util.getFrontendBaseUrl(req)}/epub_content/covers/book_${rows[0].id}.png`,
+            epubSizeInMB: rows[0].epubSizeInMB,
+          }
+
           if(rows[0].alreadyBookInThisIdp == '1') {
             log('Import unnecessary (book already associated with this idp)', 2)
             res.send({
-              success: true,
+              ...responseBase,
               note: 'already-associated',
-              bookId: rows[0].id,
             })
 
           } else {
@@ -367,9 +377,8 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
 
             log('Import unnecessary (book exists in idp with same group; added association)', 2)
             res.send({
-              success: true,
+              ...responseBase,
               note: 'associated-to-existing',
-              bookId: rows[0].id,
             })
 
           }
@@ -513,7 +522,12 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
           res.write(
             `"success": true,` +
             (noOfflineSearch ? `"noOfflineSearch": true,` : ``) +
-            `"bookId": ${bookRow.id}` +
+            `"bookId": ${bookRow.id},` +
+            `"title": "${bookRow.title.replace(/"/g, '\\"')}",` +
+            `"author": "${bookRow.author.replace(/"/g, '\\"')}",` +
+            `"isbn": "${bookRow.isbn.replace(/"/g, '\\"')}",` +
+            `"thumbnailHref": "${util.getFrontendBaseUrl(req)}/epub_content/covers/book_${bookRow.id}.png",` +
+            `"epubSizeInMB": ${bookRow.epubSizeInMB}` +
             `}`
           )
           res.end()

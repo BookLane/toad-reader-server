@@ -52,5 +52,13 @@ While the Toad Reader web app allows admins to easily import eBooks, there are u
   //   note: undefined
   //     || "already-associated"
   //     || "associated-to-existing",
+  //   maxMB: Integer,  // For the tenant; relevant for file_too_large error.
+  //   noOfflineSearch: true || undefined,
+  //   bookId: Integer,
+  //   title: String,
+  //   author: String,
+  //   isbn: String || null,
+  //   thumbnailHref: String,
+  //   epubSizeInMB: Integer,
   // }
 ```
