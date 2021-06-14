@@ -7,7 +7,7 @@
 #
 # Host: localhost (MySQL 8.0.22)
 # Database: ToadReader
-# Generation Time: 2021-06-09 14:01:19 +0000
+# Generation Time: 2021-06-14 20:39:18 +0000
 # ************************************************************
 
 
@@ -28,7 +28,7 @@ CREATE TABLE `book` (
   `id` int unsigned NOT NULL AUTO_INCREMENT,
   `title` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
   `author` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
-  `isbn` varchar(150) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
+  `isbn` varchar(150) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT '',
   `coverHref` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci,
   `rootUrl` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT '',
   `updated_at` datetime(3) NOT NULL,
@@ -312,6 +312,8 @@ CREATE TABLE `idp` (
   `id` int unsigned NOT NULL AUTO_INCREMENT,
   `name` text CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `domain` varchar(253) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL DEFAULT '',
+  `use_enhanced_reader_at` datetime(3) DEFAULT NULL,
+  `specialPricing` enum('OLD','NON-PROFIT','ORIG-ORCA') CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
   `fromEmail` text CHARACTER SET utf8 COLLATE utf8_general_ci,
   `authMethod` enum('SESSION_SHARING','SHIBBOLETH','EMAIL','NONE_OR_EMAIL') CHARACTER SET utf8 COLLATE utf8_bin NOT NULL DEFAULT 'NONE_OR_EMAIL',
   `sessionSharingAsRecipientInfo` text CHARACTER SET utf8 COLLATE utf8_bin,
@@ -332,7 +334,7 @@ CREATE TABLE `idp` (
   `xapiUsername` text CHARACTER SET utf8 COLLATE utf8_bin,
   `xapiPassword` text CHARACTER SET utf8 COLLATE utf8_bin,
   `xapiMaxBatchSize` int DEFAULT NULL,
-  `readingSessionsOn` tinyint(1) NOT NULL DEFAULT '0',
+  `readingSessionsOn` tinyint(1) NOT NULL DEFAULT '1',
   `consentText` text CHARACTER SET utf8 COLLATE utf8_bin,
   `maxMBPerBook` int NOT NULL DEFAULT '20',
   `maxMBPerFile` int NOT NULL DEFAULT '15',

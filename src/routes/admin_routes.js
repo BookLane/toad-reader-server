@@ -794,7 +794,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
   })
 
   // usage costs
-  app.get('/reportsinfo', ensureAuthenticatedAndCheckIDP, (req, res, next) => {
+  app.get('/reportsinfo', ensureAuthenticatedAndCheckIDP, async (req, res, next) => {
 
     if(!req.user.isAdmin) {
       log('No permission to view usage costs', 3)
@@ -810,166 +810,195 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
     ]
     let idpIndex = 0
 
+    const [ idpRow ] = await util.runQuery({
+      query:       `
+        SELECT i.id, i.use_enhanced_reader_at, i.specialPricing, i.created_at
+        FROM idp as i
+        WHERE i.id=:idpId
+      `,
+      vars: {
+        idpId: req.user.idpId,
+      },
+      connection,
+      next,
+    })
+
     const date = new Date()
     date.setMonth(date.getMonth() + 1)
-    const monthSets = []
 
-    for(let i=0; i<(req.query.numMonths || 3); i++) {
+    for(let i=0; i<(req.query.numMonths || 6); i++) {
+
       const toDate = `${date.getUTCFullYear()}-${util.pad(date.getUTCMonth() + 1, 2)}-01 00:00:00`
       date.setMonth(date.getMonth() - 1)
       const fromDate = `${date.getUTCFullYear()}-${util.pad(date.getUTCMonth() + 1, 2)}-01 00:00:00`
+      const heading = date.toLocaleString('default', { month: 'long', year: 'numeric' })
 
-      monthSets.push({
-        fromDate,
-        toDate,
-        heading: date.toLocaleString('default', { month: 'long', year: 'numeric' }),
-      })
-    }
+      if(new Date(fromDate) < new Date(idpRow.created_at)) break
 
-    const buildOutUserList = () => {
-      connection.query(
-        `
-          SELECT
-            u.email as Email,
-            u.fullname as Name,
-            u.created_at as Created
-          FROM user as u
-          WHERE u.idp_id=:idpId
-            AND u.adminLevel!="SUPER_ADMIN"
+      let activeUsersRows = await util.runQuery({
+        query:       `
+          SELECT COUNT(*) as numActiveUsers
+          FROM (
+            SELECT COUNT(*)
+            FROM user as u
+              LEFT JOIN reading_session as rs ON (rs.user_id=u.id)
+            WHERE u.idp_id=:idpId
+              AND rs.read_at>=:fromDate
+              AND rs.read_at<:toDate
+            GROUP BY u.id
+          ) as rs_per_u
         `,
-        {
+        vars: {
           idpId: req.user.idpId,
+          fromDate,
+          toDate,
         },
-        (err, userRows) => {
-          if (err) return next(err)
+        connection,
+        next,
+      })
 
-          userRows.forEach(userRow => {
-            userRow.Created = userRow.Created.split(" ")[0]
-          })
+      const useEnhancedReader = idpRow.use_enhanced_reader_at && new Date(idpRow.use_enhanced_reader_at) < new Date(toDate)
+      const numActiveUsers = parseInt(activeUsersRows[0].numActiveUsers, 10)
+      let totalCostInCents
 
+      if(idpRow.specialPricing === 'OLD' && !useEnhancedReader) {
+
+        if(i === 0) {
           reportInfo[idpIndex].data.push({
-            heading: `User List`,
-            rows: userRows,
-            summary: `Total number of users: ${userRows.length}`,
+            heading: `MONTHLY FEE (old pricing; valid through Nov 2021)\n\n    $0.25 per active user\n    Minimum: $100`,
+            rows: [],
           })
-
-          log('Deliver the report')
-          res.send(reportInfo)
         }
-      )
-    }
 
-    const buildOutMonths = () => {
+        totalCostInCents = Math.max(100 * 100, 25 * numActiveUsers)
 
-      if(monthSets.length > 0) {
-        const monthSet = monthSets.shift()
+      } else if(idpRow.specialPricing === 'ORIG-ORCA') {
 
-        connection.query(`
-            SELECT
-              b.id,
-              b.title,
-              b.standardPriceInCents,
-              b.epubSizeInMB,
-              COUNT(*) as numUsers
-            FROM book_instance as bi
-              LEFT JOIN book as b ON (b.id = bi.book_id)
-            WHERE bi.idp_id=:idpId
-              AND bi.first_given_access_at>=:fromDate
-              AND bi.first_given_access_at<:toDate
-            GROUP BY b.id
-            ;
+        if(i === 0) {
+          reportInfo[idpIndex].data.push({
+            heading: `PRICING (custom)\n\n    $1 per active user\n    Minimum: $1000`,
+            rows: [],
+          })
+        }
 
-            SELECT b.id, b.title, COUNT(*) as numDownloads
-            FROM book_download as bd
-              LEFT JOIN book as b ON (b.id=bd.book_id)
-            WHERE bd.idp_id=:idpId
-              AND bd.downloaded_at>=:fromDate
-              AND bd.downloaded_at<:toDate
-            GROUP BY b.id
-            ;
-
-            SELECT COUNT(*) as numActiveUsers
-            FROM (
-              SELECT COUNT(*)
-              FROM user as u
-                LEFT JOIN latest_location as ll ON (ll.user_id=u.id)
-              WHERE u.idp_id=:idpId
-                AND ll.updated_at>=:fromDate
-                AND ll.updated_at<:toDate
-              GROUP BY u.id
-            ) as ll_per_u
-          `,
-          {
-            idpId: req.user.idpId,
-            ...monthSet,
-          },
-          (err, results) => {
-            if (err) return next(err)
-
-            let [ usageCostRows, bookDownloadRows, activeUsersRows ] = results
-
-            let totalCost = 0
-
-            usageCostRows = usageCostRows.map(({ id, title, standardPriceInCents, epubSizeInMB, numUsers }) => {
-              const standardPrice = parseInt(standardPriceInCents || 0) / 100
-              epubSizeInMB = parseInt(epubSizeInMB) || 0
-              numUsers = parseInt(numUsers)
-              const bookInstanceCost = Math.max(Math.round((epubSizeInMB * 0.0015 + standardPrice * 0.015) * 100) / 100, .05)
-
-              totalCost += numUsers * bookInstanceCost
-
-              return {
-                "Book": `${title} (id: ${id})`,
-                "Standard price": `$${standardPrice.toFixed(2)}`,
-                "EPUB size in MB": epubSizeInMB,
-                "Instance cost": `$${bookInstanceCost.toFixed(2)}`,
-                "Users granted access": numUsers,
-                "Cost": `$${(numUsers * bookInstanceCost).toFixed(2)}`,
-              }
-            })
-      
-            reportInfo[idpIndex].data.push({
-              heading: `${monthSet.heading} – Usage Cost`,
-              rows: usageCostRows,
-              summary: `Total usage cost: ${Math.max(totalCost, 100).toFixed(2)}`,
-            })
-
-            let totalDownloads = 0
-
-            bookDownloadRows = bookDownloadRows.map(({ id, title, numDownloads }) => {
-              numDownloads = parseInt(numDownloads, 10) || 0
-              totalDownloads += numDownloads
-
-              return {
-                "Book": `${title} (id: ${id})`,
-                "Downloads to native apps": numDownloads,
-              }
-            })
-      
-            reportInfo[idpIndex].data.push({
-              heading: `${monthSet.heading} – Book Downloads`,
-              rows: bookDownloadRows,
-              summary: `Total number of downloads: ${totalDownloads}`,
-            })
-
-            reportInfo[idpIndex].data.push({
-              heading: `${monthSet.heading} – Total active users: ${activeUsersRows[0].numActiveUsers}`,
-              rows: [],
-              summary: ``,
-            })
-
-            buildOutMonths()
-          }
-        )
+        totalCostInCents = Math.max(1000 * 100, 100 * numActiveUsers)
 
       } else {
 
-        buildOutUserList()
+        if(i === 0) {
+
+          const costChartRows = [
+            {
+              'Active users': 'Up to 1,000',
+              'Standard eReader': '$250 per month',
+              'Enhanced eReader': '$700 per month',
+            },
+            {
+              'Active users': '1,001 - 2,000',
+              'Standard eReader': '$400 per month',
+              'Enhanced eReader': '$1200 per month',
+            },
+            {
+              'Active users': '2,001 - 5,000',
+              'Standard eReader': '$750 per month',
+              'Enhanced eReader': '$2000 per month',
+            },
+            {
+              'Active users': '5,001 - 10,000',
+              'Standard eReader': '$1000 per month',
+              'Enhanced eReader': '$3000 per month',
+            },
+            {
+              'Active users': '10,000+',
+              'Standard eReader': '$0.10 per active user per month',
+              'Enhanced eReader': '$0.30 per active user per month',
+            },
+          ]
+
+          if(idpRow.specialPricing === 'NON-PROFIT') {
+            costChartRows.unshift({
+              'Active users': 'Up to 400',
+              'Standard eReader': '$100 per month',
+              'Enhanced eReader': '$280 per month',
+            })
+            costChartRows[1]['Active users'] = '401 - 1,000'
+          }
+
+          reportInfo[idpIndex].data.push({
+            heading: `Pricing Chart${idpRow.specialPricing === 'NON-PROFIT' ? ` (non-profit)` : ``}`,
+            rows: costChartRows,
+          })
+
+        }
+
+        if(numActiveUsers <= 400 && idpRow.specialPricing === 'NON-PROFIT') {
+          totalCostInCents = (useEnhancedReader ? 280 : 100) * 100
+        } else if(numActiveUsers <= 1000) {
+          totalCostInCents = (useEnhancedReader ? 700 : 250) * 100
+        } else if(numActiveUsers <= 2000) {
+          totalCostInCents = (useEnhancedReader ? 1200 : 400) * 100
+        } else if(numActiveUsers <= 5000) {
+          totalCostInCents = (useEnhancedReader ? 2000 : 750) * 100
+        } else if(numActiveUsers <= 10000) {
+          totalCostInCents = (useEnhancedReader ? 3000 : 1000) * 100
+        } else {
+          totalCostInCents = (useEnhancedReader ? (30 * numActiveUsers) : (10 * numActiveUsers))
+        }
 
       }
+
+      if(i === 0) {
+        reportInfo[idpIndex].data.push({
+          heading: `Note: Monthly fees are billed at the beginning of each month for that same month. Bills must be paid within 15 days of when they are issued. The fee level will be based on the previous month’s usage. When relevant, it will also include an adjustment for the previous month if actual usage did not coincide with the estimated amount.`,
+          rows: [],
+        })
+      }
+
+      reportInfo[idpIndex].data.push({
+        heading: `${heading} – Usage Cost ${i === 0 ? `(not yet complete)` : ``}`,
+        rows: [
+          {
+            'eReader version': useEnhancedReader ? `Enhanced eReader` : `Standard eReader`,
+            'Active users': numActiveUsers,
+            'Fee': `$${totalCostInCents}`.replace(/(..)$/, '\.$1'),
+          },
+        ],
+      })
+
     }
 
-    buildOutMonths()
+    // build out user list
+
+    const userRows = await util.runQuery({
+      query:       `
+        SELECT
+          u.email as Email,
+          u.fullname as Name,
+          u.created_at as Created
+        FROM user as u
+        WHERE u.idp_id=:idpId
+          AND u.adminLevel!="SUPER_ADMIN"
+      `,
+      vars: {
+        idpId: req.user.idpId,
+      },
+      connection,
+      next,
+    })
+
+    userRows.forEach(userRow => {
+      userRow.Created = userRow.Created.split(" ")[0]
+    })
+
+    reportInfo[idpIndex].data.push({
+      heading: `User List`,
+      rows: userRows,
+      summary: `Total number of users: ${userRows.length}`,
+    })
+
+    log('Deliver the report')
+    res.send(reportInfo)
+
   })
 
   ////////////// CRONS //////////////
