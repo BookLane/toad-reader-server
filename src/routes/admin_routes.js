@@ -972,33 +972,36 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
       }
 
       // build out user list
+      if(!isTRSite) {
 
-      const userRows = await util.runQuery({
-        query:       `
-          SELECT
-            u.email as Email,
-            u.fullname as Name,
-            u.created_at as Created
-          FROM user as u
-          WHERE u.idp_id=:idpId
-            AND u.adminLevel!="SUPER_ADMIN"
-        `,
-        vars: {
-          idpId: idpRows[idpIndex].id,
-        },
-        connection,
-        next,
-      })
+        const userRows = await util.runQuery({
+          query:       `
+            SELECT
+              u.email as Email,
+              u.fullname as Name,
+              u.created_at as Created
+            FROM user as u
+            WHERE u.idp_id=:idpId
+              AND u.adminLevel!="SUPER_ADMIN"
+          `,
+          vars: {
+            idpId: idpRows[idpIndex].id,
+          },
+          connection,
+          next,
+        })
 
-      userRows.forEach(userRow => {
-        userRow.Created = userRow.Created.split(" ")[0]
-      })
+        userRows.forEach(userRow => {
+          userRow.Created = userRow.Created.split(" ")[0]
+        })
 
-      reportInfo[idpIndex].data.push({
-        heading: `User List`,
-        rows: userRows,
-        summary: `Total number of users: ${userRows.length}`,
-      })
+        reportInfo[idpIndex].data.push({
+          heading: `User List`,
+          rows: userRows,
+          summary: `Total number of users: ${userRows.length}`,
+        })
+
+      }
 
     }
 
