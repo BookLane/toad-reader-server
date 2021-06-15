@@ -7,7 +7,7 @@
 #
 # Host: localhost (MySQL 8.0.22)
 # Database: ToadReader
-# Generation Time: 2021-06-14 20:39:18 +0000
+# Generation Time: 2021-06-15 19:36:39 +0000
 # ************************************************************
 
 
@@ -391,6 +391,37 @@ CREATE TABLE `latest_location` (
   PRIMARY KEY (`user_id`,`book_id`),
   KEY `user_id` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+
+
+
+# Dump of table metadata_key
+# ------------------------------------------------------------
+
+CREATE TABLE `metadata_key` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `idp_id` int unsigned DEFAULT NULL,
+  `name` varchar(255) NOT NULL DEFAULT '',
+  `options` text,
+  `ordering` int NOT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idp_id` (`idp_id`,`deleted_at`,`ordering`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
+
+# Dump of table metadata_value
+# ------------------------------------------------------------
+
+CREATE TABLE `metadata_value` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `book_id` int unsigned NOT NULL,
+  `metadata_key_id` int unsigned NOT NULL,
+  `value` text NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `book_id` (`book_id`),
+  KEY `metadata_key_id` (`metadata_key_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
 
