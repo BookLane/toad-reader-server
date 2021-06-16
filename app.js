@@ -59,7 +59,7 @@ const sessionParser = session({
 const corsOptionsDelegate = (req, callback) => {
   const corsOptions = {}
 
-  if(process.env.IS_DEV) {
+  if(process.env.IS_DEV || req.headers['x-tenant-auth']) {
     corsOptions.origin = true
   } else {
     corsOptions.origin = util.getFrontEndOrigin({ req })
@@ -396,9 +396,10 @@ connection.query('SELECT * FROM `idp` WHERE entryPoint IS NOT NULL',
 const ensureAuthenticated = async (req, res, next) => {
 
   if(req.headers['x-tenant-auth']) {
+    log(['x-tenant-auth header found', req.headers['x-tenant-auth'], util.getIDPDomain(req.headers)])
 
     const [ row={} ] = await util.runQuery({
-      query: 'SELECT * FROM idp WHERE domain=:domain',
+      query: 'SELECT *, id AS idp_id FROM idp WHERE domain=:domain',
       vars: {
         domain: util.getIDPDomain(req.headers),
       },
@@ -416,10 +417,15 @@ const ensureAuthenticated = async (req, res, next) => {
         },
       )
 
+      log(['x-tenant-auth req.tenantAuthInfo', req.tenantAuthInfo])
+
       req.user = req.user || getIdpPrefixedValues(row)
 
+      return next()
+
     } catch(err) {
-      next(err)
+      log(['x-tenant-auth error', err], 3)
+      return next(err)
     }
 
   } else if (req.isAuthenticated()) {
