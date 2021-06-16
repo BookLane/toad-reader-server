@@ -20,7 +20,7 @@ While the Toad Reader web app allows admins to easily import eBooks, there are u
 
 ### Example form submission code
 ```js
-  const importEndpoint = `https://xxxxxx.data.toadreader.com`  // set to the tenant's Toad Reader production backend URL
+  const importEndpoint = `https://xxxxxx.data.toadreader.com/importbook.json`  // set to the tenant's Toad Reader production backend URL
   const jwtSignedAuthStr = `xxxxxx`  // delivered from the tenant's backend within the last 15 minutes
 
   const epubFile = document.getElementById("epub-file").files[0]
@@ -40,7 +40,7 @@ While the Toad Reader web app allows admins to easily import eBooks, there are u
 
   const result = await result.json()
   // {
-  //   success: true || false,
+  //   success: true || undefined,
   //   errorType: undefined
   //     || "invalid_tenant_auth"
   //     || "file_too_large"
@@ -52,13 +52,13 @@ While the Toad Reader web app allows admins to easily import eBooks, there are u
   //   note: undefined
   //     || "already-associated"
   //     || "associated-to-existing",
-  //   maxMB: Integer,  // For the tenant; relevant for file_too_large error.
+  //   maxMB: Integer || undefined,  // For the tenant; relevant for file_too_large error.
   //   noOfflineSearch: true || undefined,
-  //   bookId: Integer,
-  //   title: String,
-  //   author: String,
-  //   isbn: String || null,
-  //   thumbnailHref: String,
-  //   epubSizeInMB: Integer,
+  //   bookId: Integer || undefined,
+  //   title: String || undefined,
+  //   author: String || undefined,
+  //   isbn: String || undefined,
+  //   thumbnailHref: String || undefined,
+  //   epubSizeInMB: Integer || undefined,
   // }
 ```

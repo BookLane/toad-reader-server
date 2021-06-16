@@ -348,7 +348,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
             noOfflineSearch,  // not 100% accurate, but leaving it for now
             title: rows[0].title,
             author: rows[0].author,
-            isbn: rows[0].isbn,
+            isbn: rows[0].isbn || '',
             thumbnailHref: `${util.getFrontendBaseUrl(req)}/epub_content/covers/book_${rows[0].id}.png`,
             epubSizeInMB: rows[0].epubSizeInMB,
           }
@@ -525,7 +525,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
             `"bookId": ${bookRow.id},` +
             `"title": "${bookRow.title.replace(/"/g, '\\"')}",` +
             `"author": "${bookRow.author.replace(/"/g, '\\"')}",` +
-            `"isbn": "${bookRow.isbn.replace(/"/g, '\\"')}",` +
+            `"isbn": "${(bookRow.isbn || '').replace(/"/g, '\\"')}",` +
             `"thumbnailHref": "${util.getFrontendBaseUrl(req)}/epub_content/covers/book_${bookRow.id}.png",` +
             `"epubSizeInMB": ${bookRow.epubSizeInMB}` +
             `}`
@@ -792,6 +792,95 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
     res.send({ success: true })
 
   })
+
+  // // get (and optionally update) the metadata_key rows
+  // app.all('/metadatakeys', ensureAuthenticatedAndCheckIDP, async (req, res, next) => {
+
+  //   if(![ 'GET', 'POST' ].includes(req.method)) return next()
+
+  //   if(req.method === 'POST') {
+
+  //     if(!req.user.isAdmin) {
+  //       log('No permission to update metadata keys', 3)
+  //       res.status(403).send({ errorType: "no_permission" })
+  //       return
+  //     }
+
+  //     if(
+  //       !util.paramsOk(req.body, ['metadataKeys'])
+  //       || !(req.body.metadataKeys instanceof Array)
+  //       || req.body.metadataKeys.some(metadataKey => (
+  //         !util.paramsOk(metadataKey, ['name', 'ordering'], ['options'])  // a new key
+  //         && !util.paramsOk(metadataKey, ['id'], ['name', 'ordering', 'options', '_delete'])  // an update or delete
+  //       ))
+  //     ) {
+  //       log(['Invalid parameter(s)', req.body], 3)
+  //       res.status(400).send()
+  //       return
+  //     }
+
+  //     const now = util.timestampToMySQLDatetime();
+
+  //     let vars
+  //     const query = req.body.metadataKeys.map((metadataKey, idx) => {
+  //       const { id, _delete, ...other } = metadataKey
+
+  //       if(!id) {
+  //         vars = {
+  //           [`insert_${idx}`]: {
+  //             ...metadataKey,
+  //             idp_id: req.user.idpId,
+  //           },
+  //         }
+  //         return `INSERT INTO metadata_keys SET :insert_${idx}`
+
+  //       } else if(_delete) {
+  //         vars = {
+  //           [`delete_${id}`]: metadataKey.id,
+  //           idpId: req.user.idpId,
+  //           now,
+  //         }
+  //         return `UPDATE metadata_keys SET deleted_at=:now WHERE idp_id=:idpId AND id=:delete_${id}`
+
+  //       } else {
+  //         vars = {
+  //           [`update_values_${id}`]: other,
+  //           [`update_${id}`]: id,
+  //           idpId: req.user.idpId,
+  //         }
+  //         return `UPDATE metadata_keys SET :update_values_${id} WHERE idp_id=:idpId AND id=:update_${id}`
+  //       }
+  //     })
+
+  //     await util.runQuery({
+  //       query,
+  //       vars,
+  //       connection,
+  //       next,
+  //     })
+
+  //   }
+
+  //   // get the metadata keys
+
+  //   const metadataKeys = await util.runQuery({
+  //     query: `
+  //       SELECT mk.id, mk.idp_id, mk.ordering, mk.options
+  //       FROM metadata_key
+  //       WHERE mk.idp_id=:idpId
+  //         AND mk.deleted_at IS NULL
+  //       ORDER BY mk.ordering
+  //     `,
+  //     vars: {
+  //       idpId: req.user.idpId,
+  //     },
+  //     connection,
+  //     next,
+  //   })
+
+  //   res.send({ metadataKeys })
+
+  // })
 
   // usage costs
   app.get('/reportsinfo', ensureAuthenticatedAndCheckIDP, async (req, res, next) => {
