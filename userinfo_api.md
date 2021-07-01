@@ -41,7 +41,7 @@ String
 ##### Example
 ```json
 {
-  "idpUserId": "123"
+  "idpUserId": "user@email.com"
 }
 ```
 
@@ -78,7 +78,7 @@ String
 ##### Example
 ```json
 {
-  "idpUserId": "123",
+  "idpUserId": "user@email.com",
   "accessCode": "SUMMER-SALE-2021"
 }
 ```
@@ -145,7 +145,7 @@ String
 {
   idpUserId: String
   email: String
-  fullname: String
+  fullname: String (optional)
   adminLevel: NONE|ADMIN (optional; default: NONE)
   forceResetLoginBefore: Integer (timestamp with ms; optional; default: no force login reset)
   books: [
@@ -170,13 +170,13 @@ String
 ### Notes
 
 - If `flags` contains an item with the value `trial`, then a "Trial" indicator will be seen in the user’s library. No other flags are used at this time.
+- Either `books` or `subscriptions` (or both) must be provided.
 
 ### Simple example of typical usage
 ```json
 {
-  "idpUserId": "123",
+  "idpUserId": "user@email.com",
   "email": "user@email.com",
-  "fullname": "Mr. User",
   "books": [
     {
       "id": 234,
