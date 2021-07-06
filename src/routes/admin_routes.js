@@ -793,94 +793,115 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
 
   })
 
-  // // get (and optionally update) the metadata_key rows
-  // app.all('/metadatakeys', ensureAuthenticatedAndCheckIDP, async (req, res, next) => {
+  // get (and optionally update) the metadata_key rows
+  app.all('/metadatakeys', async (req, res, next) => {
 
-  //   if(![ 'GET', 'POST' ].includes(req.method)) return next()
+    if(![ 'GET', 'POST' ].includes(req.method)) return next()
 
-  //   if(req.method === 'POST') {
+    if(req.method === 'POST') {
 
-  //     if(!req.user.isAdmin) {
-  //       log('No permission to update metadata keys', 3)
-  //       res.status(403).send({ errorType: "no_permission" })
-  //       return
-  //     }
+      if(!(req.user || {}).isAdmin) {
+        log('No permission to update metadata keys', 3)
+        res.status(403).send({ errorType: "no_permission" })
+        return
+      }
 
-  //     if(
-  //       !util.paramsOk(req.body, ['metadataKeys'])
-  //       || !(req.body.metadataKeys instanceof Array)
-  //       || req.body.metadataKeys.some(metadataKey => (
-  //         !util.paramsOk(metadataKey, ['name', 'ordering'], ['options'])  // a new key
-  //         && !util.paramsOk(metadataKey, ['id'], ['name', 'ordering', 'options', '_delete'])  // an update or delete
-  //       ))
-  //     ) {
-  //       log(['Invalid parameter(s)', req.body], 3)
-  //       res.status(400).send()
-  //       return
-  //     }
+      if(
+        !util.paramsOk(req.body, ['metadataKeys'])
+        || !(req.body.metadataKeys instanceof Array)
+        || req.body.metadataKeys.some(metadataKey => (
+          !util.paramsOk(metadataKey, ['name'], ['options'])  // a new key
+          && !util.paramsOk(metadataKey, ['id', 'name'], ['options'])  // an update
+        ))
+      ) {
+        log(['Invalid parameter(s)', req.body], 3)
+        res.status(400).send()
+        return
+      }
 
-  //     const now = util.timestampToMySQLDatetime();
+      util.convertJsonColsToStrings({ tableName: 'metadata_key', rows: req.body.metadataKeys })
 
-  //     let vars
-  //     const query = req.body.metadataKeys.map((metadataKey, idx) => {
-  //       const { id, _delete, ...other } = metadataKey
+      let vars = {
+        idpId: req.user.idpId,
+        now: util.timestampToMySQLDatetime(),
+        [`delete_except_ids`]: [
+          0,  // dummy key to ensure valid sql
+          ...req.body.metadataKeys.map(({ id }) => id).filter(Boolean),
+        ],
+      }
 
-  //       if(!id) {
-  //         vars = {
-  //           [`insert_${idx}`]: {
-  //             ...metadataKey,
-  //             idp_id: req.user.idpId,
-  //           },
-  //         }
-  //         return `INSERT INTO metadata_keys SET :insert_${idx}`
+      const queries = [
 
-  //       } else if(_delete) {
-  //         vars = {
-  //           [`delete_${id}`]: metadataKey.id,
-  //           idpId: req.user.idpId,
-  //           now,
-  //         }
-  //         return `UPDATE metadata_keys SET deleted_at=:now WHERE idp_id=:idpId AND id=:delete_${id}`
+        `UPDATE metadata_key SET deleted_at=:now WHERE idp_id=:idpId AND id NOT IN (:delete_except_ids) AND deleted_at IS NULL`,
 
-  //       } else {
-  //         vars = {
-  //           [`update_values_${id}`]: other,
-  //           [`update_${id}`]: id,
-  //           idpId: req.user.idpId,
-  //         }
-  //         return `UPDATE metadata_keys SET :update_values_${id} WHERE idp_id=:idpId AND id=:update_${id}`
-  //       }
-  //     })
+        ...req.body.metadataKeys.map((metadataKey, idx) => {
+          const { id, name, options } = metadataKey
 
-  //     await util.runQuery({
-  //       query,
-  //       vars,
-  //       connection,
-  //       next,
-  //     })
+          if(!id) {
+            vars = {
+              ...vars,
+              [`insert_${idx}`]: {
+                ...metadataKey,
+                ordering: idx + 1,
+                idp_id: req.user.idpId,
+              },
+            }
+            return `INSERT INTO metadata_key SET :insert_${idx}`
 
-  //   }
+          } else {
+            vars = {
+              ...vars,
+              [`update_values_${id}`]: {
+                name,
+                options,
+                ordering: idx + 1,
+              },
+              [`update_${id}`]: id,
+            }
+            return `UPDATE metadata_key SET :update_values_${id} WHERE idp_id=:idpId AND id=:update_${id}`
+          }
+        }),
 
-  //   // get the metadata keys
+      ]
 
-  //   const metadataKeys = await util.runQuery({
-  //     query: `
-  //       SELECT mk.id, mk.idp_id, mk.ordering, mk.options
-  //       FROM metadata_key
-  //       WHERE mk.idp_id=:idpId
-  //         AND mk.deleted_at IS NULL
-  //       ORDER BY mk.ordering
-  //     `,
-  //     vars: {
-  //       idpId: req.user.idpId,
-  //     },
-  //     connection,
-  //     next,
-  //   })
+      await util.runQuery({
+        queries,
+        vars,
+        connection,
+        next,
+      })
 
-  //   res.send({ metadataKeys })
+    }
 
-  // })
+    // get the metadata keys
+
+    const metadataKeys = await util.runQuery({
+      query: `
+        SELECT mk.id, mk.name, mk.options
+        FROM metadata_key AS mk
+          LEFT JOIN idp AS i ON (i.id = mk.idp_id)
+        WHERE i.domain=:domain
+          AND mk.deleted_at IS NULL
+        ORDER BY mk.ordering
+      `,
+      vars: {
+        domain: util.getIDPDomain(req.headers),  // they may not be logged in, and so we find this by domain and not idpId
+      },
+      connection,
+      next,
+    })
+
+    util.convertJsonColsFromStrings({ tableName: 'metadata_key', rows: metadataKeys })
+
+    metadataKeys.forEach(metadataKey => {
+      if(!metadataKey.options) {
+        delete metadataKey.options
+      }
+    })
+
+    res.send({ metadataKeys })
+
+  })
 
   // usage costs
   app.get('/reportsinfo', ensureAuthenticatedAndCheckIDP, async (req, res, next) => {

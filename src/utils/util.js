@@ -193,6 +193,7 @@ const jsonCols = {
   book_instance: [ 'flags' ],
   computed_book_access: [ 'flags' ],
   book_textnode_index: [ 'context' ],
+  metadata_key: [ 'options' ],
 }
 
 const util = {
