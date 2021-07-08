@@ -903,6 +903,75 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
 
   })
 
+  // update the metadata_key rows
+  app.post('/metadatavalues', ensureAuthenticatedAndCheckIDP, async (req, res, next) => {
+
+    if(!req.user.isAdmin) {
+      log('No permission to update metadata values', 3)
+      res.status(403).send({ errorType: "no_permission" })
+      return
+    }
+
+    if(
+      !util.paramsOk(req.body, ['bookId', 'metadataValues'])
+      || !(req.body.metadataValues instanceof Array)
+      || req.body.metadataValues.some(metadataValue => (
+        !util.paramsOk(metadataValue, ['metadata_key_id', 'value'])
+        || /\r/.test(metadataValue)
+      ))
+    ) {
+      log(['Invalid parameter(s)', req.body], 3)
+      res.status(400).send()
+      return
+    }
+
+    let vars = {
+      idpId: req.user.idpId,
+      bookId: req.body.bookId,
+    }
+
+    const queries = [
+
+      `START TRANSACTION`,
+
+      `
+        DELETE FROM metadata_value
+        WHERE book_id=:bookId
+          AND metadata_key_id IN (
+            SELECT mk.id
+            FROM metadata_key AS mk
+            WHERE mk.idp_id=:idpId
+              AND mk.deleted_at IS NULL
+          )
+      `,
+
+      ...req.body.metadataValues.map(({ metadata_key_id, value }, idx) => {
+        vars = {
+          ...vars,
+          [`insert_${idx}`]: {
+            book_id: vars.bookId,
+            metadata_key_id,
+            value,
+          },
+        }
+        return `INSERT INTO metadata_value SET :insert_${idx}`
+      }),
+
+      `COMMIT`,
+
+    ]
+
+    await util.runQuery({
+      queries,
+      vars,
+      connection,
+      next,
+    })
+
+    return util.getLibrary({ req, res, next, log, connection })
+
+  })
+
   // usage costs
   app.get('/reportsinfo', ensureAuthenticatedAndCheckIDP, async (req, res, next) => {
 

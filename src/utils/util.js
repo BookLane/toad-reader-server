@@ -6,6 +6,7 @@ const { i18n } = require("inline-i18n")
 const AWS = require('aws-sdk')
 const s3 = new AWS.S3()
 const cookie = require('cookie-signature')
+const md5 = require('md5')
 
 const fakeRedisClient = {}
 
@@ -1378,6 +1379,129 @@ const util = {
       }
     })
   }),
+
+  getLibrary: ({ req, res, next, log, connection }) => {
+
+    const now = util.timestampToMySQLDatetime();
+
+    // look those books up in the database and form the library
+    log('Lookup library');
+    connection.query(`
+      SELECT
+        b.id,
+        b.title,
+        b.author,
+        b.coverHref,
+        b.epubSizeInMB,
+        b.isbn,
+        bi.link_href,
+        bi.link_label,
+        cba.version,
+        cba.expires_at,
+        cba.enhanced_tools_expire_at,
+        cba.flags,
+        (
+          SELECT GROUP_CONCAT(CONCAT(sb.subscription_id, " ", sb.version) SEPARATOR "\n")
+          FROM \`subscription-book\` AS sb
+            LEFT JOIN subscription AS s ON (s.id=sb.subscription_id)
+          WHERE sb.book_id=b.id
+            AND (
+              sb.subscription_id=:negativeIdpId
+              OR (
+                s.idp_id=:idpId
+                AND s.deleted_at IS NULL
+              )
+            )
+        ) AS subscriptions,
+        (
+          SELECT GROUP_CONCAT(CONCAT(mk.id, " ", mv.value) SEPARATOR "\r")
+          FROM metadata_value AS mv
+            LEFT JOIN metadata_key AS mk ON (mv.metadata_key_id = mk.id)
+          WHERE mv.book_id=b.id
+            AND mk.idp_id=:idpId
+            AND mk.deleted_at IS NULL
+        ) AS metadataValues
+      FROM book AS b
+        LEFT JOIN \`book-idp\` AS bi ON (bi.book_id=b.id)
+        LEFT JOIN computed_book_access AS cba ON (
+          cba.book_id=b.id
+          AND cba.idp_id=:idpId
+          AND cba.user_id=:userId
+          AND (
+            cba.expires_at IS NULL
+            OR cba.expires_at>:now
+          )
+        )
+      WHERE b.rootUrl IS NOT NULL
+        AND bi.idp_id=:idpId
+        ${req.user.isAdmin ? `` : `
+          AND cba.book_id IS NOT NULL
+        `}
+      `,
+      {
+        userId: req.user.id,
+        idpId: req.user.idpId,
+        negativeIdpId: req.user.idpId * -1,
+        now,
+      },
+      function (err, rows) {
+        if (err) return next(err);
+
+        rows.forEach(row => {
+          util.convertMySQLDatetimesToTimestamps(row)
+          util.convertJsonColsFromStrings({ tableName: 'computed_book_access', row })
+
+          for(let key in row) {
+            if(row[key] === null) {
+              delete row[key]
+
+            } else if(key === 'subscriptions') {
+              row[key] = row[key].split("\n").map(sub => {
+                let [ id, version ] = sub.split(" ")
+                id = parseInt(id, 10)
+                return {
+                  id,
+                  version,
+                }
+              })
+
+            } else if(key === 'metadataValues') {
+              row[key] = row[key].split("\r").map(sub => {
+                let [ metadata_key_id, ...value ] = sub.split(" ")
+                metadata_key_id = parseInt(metadata_key_id, 10)
+                value = value.join(" ")
+                return {
+                  metadata_key_id,
+                  value,
+                }
+              })
+            }
+          }
+        })
+
+        const hash = md5(JSON.stringify(rows))
+
+        if(hash === req.query.hash) {
+          log(['No change to library.', rows.length])
+          return res.send({
+            noChange: true,
+          })
+          
+        } else if(req.query.hash !== undefined) {
+          log(['Deliver library', rows.length])
+          return res.send({
+            hash,
+            books: rows,
+          })
+          
+        } else {
+          log(['Deliver library (old version without hash)', rows.length])
+          return res.send(rows)
+        }
+
+      }
+    )
+  },
 
 }
 
