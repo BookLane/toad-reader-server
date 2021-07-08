@@ -115,10 +115,10 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
     const highlight = (await util.runQuery({
       query: `
         SELECT h.share_quote, h.note, h.spineIdRef, h.cfi, h.book_id, b.title, b.author, u.fullname, i.language, i.domain
-        FROM highlight as h
-          LEFT JOIN book as b ON (b.id=h.book_id)
-          LEFT JOIN user as u ON (u.id=h.user_id)
-          LEFT JOIN idp as i ON (i.id=u.idp_id)
+        FROM highlight AS h
+          LEFT JOIN book AS b ON (b.id=h.book_id)
+          LEFT JOIN user AS u ON (u.id=h.user_id)
+          LEFT JOIN idp AS i ON (i.id=u.idp_id)
         WHERE h.share_code=:shareCode
           AND h.deleted_at=:notDeletedAtTime
       `,
@@ -187,7 +187,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
 
     log('Check for embed website redirect')
     connection.query(`
-      SELECT embed_website.domain, idp.domain as idp_domain
+      SELECT embed_website.domain, idp.domain AS idp_domain
       FROM embed_website
         LEFT JOIN idp ON (embed_website.idp_id = idp.id)
       WHERE embed_website.domain = ?
@@ -276,8 +276,8 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
           // classroom_member query
           queries.push(`
             SELECT cm.classroom_uid, cm.user_id, cm.classroom_group_uid, cm.role, cm.created_at, cm.updated_at, u.email, u.fullname
-            FROM classroom_member as cm
-              LEFT JOIN user as u ON (cm.user_id=u.id)
+            FROM classroom_member AS cm
+              LEFT JOIN user AS u ON (cm.user_id=u.id)
             WHERE cm.classroom_uid IN (:classroomUids)
               AND cm.deleted_at IS NULL
               AND (
@@ -292,16 +292,16 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
           queries.push(`
             SELECT
               t.*,
-              te.uid as te_uid,
-              te.text as te_text,
-              te.created_at as te_created_at,
-              te.updated_at as te_updated_at,
-              te.submitted_at as te_submitted_at,
-              te.score as te_score,
-              tea.question_index as tea_question_index,
-              tea.choice_index as tea_choice_index
-            FROM tool as t
-              LEFT JOIN tool_engagement as te ON (
+              te.uid AS te_uid,
+              te.text AS te_text,
+              te.created_at AS te_created_at,
+              te.updated_at AS te_updated_at,
+              te.submitted_at AS te_submitted_at,
+              te.score AS te_score,
+              tea.question_index AS tea_question_index,
+              tea.choice_index AS tea_choice_index
+            FROM tool AS t
+              LEFT JOIN tool_engagement AS te ON (
                 te.tool_uid=t.uid
                 AND te.deleted_at IS NULL
                 AND te.user_id=:userId
@@ -310,7 +310,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
                   OR t.isDiscussion=0
                 )
               )
-              LEFT JOIN tool_engagement_answer as tea ON (tea.tool_engagement_uid=te.uid)
+              LEFT JOIN tool_engagement_answer AS tea ON (tea.tool_engagement_uid=te.uid)
             WHERE t.classroom_uid IN (:classroomUids)
               AND t.deleted_at IS NULL
               AND (
@@ -325,10 +325,10 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
 
           // instructor highlights query
           queries.push(`
-            SELECT h.spineIdRef, h.cfi, h.note, h.share_quote, h.updated_at, ih.classroom_uid, ih.created_at, u.id as author_id, u.fullname as author_fullname
-            FROM instructor_highlight as ih
-              LEFT JOIN highlight as h ON (ih.highlight_id=h.id)
-              LEFT JOIN user as u ON (u.id=h.user_id)
+            SELECT h.spineIdRef, h.cfi, h.note, h.share_quote, h.updated_at, ih.classroom_uid, ih.created_at, u.id AS author_id, u.fullname AS author_fullname
+            FROM instructor_highlight AS ih
+              LEFT JOIN highlight AS h ON (ih.highlight_id=h.id)
+              LEFT JOIN user AS u ON (u.id=h.user_id)
             WHERE ih.classroom_uid IN (:classroomUids)
               AND h.book_id=:bookId
               AND h.deleted_at=:notDeletedAtTime
@@ -339,8 +339,8 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
             // classroom_schedule_date query
             queries.push(`
               SELECT csd.classroom_uid, csd.due_at, csdi.spineIdRef, csdi.label
-              FROM classroom_schedule_date as csd
-                LEFT JOIN classroom_schedule_date_item as csdi ON (csdi.classroom_uid=csd.classroom_uid AND csdi.due_at=csd.due_at)
+              FROM classroom_schedule_date AS csd
+                LEFT JOIN classroom_schedule_date_item AS csdi ON (csdi.classroom_uid=csd.classroom_uid AND csdi.due_at=csd.due_at)
               WHERE csd.classroom_uid IN (:classroomUids)
                 AND csd.deleted_at IS NULL
               ORDER BY csd.due_at
@@ -529,8 +529,8 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
         // first get the classrooms so as to reference them in the other queries
         connection.query(`
           SELECT c.*, cm_me.role
-          FROM classroom as c
-            LEFT JOIN classroom_member as cm_me ON (cm_me.classroom_uid=c.uid)
+          FROM classroom AS c
+            LEFT JOIN classroom_member AS cm_me ON (cm_me.classroom_uid=c.uid)
           WHERE c.idp_id=?
             AND c.book_id=?
             AND c.deleted_at IS NULL
@@ -719,8 +719,8 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
         cba.flags,
         (
           SELECT GROUP_CONCAT(CONCAT(sb.subscription_id, " ", sb.version) SEPARATOR "\n")
-          FROM \`subscription-book\` as sb
-            LEFT JOIN subscription as s ON (s.id=sb.subscription_id)
+          FROM \`subscription-book\` AS sb
+            LEFT JOIN subscription AS s ON (s.id=sb.subscription_id)
           WHERE sb.book_id=b.id
             AND (
               sb.subscription_id=:negativeIdpId
@@ -729,10 +729,10 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
                 AND s.deleted_at IS NULL
               )
             )
-        ) as subscriptions
-      FROM book as b
-        LEFT JOIN \`book-idp\` as bi ON (bi.book_id=b.id)
-        LEFT JOIN computed_book_access as cba ON (
+        ) AS subscriptions
+      FROM book AS b
+        LEFT JOIN \`book-idp\` AS bi ON (bi.book_id=b.id)
+        LEFT JOIN computed_book_access AS cba ON (
           cba.book_id=b.id
           AND cba.idp_id=:idpId
           AND cba.user_id=:userId
@@ -873,7 +873,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
     const [ pushToken ] = await util.runQuery({
       query: `
         SELECT pt.id
-        FROM push_token as pt
+        FROM push_token AS pt
         WHERE pt.token=:token
       `,
       vars: {
