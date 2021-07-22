@@ -1199,11 +1199,11 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
 
   // hourly: clear out all expired demo tenants
   var runHourlyCron = function() {
-    log('Hourly cron started', 2);
+    log('Hourly cron: started', 2);
 
     var currentMySQLDatetime = util.timestampToMySQLDatetime();
 
-    log('Get expired idps');
+    log('Hourly cron: Get expired idps');
     connection.query('SELECT id FROM `idp` WHERE demo_expires_at IS NOT NULL AND demo_expires_at<?',
       [currentMySQLDatetime],
       function (err, rows, fields) {
@@ -1211,7 +1211,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
 
         var expiredIdpIds = rows.map(function(row) { return parseInt(row.id); });
 
-        log('Get books which are owned by the expired idps');
+        log('Hourly cron: Get books which are owned by the expired idps');
         connection.query('SELECT book_id FROM `book-idp` WHERE idp_id IN(?)',
           [expiredIdpIds.concat([0])],
           function (err2, rows2, fields2) {
@@ -1220,7 +1220,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
             var deleteQueries = ['SELECT 1'];  // dummy query, in case there are no idps to delete
 
             expiredIdpIds.forEach(function(idpId) {
-              log(['Clear out idp tenant', idpId], 2);
+              log(['Hourly cron: Clear out idp tenant', idpId], 2);
 
               deleteQueries.push('DELETE FROM `book-idp` WHERE idp_id="' + idpId + '"');
               deleteQueries.push('DELETE FROM `idp` WHERE id="' + idpId + '"');
@@ -1242,17 +1242,12 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
                   }
                 });
 
-                log(['Books to potentially delete', booksOwnedByDeletedIdps]);
+                log(['Hourly cron: Books to potentially delete', booksOwnedByDeletedIdps]);
 
-                var handleNextBook = function() {
-                  var nextBookId = booksOwnedByDeletedIdps.pop();
-                  if(nextBookId != undefined) {
-                    deleteBookIfUnassociated(nextBookId, next, handleNextBook);
-                  } else {
-                    log('Hourly cron complete', 2);
-                  }
+                for(let nextBookId of booksOwnedByDeletedIdps) {
+                  await deleteBookIfUnassociated(nextBookId, next)
                 }
-                handleNextBook();
+                log('Hourly cron: complete', 2)
               }
             );
           }
@@ -1269,20 +1264,22 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
 
   // every minute: send xapi statements
   var minuteCronRunning = false;
-  var runMinuteCron = function() {
+  var runMinuteCron = async () => {
 
     if(minuteCronRunning) {
-      log('Minute cron skipped since previous run unfinished.');
+      log('Minute cron: skipped since previous run unfinished.');
       return;
     }
 
-    log('Minute cron started', 2);
+    log('Minute cron: started', 2);
     minuteCronRunning = true;
+
+    await dueDateReminders({ connection, next, log })
 
     // get the tenants (idps)
     var currentMySQLDatetime = util.timestampToMySQLDatetime();
 
-    log('Get idps with xapiOn=true');
+    log('Minute cron: Get idps with xapiOn=true');
     connection.query('SELECT * FROM `idp` WHERE xapiOn=? AND (demo_expires_at IS NULL OR demo_expires_at>?)',
       [1, currentMySQLDatetime],
       function (err, rows) {
@@ -1296,7 +1293,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
 
         var markDone = function() {
           if(--leftToDo <= 0) {
-            log('Minute cron complete', 2);
+            log('Minute cron: complete', 2);
             minuteCronRunning = false;
           }
         }
@@ -1310,13 +1307,13 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
 
           // check configuration
           if(!row.xapiEndpoint || !row.xapiUsername || !row.xapiPassword || row.xapiMaxBatchSize < 1) {
-            log('The IDP with id #' + row.id + ' has xapi turned on, but it is misconfigured. Skipping.', 3);
+            log('Minute cron: The IDP with id #' + row.id + ' has xapi turned on, but it is misconfigured. Skipping.', 3);
             markDone();
             return;
           }
 
           // get the xapi queue
-          log('Get xapiQueue for idp id #' + row.id);
+          log('Minute cron: Get xapiQueue for idp id #' + row.id);
           connection.query('SELECT * FROM `xapiQueue` WHERE idp_id=? ORDER BY created_at DESC LIMIT ?',
             [row.id, row.xapiMaxBatchSize],
             function (err, statementRows) {
@@ -1348,12 +1345,14 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
     
                 // post the xapi statements
                 fetch(endpoint, options)
-                  .then(function(res) {
+                  .then(async res => {
                     if(res.status !== 200) {
-                      res.json().then(function(json) {
-                        log(['Bad xapi post for idp id #' + row.id, json.warnings || json, JSON.stringify(statements)], 3);
-                        markDone();
-                      })
+                      let json = 'No response JSON'
+                      try {
+                        json = await res.json()
+                      } catch(err) {}
+                      log(['Minute cron: Bad xapi post for idp id #' + row.id, json.warnings || json, JSON.stringify(statements)], 3);
+                      markDone();
                       return;
                     }
 
@@ -1364,7 +1363,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
                       statementIds.push(statementRow.id);
                     });
           
-                    log('Delete successfully sent statements from xapiQueue queue. Ids: ' + statementIds.join(', '));
+                    log('Minute cron: Delete successfully sent statements from xapiQueue queue. Ids: ' + statementIds.join(', '));
                     connection.query('DELETE FROM `xapiQueue` WHERE id IN(?)', [statementIds], function (err, result) {
                       if (err) log(err, 3);
                       markDone();
@@ -1372,7 +1371,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
           
                   })
                   .catch(function(err) {
-                    log('Xapi post failed for idp id #' + row.id, 3);
+                    log('Minute cron: Xapi post failed for idp id #' + row.id, 3);
                     markDone();
                   })
 
@@ -1384,8 +1383,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         });
       }
     );
-
-    dueDateReminders({ connection, next, log })
 
   }
 
