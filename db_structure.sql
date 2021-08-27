@@ -7,7 +7,7 @@
 #
 # Host: localhost (MySQL 8.0.22)
 # Database: ToadReader
-# Generation Time: 2021-06-15 19:36:39 +0000
+# Generation Time: 2021-08-27 14:24:13 +0000
 # ************************************************************
 
 
@@ -405,6 +405,7 @@ CREATE TABLE `metadata_key` (
   `ordering` int NOT NULL,
   `deleted_at` datetime(3) DEFAULT NULL,
   PRIMARY KEY (`id`),
+  UNIQUE KEY `idp_id_2` (`idp_id`,`name`,`deleted_at`),
   KEY `idp_id` (`idp_id`,`deleted_at`,`ordering`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
@@ -537,6 +538,7 @@ CREATE TABLE `tool` (
   `published_at` datetime(3) DEFAULT NULL,
   `deleted_at` datetime(3) DEFAULT NULL,
   `currently_published_tool_uid` varchar(36) DEFAULT NULL,
+  `creatorType` enum('PUBLISHER','INSTRUCTOR','BOTH') CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,
   PRIMARY KEY (`uid`),
   KEY `classroom_id` (`classroom_uid`),
   KEY `classroom_group_id` (`classroom_group_uid`),

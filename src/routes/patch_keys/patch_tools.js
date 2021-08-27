@@ -65,7 +65,7 @@ module.exports = {
           tool,
           ['updated_at','uid'],
           ['classroom_group_uid','spineIdRef','cfi','ordering','name','toolType','data','undo_array',
-           'due_at','closes_at','published_at','currently_published_tool_uid','_delete']
+           'due_at','closes_at','published_at','currently_published_tool_uid','creatorType','_delete']
         )) {
           return getErrorObj('invalid parameters')
         }
