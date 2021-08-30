@@ -793,12 +793,18 @@ const util = {
         now,
       },
       (err, rows) => {
-        if (err) return next(err);
+        if (err) return next(err)
+
+        let { version='BASE' } = rows[0] || {}
+
+        if(req.user.isAdmin && version !== "INSTRUCTOR") {
+          version = "PUBLISHER"  // if this idp does not use enhanced reader, this only gives them extra permissions and should not cause an issue
+        }
 
         resolveAll(rows.length > 0 && {
-          version: (rows[0].version || 'BASE'),
+          version,
           enhancedToolsExpiresAt: util.mySQLDatetimeToTimestamp(rows[0].enhanced_tools_expire_at || '3000-01-01 00:00:00'),
-        });
+        })
 
       }
     );
@@ -1266,6 +1272,10 @@ const util = {
     const isDefaultClassroomUid = /^[0-9]+-[0-9]+$/.test(classroomUid)
     const now = util.timestampToMySQLDatetime()
 
+    if(isDefaultClassroomUid && req.user.isAdmin) {
+      return true
+    }
+
     const rows = await util.runQuery({
       query: `
         SELECT c.uid
@@ -1380,9 +1390,29 @@ const util = {
     })
   }),
 
-  getLibrary: ({ req, res, next, log, connection }) => {
+  getLibrary: async ({ req, res, next, log, connection }) => {
 
     const now = util.timestampToMySQLDatetime();
+
+    const [ idp ] = await util.runQuery({
+      query: `SELECT i.use_enhanced_reader_at FROM idp AS i WHERE i.id=:idpId`,
+      vars: {
+        idpId: req.user.idpId,
+      },
+      connection,
+      next,
+    })
+
+    const useEnhancedReader = idp.use_enhanced_reader_at && new Date(idp.use_enhanced_reader_at) < new Date()
+
+    let versionField = `"BASE"`
+    if(useEnhancedReader) {
+      if(req.user.isAdmin) {
+        versionField = `IF(cba.version = "INSTRUCTOR", "INSTRUCTOR", "PUBLISHER")`
+      } else {
+        versionField = `IFNULL(cba.version, "BASE")`
+      }
+    }
 
     // look those books up in the database and form the library
     log('Lookup library');
@@ -1396,7 +1426,7 @@ const util = {
         b.isbn,
         bi.link_href,
         bi.link_label,
-        cba.version,
+        ${versionField} AS version,
         cba.expires_at,
         cba.enhanced_tools_expire_at,
         cba.flags,

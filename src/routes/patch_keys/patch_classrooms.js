@@ -177,7 +177,9 @@ module.exports = {
 
         if(!onlyEngaging) {
 
-          if(!dbComputedBookAccess[0] || (dbClassroom || {}).role === 'STUDENT') {  // STUDENT
+          const { version } = dbComputedBookAccess[0] || {}
+
+          if((!version && !user.isAdmin) || (dbClassroom || {}).role === 'STUDENT') {  // STUDENT
             const leavingClassroomAndMaybeEngaging = (
               util.paramsOk(classroom, ['uid', 'members'], ['toolEngagements'])
               && classroom.members.length === 1
@@ -189,7 +191,7 @@ module.exports = {
             } else if(leavingClassroomAndMaybeEngaging && classroom.uid === `${user.idpId}-${bookId}`) {
               return getErrorObj('invalid permissions: user cannot leave the default version')
             }
-          } else if(dbComputedBookAccess[0].version === 'PUBLISHER') {  // PUBLISHER
+          } else if(version === 'PUBLISHER' || (user.isAdmin && version !== 'INSTRUCTOR')) {  // PUBLISHER
             if(classroom.uid !== `${user.idpId}-${bookId}`) {
               return getErrorObj('invalid permissions: user with PUBLISHER computed_book_access can only edit the default version')
             }

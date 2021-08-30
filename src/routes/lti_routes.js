@@ -68,7 +68,11 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
       // check that they have access
       if(isDefaultClassroom) {
         const enhancedExpired = !(enhanced_tools_expire_at == null || enhanced_tools_expire_at > now)
-        if(published_at) {
+        if(req.user.isAdmin) {
+          if(enhancedExpired) {
+            return noPermission(5)
+          }
+        } else if(published_at) {
           if(![ 'ENHANCED', 'INSTRUCTOR', 'PUBLISHER' ].includes(version) || enhancedExpired) {
             return noPermission(1)
           }
@@ -87,11 +91,15 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
 
       // default classroom?
         // yes
-          // published
+          // admin?
             // yes
-              // enhanced, publisher, instructor version ONLY
+              // not expired ONLY
             // no
-              // publisher version ONLY
+              // published?
+                // yes
+                  // enhanced, publisher, instructor version ONLY
+                // no
+                  // publisher version ONLY
         // no
           // member ONLY
             // published
