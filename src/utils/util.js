@@ -797,7 +797,7 @@ const util = {
 
         let { version='BASE' } = rows[0] || {}
 
-        if(req.user.isAdmin && version !== "INSTRUCTOR") {
+        if(req.user.isAdmin && ![ "ENHANCED", "INSTRUCTOR" ].includes(version)) {
           version = "PUBLISHER"  // if this idp does not use enhanced reader, this only gives them extra permissions and should not cause an issue
         }
 
@@ -1408,7 +1408,7 @@ const util = {
     let versionField = `"BASE"`
     if(useEnhancedReader) {
       if(req.user.isAdmin) {
-        versionField = `IF(cba.version = "INSTRUCTOR", "INSTRUCTOR", "PUBLISHER")`
+        versionField = `IF(cba.version = "ENHANCED" || cba.version = "INSTRUCTOR", cba.version, "PUBLISHER")`
       } else {
         versionField = `IFNULL(cba.version, "BASE")`
       }

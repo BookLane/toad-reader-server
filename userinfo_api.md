@@ -151,7 +151,7 @@ String
   books: [
     {
       id: Integer
-      version: BASE|ENHANCED|PUBLISHER|INSTRUCTOR (optional; default: BASE)
+      version: BASE|ENHANCED|INSTRUCTOR|PUBLISHER (optional; default: BASE)
       expiration: Integer (timestamp with ms; optional: default: no expiration)
       enhancedToolsExpiration: Integer (timestamp with ms; optional; default=expiration)
       flags: [String] (optional; default: [])
@@ -171,6 +171,15 @@ String
 
 - If `flags` contains an item with the value `trial`, then a "Trial" indicator will be seen in the user’s library. No other flags are used at this time.
 - Either `books` or `subscriptions` (or both) must be provided.
+- For tenants with the Standard eReader, `ADMIN`s are automatically given access to the `BASIC` version of every book.
+- For tenants with the Enhanced eReader, `ADMIN`s are automatically given access to the `PUBLISHER` version of every book. Explicit access to the `ENHANCED` or `INSTRUCTOR` version of a book in the User Info Payload will override this default.
+
+### Book version permissions
+
+- `BASE`: Only has access to the "Basic book"
+- `ENHANCED`: Has access to the "Basic book" and "Enhanced book." Additionally, this user can connect to classrooms as a student with a QR or text code.
+- `INSTRUCTOR`: Has access to the "Basic book" and "Enhanced book." Additionally, this user can create classrooms over which he/she becomes an instructor. This gives him/her the ability to edit the tools displayed and highlights shared within those classrooms. This user can also connect to classrooms as a student with a QR or text code.
+- `PUBLISHER`: Has access to the "Basic book" and "Enhanced book." Additionally, this user can edit the tools displayed in the "Enhanced book."
 
 ### Simple example of typical usage
 ```json

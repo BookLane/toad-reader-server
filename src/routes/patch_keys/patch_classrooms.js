@@ -148,6 +148,7 @@ module.exports = {
     dbHighlightsWithInstructorHighlight,
     user,
     bookId,
+    req,
   }) => {
 
     let containedOldPatch = false
@@ -191,7 +192,7 @@ module.exports = {
             } else if(leavingClassroomAndMaybeEngaging && classroom.uid === `${user.idpId}-${bookId}`) {
               return getErrorObj('invalid permissions: user cannot leave the default version')
             }
-          } else if(version === 'PUBLISHER' || (user.isAdmin && version !== 'INSTRUCTOR')) {  // PUBLISHER
+          } else if(version === 'PUBLISHER' || (user.isAdmin && ![ 'ENHANCED', 'INSTRUCTOR' ].includes(version))) {  // PUBLISHER
             if(classroom.uid !== `${user.idpId}-${bookId}`) {
               return getErrorObj('invalid permissions: user with PUBLISHER computed_book_access can only edit the default version')
             }
@@ -351,6 +352,7 @@ module.exports = {
           classroomUid: classroom.uid,
           dbToolEngagements,
           user,
+          req,
         })
 
         if(!patchToolEngagmentsResult.success) {
