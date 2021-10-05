@@ -670,6 +670,103 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
     }
   )
 
+  // get (and optionally update) the subscription rows
+  app.all('/subscriptions', async (req, res, next) => {
+
+    if(![ 'GET', 'POST' ].includes(req.method)) return next()
+
+    if(req.method === 'POST') {
+
+      if(!(req.user || {}).isAdmin) {
+        log('No permission to update subscriptions', 3)
+        res.status(403).send({ errorType: "no_permission" })
+        return
+      }
+
+      if(
+        !util.paramsOk(req.body, ['subscriptions'])
+        || !(req.body.subscriptions instanceof Array)
+        || req.body.subscriptions.some(subscription => (
+          !util.paramsOk(subscription, ['label'])  // a new key
+          && !util.paramsOk(subscription, ['id', 'label'])  // an update
+        ))
+      ) {
+        log(['Invalid parameter(s)', req.body], 3)
+        res.status(400).send()
+        return
+      }
+
+      let vars = {
+        idpId: req.user.idpId,
+        now: util.timestampToMySQLDatetime(),
+        [`delete_except_ids`]: [
+          0,  // dummy key to ensure valid sql
+          ...req.body.subscriptions.map(({ id }) => id).filter(Boolean),
+        ],
+      }
+
+      const queries = [
+
+        `UPDATE subscription SET deleted_at=:now WHERE idp_id=:idpId AND id NOT IN (:delete_except_ids) AND deleted_at IS NULL`,
+
+        ...req.body.subscriptions.map((subscription, idx) => {
+          const { id, label } = subscription
+
+          if(!id) {
+            vars = {
+              ...vars,
+              [`insert_${idx}`]: {
+                ...subscription,
+                idp_id: req.user.idpId,
+              },
+            }
+            return `INSERT INTO subscription SET :insert_${idx}`
+
+          } else {
+            vars = {
+              ...vars,
+              [`update_values_${id}`]: {
+                label,
+              },
+              [`update_${id}`]: id,
+            }
+            return `UPDATE subscription SET :update_values_${id} WHERE idp_id=:idpId AND id=:update_${id}`
+          }
+        }),
+
+      ]
+
+      await util.runQuery({
+        queries,
+        vars,
+        connection,
+        next,
+      })
+
+    }
+
+    // get the subscriptions
+
+    const subscriptions = await util.runQuery({
+      query: `
+        SELECT s.id, s.label
+        FROM subscription AS s
+          LEFT JOIN idp AS i ON (i.id = s.idp_id)
+        WHERE i.domain=:domain
+          AND s.deleted_at IS NULL
+        ORDER BY s.label
+      `,
+      vars: {
+        domain: util.getIDPDomain(req.headers),  // they may not be logged in, and so we find this by domain and not idpId
+      },
+      connection,
+      next,
+    })
+
+    res.send({ subscriptions })
+
+  })
+
   // update subscription-book rows
   app.post('/setsubscriptions/:bookId', ensureAuthenticatedAndCheckIDP, async (req, res, next) => {
 
