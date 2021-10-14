@@ -538,7 +538,7 @@ const util = {
 
   },
 
-  updateUserInfo: ({ connection, log, userInfo, idpId, updateLastLoginAt=false, next }) => new Promise(resolveAll => {
+  updateUserInfo: async ({ connection, log, userInfo, idpId, updateLastLoginAt=false, next }) => {
 
     // Payload:
     // {
@@ -554,6 +554,13 @@ const util = {
     //       expiration: Integer (timestamp with ms; optional: default: no expiration)
     //       enhancedToolsExpiration: Integer (timestamp with ms; optional; default=expiration)
     //       flags: [String] (optional; used for "trial")
+    //     }
+    //   ]
+    //   subscriptions: [
+    //     {
+    //       id: Integer
+    //       expiration: Integer (timestamp with ms; optional: default: no expiration)
+    //       enhancedToolsExpiration: Integer (timestamp with ms; optional; default=expiration)
     //     }
     //   ]
     // }
@@ -573,11 +580,6 @@ const util = {
       || ![ 'number', 'undefined' ].includes(typeof forceResetLoginBefore)
     ) {
       return next('Invalid user info')
-    }
-
-    const finishUp = async userId => {
-      await util.updateComputedBookAccess({ idpId, userId, connection, log })
-      resolveAll({ userId, ssoData })
     }
 
     // dedup books
@@ -606,156 +608,241 @@ const util = {
         return true
       }
     })
-    
-    const now = util.timestampToMySQLDatetime();
 
-    connection.query(
-      'SELECT id, adminLevel FROM `user` WHERE idp_id=? AND user_id_from_idp=?',
-      [idpId, idpUserId],
-      (err, rows) => {
-        if (err) return next(err)
+    // dedup subscriptions
+    const subscriptionIdObj = {}
+    const subscriptions = (userInfo.subscriptions || []).filter(({ id, expiration, enhancedToolsExpiration }) => {
+      if(!subscriptionIdObj[id]) {
 
-        const userBeforeUpdate = rows[0]
-
-        const cols = {
-          user_id_from_idp: idpUserId,
-          idp_id: idpId,
-          email,
-          adminLevel: ([ 'SUPER_ADMIN', 'ADMIN', 'NONE' ].includes(adminLevel) ? adminLevel : (userBeforeUpdate || {}).adminLevel) || 'NONE',
+        // check validity
+        if(
+          !Number.isInteger(id)
+          || ![ 'number', 'undefined' ].includes(typeof expiration)
+          || ![ 'number', 'undefined' ].includes(typeof enhancedToolsExpiration)
+        ) {
+          return false  // i.e. skip it
         }
 
-        if(fullname) {
-          cols.fullname = fullname
-        }
-
-        if(updateLastLoginAt) {
-          cols.last_login_at = now
-        }
-
-        let query, vars;
-        if(userBeforeUpdate) {
-          query = 'UPDATE `user` SET ? WHERE id=?';
-          vars = [ cols, userBeforeUpdate.id ]
-        } else {
-          cols.last_login_at = now
-          cols.created_at = now
-          query = 'INSERT INTO `user` SET ?'
-          vars = cols
-        }
-
-        log(['Update/insert user row', query, vars], 1)
-
-        connection.query(
-          query,
-          vars,
-          (err, results) => {
-            if (err) return next(err);
-
-            const userId = userBeforeUpdate ? userBeforeUpdate.id : results.insertId;
-            const isAdmin = [ 'SUPER_ADMIN', 'ADMIN' ].includes(cols.adminLevel)
-
-            // If userInfo does not even include a books array, do not change their book instances.
-            // (To remove all book instances, books should be an empty array.)
-            if(!userInfo.books) {
-              finishUp(userId)
-              return
-            }
-
-            // filter bookIds by the book-idp (books are accessible to user only if the book is associated with login IDP)
-            connection.query(
-              'SELECT book_id FROM `book-idp` WHERE idp_id=?' + (isAdmin ? '' : ' AND book_id IN(?)'),
-              [idpId, books.map(({ id }) => id).concat([0])],
-              function (err, rows, fields) {
-                if (err) return next(err);
-      
-                const idpBookIds = rows.map(({ book_id }) => parseInt(book_id));
-          
-                const filteredAndFilledOutBooks = books.filter(({ id }) => idpBookIds.includes(parseInt(id)))
-
-                // fill out admins with base version of missing books 
-                // if(isAdmin) {
-                //   idpBookIds.forEach(id => {
-                //     if(!bookIds.includes(id)) {
-                //       adjustedBooks.push({
-                //         id,
-                //       })
-                //     }
-                //   })
-                // }
-            
-                log(['filter bookIds by the book-idp', filteredAndFilledOutBooks]);
-
-                const updateBookInstance = ({ id, version, expiration, enhancedToolsExpiration, flags }) => new Promise(resolve => {
-                  enhancedToolsExpiration = enhancedToolsExpiration || expiration
-
-                  const expiresAt = util.timestampToMySQLDatetime(expiration)
-                  const enhancedToolsExpiresAt = util.timestampToMySQLDatetime(enhancedToolsExpiration)
-
-                  const updateCols = {
-                    expires_at: (expiration && expiresAt) || null,
-                    enhanced_tools_expire_at: (enhancedToolsExpiration && enhancedToolsExpiresAt) || null,
-                    version: version || 'BASE',
-                    flags: flags ? JSON.stringify(flags) : null,
-                  }
-
-                  const insertCols = {
-                    ...updateCols,
-                    book_id: id,
-                    user_id: userId,
-                    idp_id: idpId,
-                    first_given_access_at: now,
-                  }
-
-                  connection.query(
-                    `
-                      INSERT INTO \`book_instance\` SET ?
-                        ON DUPLICATE KEY UPDATE ?
-                    `,
-                    [
-                      insertCols,
-                      updateCols,
-                    ],
-                    err => {
-                      if (err) return next(err);
-                      resolve();
-                    }
-                  )
-      
-                })
-
-                // Add and update book instances
-                Promise.all(filteredAndFilledOutBooks.map(updateBookInstance)).then(() => {
-
-                  if(isAdmin) {
-                    finishUp(userId);
-                    return;
-                  }
-
-                  // Expire book_instance rows for books no longer in the list
-                  connection.query(
-                    'UPDATE `book_instance` SET ? WHERE idp_id=? AND user_id=? AND book_id NOT IN(?) AND (expires_at IS NULL OR expires_at>?)',
-                    [
-                      {
-                        expires_at: now,
-                      },
-                      idpId,
-                      userId,
-                      filteredAndFilledOutBooks.map(({ id }) => id).concat([0]),
-                      now,
-                    ],
-                    err => {
-                      if (err) return next(err);
-                      finishUp(userId);
-                    }
-                  )
-                })
-              }
-            )
-          }
-        )
+        subscriptionIdObj[id] = true
+        return true
       }
-    )
-  }),
+    })
+
+    const now = util.timestampToMySQLDatetime()
+
+    const [ userBeforeUpdate ] = await util.runQuery({
+      query: 'SELECT id, adminLevel FROM `user` WHERE idp_id=:idpId AND user_id_from_idp=:idpUserId',
+      vars: {
+        idpId,
+        idpUserId,
+      },
+      connection,
+      next,
+    })
+
+    const cols = {
+      user_id_from_idp: idpUserId,
+      idp_id: idpId,
+      email,
+      adminLevel: ([ 'SUPER_ADMIN', 'ADMIN', 'NONE' ].includes(adminLevel) ? adminLevel : (userBeforeUpdate || {}).adminLevel) || 'NONE',
+    }
+
+    if(fullname) {
+      cols.fullname = fullname
+    }
+
+    if(updateLastLoginAt) {
+      cols.last_login_at = now
+    }
+
+    let query, vars
+    if(userBeforeUpdate) {
+      query = 'UPDATE `user` SET :cols WHERE id=:id'
+      vars = {
+        cols,
+        id: userBeforeUpdate.id,
+      }
+    } else {
+      cols.last_login_at = now
+      cols.created_at = now
+      query = 'INSERT INTO `user` SET :cols'
+      vars = { cols }
+    }
+
+    log(['Update/insert user row', query, vars], 1)
+
+    const results = await util.runQuery({
+      query,
+      vars,
+      connection,
+      next,
+    })
+
+    const userId = userBeforeUpdate ? userBeforeUpdate.id : results.insertId
+    const isAdmin = [ 'SUPER_ADMIN', 'ADMIN' ].includes(cols.adminLevel)
+
+    // If userInfo does not even include a books array, do not change their book instances.
+    // (To remove all book instances, books should be an empty array.)
+    if(userInfo.books) {
+
+      // filter bookIds by the book-idp (books are accessible to user only if the book is associated with login IDP)
+      const rows = await util.runQuery({
+        query: 'SELECT book_id FROM `book-idp` WHERE idp_id=:idpId AND book_id IN(:bookIds)',
+        vars: {
+          idpId,
+          bookIds: books.map(({ id }) => id).concat([0]),
+        },
+        connection,
+        next,
+      })
+
+      const idpBookIds = rows.map(({ book_id }) => parseInt(book_id))
+
+      const filteredBooks = books.filter(({ id }) => idpBookIds.includes(parseInt(id)))
+  
+      log(['filtered books by the book-idp', filteredBooks])
+
+      const updateBookInstance = async ({ id, version, expiration, enhancedToolsExpiration, flags }) => {
+        enhancedToolsExpiration = enhancedToolsExpiration || expiration
+
+        const expiresAt = util.timestampToMySQLDatetime(expiration)
+        const enhancedToolsExpiresAt = util.timestampToMySQLDatetime(enhancedToolsExpiration)
+
+        const updateCols = {
+          expires_at: (expiration && expiresAt) || null,
+          enhanced_tools_expire_at: (enhancedToolsExpiration && enhancedToolsExpiresAt) || null,
+          version: version || 'BASE',
+          flags: flags ? JSON.stringify(flags) : null,
+        }
+
+        const insertCols = {
+          ...updateCols,
+          book_id: id,
+          user_id: userId,
+          idp_id: idpId,
+          first_given_access_at: now,
+        }
+
+        await util.runQuery({
+          query: `
+            INSERT INTO \`book_instance\` SET :insertCols
+              ON DUPLICATE KEY UPDATE :updateCols
+          `,
+          vars: {
+            insertCols,
+            updateCols,
+          },
+          connection,
+          next,
+        })
+      }
+
+      // Add and update book instances
+      await Promise.all(filteredBooks.map(updateBookInstance))
+
+      if(!isAdmin) {
+        // Expire book_instance rows for books no longer in the list
+        await util.runQuery({
+          query: 'UPDATE `book_instance` SET :cols WHERE idp_id=:idpId AND user_id=:userId AND book_id NOT IN(:bookIds) AND (expires_at IS NULL OR expires_at>:now)',
+          vars: {
+            cols: {
+              expires_at: now,
+            },
+            idpId,
+            userId,
+            bookIds: filteredBooks.map(({ id }) => id).concat([0]),
+            now,
+          },
+          connection,
+          next,
+        })
+      }
+
+    }
+
+    // If userInfo does not even include a subscriptions array, do not change their subscription instances.
+    // (To remove all subscription instances, subscriptions should be an empty array.)
+    if(userInfo.subscriptions) {
+
+      // filter subscriptionIds by the subscription table
+      const rows = await util.runQuery({
+        query: 'SELECT id FROM `subscription` WHERE idp_id=:idpId AND id IN(:subscriptionIds)',
+        vars: {
+          idpId,
+          subscriptionIds: subscriptions.map(({ id }) => id).concat([0]),
+        },
+        connection,
+        next,
+      })
+
+      const idpSubscriptionIds = rows.map(({ id }) => parseInt(id))
+
+      const filteredSubscriptions = subscriptions.filter(({ id }) => idpSubscriptionIds.includes(parseInt(id)))
+  
+      log(['filtered subscriptions by the subscription table', filteredSubscriptions])
+
+      const updateSubscriptionInstance = async ({ id, expiration, enhancedToolsExpiration }) => {
+        enhancedToolsExpiration = enhancedToolsExpiration || expiration
+
+        const expiresAt = util.timestampToMySQLDatetime(expiration)
+        const enhancedToolsExpiresAt = util.timestampToMySQLDatetime(enhancedToolsExpiration)
+
+        const updateCols = {
+          expires_at: (expiration && expiresAt) || null,
+          enhanced_tools_expire_at: (enhancedToolsExpiration && enhancedToolsExpiresAt) || null,
+        }
+
+        const insertCols = {
+          ...updateCols,
+          subscription_id: id,
+          user_id: userId,
+          first_given_access_at: now,
+        }
+
+        await util.runQuery({
+          query: `
+            INSERT INTO \`subscription_instance\` SET :insertCols
+              ON DUPLICATE KEY UPDATE :updateCols
+          `,
+          vars: {
+            insertCols,
+            updateCols,
+          },
+          connection,
+          next,
+        })
+      }
+
+      // Add and update subscription instances
+      await Promise.all(filteredSubscriptions.map(updateSubscriptionInstance))
+
+      if(!isAdmin) {
+        // Expire subscription_instance rows for subscriptions no longer in the list
+        await util.runQuery({
+          query: 'UPDATE `subscription_instance` SET :cols WHERE user_id=:userId AND subscription_id NOT IN(:subscriptionIds) AND (expires_at IS NULL OR expires_at>:now)',
+          vars: {
+            cols: {
+              expires_at: now,
+            },
+            userId,
+            subscriptionIds: filteredSubscriptions.map(({ id }) => id).concat([0]),
+            now,
+          },
+          connection,
+          next,
+        })
+      }
+
+    }
+
+    // update computed books
+    await util.updateComputedBookAccess({ idpId, userId, connection, log })
+
+    return {
+      userId,
+      ssoData,
+    }
+  },
 
   hasAccess: ({ bookId, requireEnhancedToolsAccess=false, req, connection, log, next }) => new Promise(resolveAll => {
 
