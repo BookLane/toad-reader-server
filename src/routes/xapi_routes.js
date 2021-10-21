@@ -35,7 +35,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
 
         req.body.readingRecords.forEach(function(reading) {
 
-          if(!util.paramsOk(reading, ['bookId','spineIdRef','startTime','endTime'])) {
+          if(!util.paramsOk(reading, ['bookId','spineIdRef','startTime','endTime'], ['lastActivityTime'])) {
             log(['Invalid reading record - skipping', `thread:${threadId}`, reading], 3);
             return;
           }
