@@ -546,60 +546,59 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
 
           GROUP BY tbl.due_at
 
-          ${req.params.userId ? `` : `
+          ;
 
-            ;
+          SELECT
+            tbl.uid,
+            tbl.name,
+            tbl.spineIdRef,
+            tbl.cfi,
+            COUNT(tbl.firstScore) as numStudentsWhoHaveTakenTheQuiz,
+            AVG(tbl.firstScore) as averageFirstScore,
+            AVG(tbl.bestScore) as averageBestScore
 
+          FROM (
+            
             SELECT
-              tbl.uid,
-              tbl.name,
-              tbl.spineIdRef,
-              tbl.cfi,
-              COUNT(tbl.firstScore) as numStudentsWhoHaveTakenTheQuiz,
-              AVG(tbl.firstScore) as averageFirstScore,
-              AVG(tbl.bestScore) as averageBestScore
+              t.uid,
+              t.name,
+              t.spineIdRef,
+              t.cfi,
+              SUBSTRING_INDEX(GROUP_CONCAT(te.score ORDER BY te.submitted_at), ',', 1) as firstScore,
+              MAX(te.score) as bestScore
 
-            FROM (
-              
-              SELECT
-                t.uid,
-                t.name,
-                t.spineIdRef,
-                t.cfi,
-                SUBSTRING_INDEX(GROUP_CONCAT(te.score ORDER BY te.submitted_at), ',', 1) as firstScore,
-                MAX(te.score) as bestScore
+            FROM tool as t
+              LEFT JOIN tool_engagement as te ON (te.tool_uid=t.uid)
+              LEFT JOIN classroom_member as cm ON (cm.user_id=te.user_id)
 
-              FROM tool as t
-                LEFT JOIN tool_engagement as te ON (te.tool_uid=t.uid)
-                LEFT JOIN classroom_member as cm ON (cm.user_id=te.user_id)
+            WHERE t.classroom_uid=:classroomUid
+              AND t.toolType="QUIZ"
+              AND t.published_at IS NOT NULL
+              AND t.deleted_at IS NULL
+              AND t.currently_published_tool_uid IS NULL
 
-              WHERE t.classroom_uid=:classroomUid
-                AND t.toolType="QUIZ"
-                AND t.published_at IS NOT NULL
-                AND t.deleted_at IS NULL
-                AND t.currently_published_tool_uid IS NULL
-
-                AND (
-                  (
-                    te.uid IS NULL
-                    AND cm.user_id IS NULL
-                  )
-                  OR (
-                    te.submitted_at IS NOT NULL
-                    AND te.deleted_at IS NULL
-                    AND cm.classroom_uid=:classroomUid
-                    AND cm.role="STUDENT"
-                    AND cm.deleted_at IS NULL
-                  )
+              AND (
+                (
+                  te.uid IS NULL
+                  AND cm.user_id IS NULL
                 )
+                OR (
+                  te.submitted_at IS NOT NULL
+                  AND te.deleted_at IS NULL
+                  AND cm.classroom_uid=:classroomUid
+                  AND cm.role="STUDENT"
+                  AND cm.deleted_at IS NULL
+                  ${!req.params.userId ? `` : `
+                    AND cm.user_id=:userId
+                  `}
+                )
+              )
 
-              GROUP BY t.uid, te.user_id
+            GROUP BY t.uid, te.user_id
 
-            ) as tbl
+          ) as tbl
 
-            GROUP BY tbl.uid
-
-            `}
+          GROUP BY tbl.uid
 
         `,
         vars: {
