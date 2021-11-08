@@ -7,7 +7,7 @@
 #
 # Host: localhost (MySQL 8.0.22)
 # Database: ToadReader
-# Generation Time: 2021-08-27 14:24:13 +0000
+# Generation Time: 2021-11-08 20:38:24 +0000
 # ************************************************************
 
 
@@ -289,7 +289,7 @@ CREATE TABLE `highlight` (
   `cfi` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
   `color` tinyint unsigned NOT NULL,
   `note` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
-  `share_code` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,
+  `share_code` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
   `share_quote` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci,
   `updated_at` datetime(3) NOT NULL,
   `deleted_at` datetime(3) NOT NULL DEFAULT '0000-01-01 00:00:00.000',
