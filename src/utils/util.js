@@ -461,10 +461,11 @@ const util = {
 
     try {
 
-      response = await fetch(`${idp.userInfoEndpoint}${connectorCharacter}version=${version}&payload=${payload}`)
+      const url = `${idp.userInfoEndpoint}${connectorCharacter}version=${version}&payload=${payload}`
+      response = await fetch(url)
 
       if(response.status !== 200) {
-        log(['Invalid response from userInfoEndpoint'], 3)
+        log([`Invalid response from userInfoEndpoint: ${url}`], 3)
         // next('Bad login.')
       }
 
