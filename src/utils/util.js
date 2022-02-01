@@ -9,7 +9,7 @@ const cookie = require('cookie-signature')
 const md5 = require('md5')
 
 const fakeRedisClient = {}
-const API_VERSION = '1.1'
+const API_VERSION = '1.0'
 
 var getXapiActor = function(params) {
   return {
