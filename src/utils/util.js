@@ -458,14 +458,14 @@ const util = {
     const payload = jwt.sign({ idpUserId }, idp.userInfoJWT)
     const connectorCharacter = /\?/.test(idp.userInfoEndpoint) ? `&` : `?`
     let response, jwtStr
+    const url = `${idp.userInfoEndpoint}${connectorCharacter}version=${version}&payload=${payload}`
 
     try {
 
-      const url = `${idp.userInfoEndpoint}${connectorCharacter}version=${version}&payload=${payload}`
       response = await fetch(url)
 
       if(response.status !== 200) {
-        log([`Invalid response from userInfoEndpoint: ${url}`], 3)
+        log([`Invalid response from userInfoEndpoint`, url], 3)
         // next('Bad login.')
       }
 
@@ -480,7 +480,7 @@ const util = {
       }
 
     } catch (err) {
-      log(['Fetch to userInfoEndpoint failed', err.message], 3)
+      log(['Fetch to userInfoEndpoint failed', url, err.message], 3)
       log(['Fetch response:', jwtStr, (response || {}).status, (response || {}).headers], 3)
       // next('Bad login.')
     }
