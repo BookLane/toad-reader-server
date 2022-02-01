@@ -16,7 +16,7 @@ For tenants who have opted to use Toad Reader's email login for user authenticat
 
 For tenants using Shibboleth for SSO authentication with Toad Reader, the `idpUserId` can be any unique user identifier from your system. It must match the value of the same parameter in the Shibboleth metadata.
 
-### Current Version: `1.1`
+### Current Version: `1.0`
 
 # Tenant REST API
 
