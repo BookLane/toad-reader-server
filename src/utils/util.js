@@ -9,6 +9,7 @@ const cookie = require('cookie-signature')
 const md5 = require('md5')
 
 const fakeRedisClient = {}
+const API_VERSION = '1.1'
 
 var getXapiActor = function(params) {
   return {
@@ -454,11 +455,10 @@ const util = {
     userInfo={},
   }) => {
 
-    const version = '1.0'
     const payload = jwt.sign({ idpUserId }, idp.userInfoJWT)
     const connectorCharacter = /\?/.test(idp.userInfoEndpoint) ? `&` : `?`
     let response, jwtStr
-    const url = `${idp.userInfoEndpoint}${connectorCharacter}version=${version}&payload=${payload}`
+    const url = `${idp.userInfoEndpoint}${connectorCharacter}version=${API_VERSION}&payload=${payload}`
 
     try {
 
@@ -504,7 +504,7 @@ const util = {
       const options = {
         method: 'post',
         body: JSON.stringify({
-          version: '1.0',
+          version: API_VERSION,
           payload: jwt.sign({ idpUserId, accessCode }, idp.userInfoJWT),
         }),
         headers: {
