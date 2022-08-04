@@ -1286,6 +1286,143 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
 
   })
 
+  // user search
+  app.get('/usersearch', ensureAuthenticatedAndCheckIDP, async (req, res, next) => {
+
+    if(!req.user.isAdmin) {
+      log('No permission to search users', 3)
+      res.status(403).send({ errorType: "no_permission" })
+      return
+    }
+
+    if(typeof req.query.searchStr !== 'string') {
+      log(['Invalid parameter(s)', req.query], 3)
+      res.status(400).send()
+      return
+    }
+
+    const users = await util.runQuery({
+      query: `
+        SELECT u.id, u.user_id_from_idp, u.email, u.fullname, u.adminLevel
+        FROM user AS u
+        WHERE
+          (
+            u.id = :searchStr
+            OR u.user_id_from_idp = :searchStr
+            OR u.email LIKE :likeSearchStr
+            OR u.fullname LIKE :likeSearchStr
+          )
+          AND u.idp_id = :idpId
+          AND u.id > 0
+          ${!req.query.adminsOnly ? `` : `
+            AND u.adminLevel="ADMIN"
+          `}
+        ORDER BY u.email
+        LIMIT 10
+      `,
+      vars: {
+        idpId: req.user.idpId,
+        searchStr: req.query.searchStr,
+        likeSearchStr: `${req.query.searchStr.replace(/([_%])/g, '\\$1')}%`,
+      },
+      connection,
+      next,
+    })
+
+    log('Deliver user search results')
+    res.send(users)
+
+  })
+
+  // user search
+  app.get('/userinfo', ensureAuthenticatedAndCheckIDP, async (req, res, next) => {
+
+    if(!req.user.isAdmin) {
+      log('No permission to search users', 3)
+      res.status(403).send({ errorType: "no_permission" })
+      return
+    }
+
+    const [ user ] = await util.runQuery({
+      query: `
+        SELECT u.*
+        FROM user AS u
+        WHERE u.id = :id
+          AND u.idp_id = :idpId
+      `,
+      vars: {
+        id: req.query.userId,
+        idpId: req.user.idpId,
+      },
+      connection,
+      next,
+    })
+
+    if(user) {
+
+      const [ subscriptionInstances, books, interactiveActivity ] = await util.runQuery({
+        queries: [
+          `
+            SELECT s.label, si.first_given_access_at, si.expires_at, si.enhanced_tools_expire_at
+            FROM subscription_instance AS si
+              LEFT JOIN subscription AS s ON (s.id = si.subscription_id)
+            WHERE si.user_id = :userId
+              AND s.deleted_at IS NULL
+            ORDER BY s.label
+          `,
+          `
+            SELECT b.id, b.title, b.author, cba.version, cba.expires_at, cba.enhanced_tools_expire_at, cba.flags, ll.cfi
+            FROM computed_book_access AS cba
+              LEFT JOIN book AS b ON (b.id = cba.book_id)
+              LEFT JOIN \`book-idp\` AS bi ON (cba.book_id = bi.book_id)
+              LEFT JOIN latest_location AS ll ON (cba.book_id = ll.book_id AND ll.user_id = cba.user_id)
+            WHERE cba.user_id = :userId
+              AND bi.idp_id = :idpId
+            ORDER BY b.title, b.author, b.id
+          `,
+          `
+            SELECT te.uid, te.text, te.updated_at, te.submitted_at, te.score,
+              t.name, t.toolType, t.isDiscussion, t.creatorType, t.spineIdRef, t.cfi, t.currently_published_tool_uid, 
+              c.name AS classroom_name, c.deleted_at AS classroom_deleted_at,
+              b.id AS book_id, b.title, b.author
+            FROM tool_engagement AS te
+              LEFT JOIN tool AS t ON (t.uid = te.tool_uid)
+              LEFT JOIN classroom AS c ON (c.uid = t.classroom_uid)
+              LEFT JOIN book AS b ON (b.id = c.book_id)
+            WHERE te.user_id = :userId
+              AND te.deleted_at IS NULL
+              AND t.toolType IN ('QUIZ','QUESTION','POLL')
+            ORDER BY te.updated_at DESC
+            LIMIT :limit
+          `,
+        ],
+        vars: {
+          userId: user.id,
+          idpId: req.user.idpId,
+          limit: parseInt(req.query.limit || 3),
+        },
+        connection,
+        next,
+      })
+
+      util.convertJsonColsFromStrings({ tableName: 'computed_book_access', rows: books })
+
+      util.convertMySQLDatetimesToTimestamps(user)
+      util.convertMySQLDatetimesToTimestamps(subscriptionInstances)
+      util.convertMySQLDatetimesToTimestamps(books)
+      util.convertMySQLDatetimesToTimestamps(interactiveActivity)
+
+      user.subscriptionInstances = subscriptionInstances
+      user.books = books
+      user.interactiveActivity = interactiveActivity
+
+    }
+
+    log('Deliver user info results')
+    res.send(user)
+
+  })
+
   ////////////// CRONS //////////////
 
   var next = function(err) {
