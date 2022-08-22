@@ -4,6 +4,7 @@ const { i18n } = require("inline-i18n")
 const AWS = require('aws-sdk')
 const crypto = require('crypto')
 const fetch = require('node-fetch')
+const jwt = require('jsonwebtoken')
 
 const util = require('../utils/util')
 const sendEmail = require("../utils/sendEmail")
@@ -812,7 +813,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
 
     const now = util.timestampToMySQLDatetime()
 
-    if(req.body.expires_at < now || req.body.expires_at > now + (1000*60*60)) {
+    if(!req.user.isAdmin && (req.body.expires_at < now || req.body.expires_at > now + (1000*60*60))) {
       log(['Invalid expires_at - must be ms timestamp within the next hour', req.body], 3)
       res.status(400).send()
       return {}
@@ -875,22 +876,39 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
 
   app.post('/delete-account', ensureAuthenticatedAndCheckIDP, async (req, res, next) => {
 
-    if(!util.paramsOk(req.body, ['expires_at', 'code'], ['AMPLITUDE_API_KEY'])) {
+    if(
+      !(req.user.isAdmin && util.paramsOk(req.body, ['userIdToDelete'], ['AMPLITUDE_API_KEY']))
+      && !util.paramsOk(req.body, ['expires_at', 'code'], ['AMPLITUDE_API_KEY'])
+    ) {
       log(['Invalid parameter(s)', req.body], 3)
       res.status(400).send()
       return
     }
 
     const { idp, code } = await getDeletionConfirmationCodeAndIdp(req, next)
-    if(!code) return
+    if(!req.user.isAdmin && !code) return
 
-    if(req.body.code !== code) {
+    if(!req.user.isAdmin && req.body.code !== code) {
       log(['Invalid code', req.body], 3)
       res.status(400).send()
       return
     }
 
+    const [ userToDelete ] = await util.runQuery({
+      query: 'SELECT * FROM user WHERE id=:userId',
+      vars: {
+        userId: req.user.isAdmin ? req.body.userIdToDelete : req.user.id,
+      },
+      connection,
+      next,
+    })
+
+    log([`User deletion request - attempting...`, userToDelete.id, `Executed by: ${req.user.id}`], 1)
+
     try {
+
+      if(!idp.actionEndpoint) throw new Error(`idp.actionEndpoint not setup`)
+      if(!idp.userInfoJWT) throw new Error(`idp.userInfoJWT not setup`)
 
       const options = {
         method: 'post',
@@ -899,7 +917,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
           payload: jwt.sign(
             {
               action: `permanently-delete-user`,
-              idpUserId: req.user.userIdFromIdp,
+              idpUserId: userToDelete.user_id_from_idp,
             },
             idp.userInfoJWT,
           ),
@@ -926,22 +944,22 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
         throw new Error(`Missing { success: true } in response from actionEndpoint (permanently-delete-user)`)
       }
 
-      log(['Success from actionEndpoint (permanently-delete-user)', req.user], 1)
+      log(['Success from actionEndpoint (permanently-delete-user)', userToDelete], 1)
 
     } catch (err) {
 
-      log(['POST to actionEndpoint (permanently-delete-user) failed; will send email to IDP instead', err, req.user], 3)
+      log(['POST to actionEndpoint (permanently-delete-user) failed; will send email to IDP instead', err, userToDelete], 3)
 
       // if fails (or not setup), email the IDP
 
       try {
         await sendEmail({
           toAddrs: idp.contactEmail,
-          subject: `IMPORTANT: ${req.user.email} has requested that their account be deleted`,
+          subject: `IMPORTANT: ${userToDelete.email} has requested that their account be deleted`,
           body: `
             <p>The following user has asked that his/her account be permanently deleted. All data for this user on the Toad Reader server has been wiped. To comply with app store regulations, please also remove this person’s user data from your system as well.</p>
-            <p>Email: ${req.user.email}</p>
-            ${req.user.userIdFromIdp !== req.user.email ? `<p>User ID in your system (idpUserId): ${req.user.userIdFromIdp}</p>` : ``}
+            <p>Email: ${userToDelete.email}</p>
+            ${userToDelete.user_id_from_idp !== userToDelete.email ? `<p>User ID in your system (idpUserId): ${userToDelete.user_id_from_idp}</p>` : ``}
           `,
           connection,
           req,
@@ -958,7 +976,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
         const options = {
           method: 'POST',
           body: JSON.stringify({
-            user_ids: [ req.user.id ],
+            user_ids: [ userToDelete.id ],
             ignore_invalid_id: "true",
           }),
           headers: {
@@ -973,7 +991,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
         if(response.status !== 200) throw new Error()
 
       } catch(err) {
-        log([`POST to amplitude to delete user data (userId: ${req.user.id}, idpId: ${req.user.idpId}) failed`], 3)
+        log([`POST to amplitude to delete user data (userId: ${userToDelete.id}, idpId: ${userToDelete.idp_id}) failed`], 3)
       }
     }
 
@@ -994,11 +1012,13 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
         `DELETE FROM user WHERE id=:userId`,
       ],
       vars: {
-        userId: req.user.id,
+        userId: userToDelete.id,
       },
       connection,
       next,
     })
+
+    log([`User deletion request - successful`, userToDelete.id, `Executed by: ${req.user.id}`], 1)
 
     res.status(200).send({ success: true })
 
