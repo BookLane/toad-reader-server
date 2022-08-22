@@ -2,11 +2,11 @@
 
 ### Concept
 
-Our simple server-to-server API includes two pieces:
+Our simple server-to-server API includes the following pieces:
 
 1. A “pull” (GET request) whereby our server asks your server for the list of books and subscriptions a user has access to. (This is called whenever the user logs in.)
 2. A “push” (POST request) whereby your server sends the updated list of books and subscriptions a user has access to. (Should be called whenever these lists change, such as when a user makes a purchase.)
-3. An optional second “push” (POST request) whereby our server submits a promo/access code to your server when the user enters this code within the app. A valid code should effect a permanent change to the list of books and/or subscriptions this user has access to and then return the updated list.
+3. An optional second “push” (POST request) whereby our server submits an action request for a user.
 
 All `payload` request parameters and return values are encoded as JWT's with a secret token of your choosing held by you (the tenant) and Toad Reader.
 
@@ -16,125 +16,180 @@ For tenants who have opted to use Toad Reader's email login for user authenticat
 
 For tenants using Shibboleth for SSO authentication with Toad Reader, the `idpUserId` can be any unique user identifier from your system. It must match the value of the same parameter in the Shibboleth metadata.
 
-### Current Version: `1.0`
+### Current Version: `1.1`
 
 # Tenant REST API
 
 ## {Tenant’s user-info endpoint}
 
-### Method: GET
+_You choose the `{Tenant’s user-info endpoint}` and submit it to a Toad Reader developer for our configuration._
 
-### Parameters:
+#### Method: GET
 
-#### `version`
+#### Parameters:
+
+##### `version`
 ```
 String
 ```
 
-#### `payload` (JSON encoded as JWT)
+##### `payload` (JSON encoded as JWT)
 ```
 {
   idpUserId: String
 }
 ```
 
-##### Example
+###### Example
 ```json
 {
   "idpUserId": "user@email.com"
 }
 ```
 
-### Return Value
+#### Return Value
 
-#### On Success: `[User Info Payload]` (see below)
+##### On Success: `[User Info Payload]` (see below)
 
-#### On Error (eg. idpUserId not valid): HTTP Status Code `400`
+##### On Error (eg. idpUserId not valid): HTTP Status Code `400`
 
-### Notes
+#### Notes
 
-- You choose the `{Tenant’s user-info endpoint}` and submit it to a Toad Reader developer for our configuration.
 - Toad Reader will make this GET request after a successful user login, and then on occasion to confirm up-to-date data.
 
-## {Tenant’s submit-access-code endpoint}
+## {Tenant’s action endpoint}
 
-### Method: POST
+Note: You choose the `{Tenant’s action endpoint}` and submit it to a Toad Reader developer for our configuration.
 
-### Body Parameters:
+### Action: Permanently Delete User
 
-#### `version`
+#### Method: POST
+
+#### Body Parameters:
+
+##### `version`
 ```
 String
 ```
 
-#### `payload` (JSON encoded as JWT)
+##### `payload` (JSON encoded as JWT)
 ```
 {
+  action: "permanently-delete-user"
   idpUserId: String
-  accessCode: String
 }
 ```
 
-##### Example
+###### Example
 ```json
 {
+  "action": "permanently-delete-user",
   "idpUserId": "user@email.com",
-  "accessCode": "SUMMER-SALE-2021"
 }
 ```
 
-### Return Value
-
-#### On Success: `[User Info Payload]` (see below)
-
-#### On Error (eg. idpUserId or accessCode not valid): HTTP Status Code `400`, optionally including an error message to be passed on to the user
-
-##### Example error response
-```json
-{
-  "errorMessage": "This code is expired."
-}
-```
-
-### Notes
-
-- Only relevant to tenants who have opted-in to this functionality.
-- You choose the `{Tenant’s submit-access-code endpoint}` and submit it to a Toad Reader developer for our configuration.
-- Toad Reader will make this POST request when a user enters a promo or special access code from within the app.
-
-# Toad Reader REST API
-
-## {Custom Toad Reader backend domain specific to tenant}/updateuserinfo
-
-### Method: POST
-
-### Body Parameters:
-
-#### `version`
-```
-String
-```
-
-#### `payload`
-```
-[User Info Payload] (see below)
-```
-
-### Return Value
+#### Return Value
 ```
 {
   success: Boolean
 }
 ```
 
-#### Examples
+##### Examples
 ```json
 {
   "success": true
 }
 ```
 
-### Notes
+##### On Error (eg. idpUserId not valid): HTTP Status Code `400`
+
+#### Notes
+
+- This action enables an automated method of complying with app store requirements of giving users the option to permanently delete their account from within the app.
+- For tenants who have not set up this API, an email will be sent to their contact email address with the information on the user to be deleted in your system.
+
+### Action: Submit Access Code
+
+#### Method: POST
+
+#### Body Parameters:
+
+##### `version`
+```
+String
+```
+
+##### `payload` (JSON encoded as JWT)
+```
+{
+  action: "submit-access-code"
+  idpUserId: String
+  accessCode: String
+}
+```
+
+###### Example
+```json
+{
+  "action": "submit-access-code",
+  "idpUserId": "user@email.com",
+  "accessCode": "SUMMER-SALE-2021"
+}
+```
+
+#### Return Value
+
+##### On Success: `[User Info Payload]` (see below)
+
+##### On Error (eg. idpUserId or accessCode not valid): HTTP Status Code `400`, optionally including an error message to be passed on to the user
+
+###### Example error response
+```json
+{
+  "errorMessage": "This code is expired."
+}
+```
+
+#### Notes
+
+- This action enables a promo/access code to be sent to your server when the user enters this code within the app. A valid code should effect a permanent change to the list of books and/or subscriptions this user has access to and then return the updated list.
+- Only relevant to tenants who have opted-in to this functionality.
+- Toad Reader will make this POST request when a user enters a promo or special access code from within the app.
+
+# Toad Reader REST API
+
+## {Custom Toad Reader backend domain specific to tenant}/updateuserinfo
+
+#### Method: POST
+
+#### Body Parameters:
+
+##### `version`
+```
+String
+```
+
+##### `payload`
+```
+[User Info Payload] (see below)
+```
+
+#### Return Value
+```
+{
+  success: Boolean
+}
+```
+
+##### Examples
+```json
+{
+  "success": true
+}
+```
+
+#### Notes
 
 - Tenant should post to this API endpoint every time the value of anything in the `User Info Payload` changes.
 - The `{Custom Toad Reader backend domain specific to tenant}` can be requested from a Toad Reader developer.

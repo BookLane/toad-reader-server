@@ -7,7 +7,7 @@
 #
 # Host: localhost (MySQL 8.0.22)
 # Database: ToadReader
-# Generation Time: 2021-11-08 20:38:24 +0000
+# Generation Time: 2022-08-19 19:03:19 +0000
 # ************************************************************
 
 
@@ -312,6 +312,7 @@ CREATE TABLE `idp` (
   `id` int unsigned NOT NULL AUTO_INCREMENT,
   `name` text CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
   `domain` varchar(253) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL DEFAULT '',
+  `contactEmail` text COLLATE utf8_bin,
   `use_enhanced_reader_at` datetime(3) DEFAULT NULL,
   `specialPricing` enum('OLD','NON-PROFIT','ORIG-ORCA') CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
   `fromEmail` text CHARACTER SET utf8 COLLATE utf8_general_ci,
@@ -326,7 +327,7 @@ CREATE TABLE `idp` (
   `internalJWT` text CHARACTER SET utf8 COLLATE utf8_bin,
   `userInfoEndpoint` varchar(255) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
   `userInfoJWT` text CHARACTER SET utf8 COLLATE utf8_bin,
-  `accessCodeEndpoint` text CHARACTER SET utf8 COLLATE utf8_bin,
+  `actionEndpoint` text CHARACTER SET utf8 COLLATE utf8_bin,
   `androidAppURL` text CHARACTER SET utf8 COLLATE utf8_bin,
   `iosAppURL` text CHARACTER SET utf8 COLLATE utf8_bin,
   `xapiOn` tinyint(1) NOT NULL DEFAULT '0',
@@ -336,6 +337,7 @@ CREATE TABLE `idp` (
   `xapiMaxBatchSize` int DEFAULT NULL,
   `readingSessionsOn` tinyint(1) NOT NULL DEFAULT '1',
   `consentText` text CHARACTER SET utf8 COLLATE utf8_bin,
+  `amplitudeSecretKey` text CHARACTER SET utf8 COLLATE utf8_bin,
   `maxMBPerBook` int NOT NULL DEFAULT '20',
   `maxMBPerFile` int NOT NULL DEFAULT '15',
   `googleAnalyticsCode` text CHARACTER SET utf8 COLLATE utf8_bin,

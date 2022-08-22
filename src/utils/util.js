@@ -505,32 +505,39 @@ const util = {
         method: 'post',
         body: JSON.stringify({
           version: API_VERSION,
-          payload: jwt.sign({ idpUserId, accessCode }, idp.userInfoJWT),
+          payload: jwt.sign(
+            {
+              action: `submit-access-code`,
+              idpUserId,
+              accessCode,
+            },
+            idp.userInfoJWT,
+          ),
         }),
         headers: {
           'Content-Type': 'application/json',
         },
       }
 
-      response = await fetch(idp.accessCodeEndpoint, options)
+      response = await fetch(idp.actionEndpoint, options)
 
       if(response.status === 400) {
         const { errorMessage }  = await response.json() || {}
         if(errorMessage) throw new Error(`API:${errorMessage}`)
-        throw new Error(`Invalid 400 response from accessCodeEndpoint`)
+        throw new Error(`Invalid 400 response from actionEndpoint (submit-access-code)`)
       }
 
       if(response.status !== 200) {
-        throw new Error(`Invalid response from accessCodeEndpoint`)
+        throw new Error(`Invalid response from actionEndpoint (submit-access-code)`)
       }
 
       jwtStr = await response.text()
       userInfo = jwt.verify(jwtStr, idp.userInfoJWT)
 
-      log(['Response from accessCodeEndpoint', userInfo], 1)
+      log(['Response from actionEndpoint (submit-access-code)', userInfo], 1)
 
     } catch (err) {
-      log(['POST to accessCodeEndpoint failed', err], 3)
+      log(['POST to actionEndpoint (submit-access-code) failed', err], 3)
       log(['POST response:', jwtStr, (response || {}).status, (response || {}).headers], 3)
       throw err
     }
@@ -1620,6 +1627,8 @@ const util = {
       }
     )
   },
+
+  API_VERSION,
 
 }
 

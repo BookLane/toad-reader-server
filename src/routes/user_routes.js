@@ -1,8 +1,12 @@
 const path = require('path')
 const fs = require('fs')
-const util = require('../utils/util')
 const { i18n } = require("inline-i18n")
 const AWS = require('aws-sdk')
+const crypto = require('crypto')
+const fetch = require('node-fetch')
+
+const util = require('../utils/util')
+const sendEmail = require("../utils/sendEmail")
 
 const cloudFront = process.env.IS_DEV ? null : new AWS.CloudFront.Signer(
   process.env.CLOUDFRONT_KEY_PAIR_ID,
@@ -723,7 +727,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
         return
       }
 
-      if(!idp.accessCodeEndpoint) {
+      if(!idp.actionEndpoint) {
         log(['Configuration not set up for /submitaccesscode', idp], 3)
         res.status(400).send()
         return
@@ -795,6 +799,202 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
           token: req.body.token,
           created_at: now,
         },
+      },
+      connection,
+      next,
+    })
+
+    res.status(200).send({ success: true })
+
+  })
+
+  const getDeletionConfirmationCodeAndIdp = async (req, next) => {
+
+    const now = util.timestampToMySQLDatetime()
+
+    if(req.body.expires_at < now || req.body.expires_at > now + (1000*60*60)) {
+      log(['Invalid expires_at - must be ms timestamp within the next hour', req.body], 3)
+      res.status(400).send()
+      return {}
+    }
+
+    const [ idp ] = await util.runQuery({
+      query: 'SELECT * FROM idp WHERE domain=:domain',
+      vars: {
+        domain: util.getIDPDomain(req.headers),
+      },
+      connection,
+      next,
+    })
+
+    if(!idp) return {}
+    const { internalJWT=`secret` } = idp
+
+    return {
+      idp,
+      code: crypto.createHash('sha256').update(`${req.user.id} ${req.body.expires_at} ${internalJWT}`).digest('hex').slice(0,6),
+    }
+
+  }
+
+  app.post('/request-deletion-confirmation-code', ensureAuthenticatedAndCheckIDP, async (req, res, next) => {
+
+    if(!util.paramsOk(req.body, ['expires_at'])) {
+      log(['Invalid parameter(s)', req.body], 3)
+      res.status(400).send()
+      return
+    }
+
+    const { idp, code } = await getDeletionConfirmationCodeAndIdp(req, next)
+    if(!code) return
+
+    const locale = req.user.idpLang || 'en'
+
+    try {
+
+      // email the code to them
+      await sendEmail({
+        toAddrs: req.user.email,
+        subject: i18n("Account deletion confirmation code", {}, { locale }),
+        body: `
+          <p>${i18n("You started the process to permanently delete your {{name}} account. If you have changed your mind, you may discard this email. To proceed, enter the following code into the text field where you began the account deletion process.", { name: idp.name, code: `<span style="font-weight: bold;">${code}</span>` }, { locale })}</p>
+          <p>${i18n("Account deletion confirmation code: {{code}}", { code: `<span style="font-weight: bold;">${code}</span>` }, { locale })}</p>
+          <p style="font-size: 12px; color: #777;">${i18n("Note: This code expires in 15 minutes.", {}, { locale })}</p>
+        `,
+        connection,
+        req,
+      })
+
+    } catch (err) {
+      return res.status(500).send({ success: false, error: err.message })
+    }
+
+    res.status(200).send({ success: true })
+
+  })
+
+  app.post('/delete-account', ensureAuthenticatedAndCheckIDP, async (req, res, next) => {
+
+    if(!util.paramsOk(req.body, ['expires_at', 'code'], ['AMPLITUDE_API_KEY'])) {
+      log(['Invalid parameter(s)', req.body], 3)
+      res.status(400).send()
+      return
+    }
+
+    const { idp, code } = await getDeletionConfirmationCodeAndIdp(req, next)
+    if(!code) return
+
+    if(req.body.code !== code) {
+      log(['Invalid code', req.body], 3)
+      res.status(400).send()
+      return
+    }
+
+    try {
+
+      const options = {
+        method: 'post',
+        body: JSON.stringify({
+          version: util.API_VERSION,
+          payload: jwt.sign(
+            {
+              action: `permanently-delete-user`,
+              idpUserId: req.user.userIdFromIdp,
+            },
+            idp.userInfoJWT,
+          ),
+        }),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }
+
+      const response = await fetch(idp.actionEndpoint, options)
+
+      if(response.status === 400) {
+        const { errorMessage }  = await response.json() || {}
+        if(errorMessage) throw new Error(`API:${errorMessage}`)
+        throw new Error(`Invalid 400 response from actionEndpoint (permanently-delete-user)`)
+      }
+
+      if(response.status !== 200) {
+        throw new Error(`Invalid response from actionEndpoint (permanently-delete-user)`)
+      }
+
+      const { success } = await response.json() || {}
+      if(success !== true) {
+        throw new Error(`Missing { success: true } in response from actionEndpoint (permanently-delete-user)`)
+      }
+
+      log(['Success from actionEndpoint (permanently-delete-user)', req.user], 1)
+
+    } catch (err) {
+
+      log(['POST to actionEndpoint (permanently-delete-user) failed; will send email to IDP instead', err, req.user], 3)
+
+      // if fails (or not setup), email the IDP
+
+      try {
+        await sendEmail({
+          toAddrs: idp.contactEmail,
+          subject: `IMPORTANT: ${req.user.email} has requested that their account be deleted`,
+          body: `
+            <p>The following user has asked that his/her account be permanently deleted. All data for this user on the Toad Reader server has been wiped. To comply with app store regulations, please also remove this person’s user data from your system as well.</p>
+            <p>Email: ${req.user.email}</p>
+            ${req.user.userIdFromIdp !== req.user.email ? `<p>User ID in your system (idpUserId): ${req.user.userIdFromIdp}</p>` : ``}
+          `,
+          connection,
+          req,
+        })
+      } catch (err) {
+        res.status(500).send({ success: false, error: err.message })
+      }
+
+    }
+
+    if(req.body.AMPLITUDE_API_KEY) {
+      try {
+
+        const options = {
+          method: 'POST',
+          body: JSON.stringify({
+            user_ids: [ req.user.id ],
+            ignore_invalid_id: "true",
+          }),
+          headers: {
+            'Authorization': `Basic ${Buffer.from(`${req.body.AMPLITUDE_API_KEY}:${idp.amplitudeSecretKey}`).toString('base64')}`,
+            'Content-Type': 'application/json',
+            'Accept':'application/json',
+          },
+          redirect: 'follow',
+        }
+
+        const response = await fetch(`https://amplitude.com/api/2/deletions/users`, options)
+        if(response.status !== 200) throw new Error()
+
+      } catch(err) {
+        log([`POST to amplitude to delete user data (userId: ${req.user.id}, idpId: ${req.user.idpId}) failed`], 3)
+      }
+    }
+
+    await util.runQuery({
+      queries: [
+        ...[
+          'book_download',
+          'book_instance',
+          'classroom_member',
+          'computed_book_access',
+          'highlight',
+          'latest_location',
+          'push_token',
+          'reading_session',
+          'subscription_instance',
+          'tool_engagement',
+        ].map(table => `DELETE FROM ${table} WHERE user_id=:userId`),
+        `DELETE FROM user WHERE id=:userId`,
+      ],
+      vars: {
+        userId: req.user.id,
       },
       connection,
       next,
