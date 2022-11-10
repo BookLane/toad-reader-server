@@ -455,6 +455,49 @@ const util = {
     userInfo={},
   }) => {
 
+    const queryTokenAuthRegex = /^QUERY_AUTH_TOKEN:/
+
+    if(queryTokenAuthRegex.test(idp.userInfoJWT)) {
+
+      const url = (
+        idp.userInfoEndpoint
+          .replace(/<idp_userid_value>/g, encodeURIComponent(idpUserId))
+          .replace(/<a_t_value>/g, encodeURIComponent(idp.userInfoJWT.replace(queryTokenAuthRegex, '')))
+      )
+      let response, responseJson
+
+      try {
+
+        response = await fetch(url)
+
+        if(response.status !== 200) {
+          log([`Invalid response from userInfoEndpoint`, url], 3)
+          // next('Bad login.')
+        }
+
+        responseJson = await response.json()
+
+        log(['Response from userInfoEndpoint', responseJson], 1)
+
+        const userInfoResponse = responseJson[0] || { idpUserId, email: idpUserId, bookIds: "" }
+        
+        userInfoResponse.books = userInfoResponse.bookIds.split(',').map(id => ({ id: parseInt(id, 10) }))
+        delete userInfoResponse.bookIds
+
+        userInfo = {
+          ...userInfo,
+          ...userInfoResponse,
+        }
+
+      } catch (err) {
+        log(['Fetch to userInfoEndpoint failed', url, err.message], 3)
+        log(['Fetch response:', jwtStr, (response || {}).status, (response || {}).headers], 3)
+        // next('Bad login.')
+      }
+
+      return await util.updateUserInfo({ connection, log, userInfo, idpId: idp.id, updateLastLoginAt: true, next })
+    }
+
     const payload = jwt.sign({ idpUserId }, idp.userInfoJWT)
     const connectorCharacter = /\?/.test(idp.userInfoEndpoint) ? `&` : `?`
     let response, jwtStr
@@ -922,17 +965,20 @@ const util = {
         WHERE c.uid=:classroomUid
           AND c.idp_id=:idpId
           AND c.deleted_at IS NULL
-          ${isDefaultClassroomUid ? `
-            AND bi.version IN ('PUBLISHER', 'INSTRUCTOR', 'ENHANCED')
-          ` : `
-            AND cm_me.user_id=:userId
-            AND cm_me.deleted_at IS NULL
-            AND bi.version IN ('INSTRUCTOR', 'ENHANCED')
+          ${req.user.isAdmin ? `` : `
+            ${isDefaultClassroomUid ? `
+              AND bi.version IN ('PUBLISHER', 'INSTRUCTOR', 'ENHANCED')
+            ` : `
+              AND cm_me.user_id=:userId
+              AND cm_me.deleted_at IS NULL
+              AND bi.version IN ('INSTRUCTOR', 'ENHANCED')
+            `}
+            AND bi.idp_id=:idpId
+            AND bi.user_id=:userId
+            AND (bi.expires_at IS NULL OR bi.expires_at>:now)
+            AND (bi.enhanced_tools_expire_at IS NULL OR bi.enhanced_tools_expire_at>:now)
           `}
-          AND bi.idp_id=:idpId
-          AND bi.user_id=:userId
-          AND (bi.expires_at IS NULL OR bi.expires_at>:now)
-          AND (bi.enhanced_tools_expire_at IS NULL OR bi.enhanced_tools_expire_at>:now)
+        LIMIT 1
       `,
       vars: {
         classroomUid,
