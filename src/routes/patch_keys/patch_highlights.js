@@ -128,6 +128,15 @@ module.exports = {
               vars: [now, userId, bookId, highlight.spineIdRef, highlight.cfi, util.NOT_DELETED_AT_TIME]
             });
           } else {
+            // queriesToRun.push({
+            //   query: `
+            //     DELETE FROM \`instructor_highlight\`
+            //     WHERE highlight_id IN (
+            //       SELECT id FROM highlight WHERE user_id=? AND book_id=? AND spineIdRef=? AND cfi=? AND deleted_at=? AND updated_at<=?
+            //     )
+            //   `,
+            //   vars: [userId, bookId, highlight.spineIdRef, highlight.cfi, util.NOT_DELETED_AT_TIME, highlight.updated_at],
+            // })
             queriesToRun.push({
               query: 'DELETE FROM `highlight` WHERE user_id=? AND book_id=? AND spineIdRef=? AND cfi=? AND deleted_at=? AND updated_at<=?',
               vars: [userId, bookId, highlight.spineIdRef, highlight.cfi, util.NOT_DELETED_AT_TIME, highlight.updated_at]
