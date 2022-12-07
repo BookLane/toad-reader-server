@@ -365,7 +365,7 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
       if(!util.isValidEmail(req.query.email)) {
         res.status(400).send({
           success: false,
-          error: 'invalid access code',
+          error: 'invalid email',
         })
       }
 
@@ -402,6 +402,43 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
       }
 
       res.send({ success: true })
+
+    },
+  )
+
+  // create access code
+  app.post('/createaccesscode',
+    ensureAuthenticated,
+    async (req, res, next) => {
+      log('Create access code', 2)
+
+      if(!req.user.isAdmin) {
+        log('No permission to create access code', 3)
+        res.status(403).send({ errorType: "no_permission" })
+        return
+      }
+
+      const loginInfo = {
+        email: req.body.email,
+      }
+
+      if(!util.isValidEmail(req.body.email)) {
+        res.status(400).send({
+          success: false,
+          error: 'invalid email',
+        })
+      }
+
+      let accessCode = util.createAccessCode()
+
+      // ensure it is unique
+      while(await util.getLoginInfoByAccessCode({ accessCode, next })) {
+        accessCode = util.createAccessCode()
+      }
+
+      await util.setLoginInfoByAccessCode({ accessCode, loginInfo, next })
+
+      res.send({ accessCode })
 
     },
   )
