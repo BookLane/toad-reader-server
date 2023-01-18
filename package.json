@@ -28,7 +28,7 @@
     "html-entities": "1.2.0",
     "http": "0.0.0",
     "inline-i18n": "github:educational-resources-and-services/inline-i18n#a98d2547345ef73486f930e6b8e737b6b0c14f39",
-    "jsdom": "^16.4.0",
+    "jsdom": "^16.5.0",
     "jsonwebtoken": "8.5.1",
     "md5": "2.2.1",
     "mime": "2.4.4",
