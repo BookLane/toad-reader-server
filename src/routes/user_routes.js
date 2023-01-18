@@ -740,6 +740,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
           idp,
           idpUserId: req.user.userIdFromIdp,
           next,
+          req,
           connection,
           log,
         })

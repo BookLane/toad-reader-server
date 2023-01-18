@@ -13,6 +13,7 @@ module.exports = function (app, connection, log) {
         userInfo: req.payload_decoded,
         idpId: req.idpId,
         next,
+        req,
       }).then(() => {
         res.send({ success: true })
       })

@@ -7,6 +7,7 @@ const AWS = require('aws-sdk')
 const s3 = new AWS.S3()
 const cookie = require('cookie-signature')
 const md5 = require('md5')
+const useragent = require('useragent')
 
 const fakeRedisClient = {}
 const API_VERSION = '1.0'
@@ -450,6 +451,7 @@ const util = {
     idp,
     idpUserId,
     next,
+    req,
     connection,
     log,
     userInfo={},
@@ -495,7 +497,7 @@ const util = {
         // next('Bad login.')
       }
 
-      return await util.updateUserInfo({ connection, log, userInfo, idpId: idp.id, updateLastLoginAt: true, next })
+      return await util.updateUserInfo({ connection, log, userInfo, idpId: idp.id, updateLastLoginAt: true, next, req })
     }
 
     const payload = jwt.sign({ idpUserId }, idp.userInfoJWT)
@@ -528,7 +530,7 @@ const util = {
       // next('Bad login.')
     }
 
-    return await util.updateUserInfo({ connection, log, userInfo, idpId: idp.id, updateLastLoginAt: true, next })
+    return await util.updateUserInfo({ connection, log, userInfo, idpId: idp.id, updateLastLoginAt: true, next, req })
 
   },
 
@@ -537,6 +539,7 @@ const util = {
     idp,
     idpUserId,
     next,
+    req,
     connection,
     log,
   }) => {
@@ -585,11 +588,11 @@ const util = {
       throw err
     }
 
-    await util.updateUserInfo({ connection, log, userInfo, idpId: idp.id, next })
+    await util.updateUserInfo({ connection, log, userInfo, idpId: idp.id, next, req })
 
   },
 
-  updateUserInfo: async ({ connection, log, userInfo, idpId, updateLastLoginAt=false, next }) => {
+  updateUserInfo: async ({ connection, log, userInfo, idpId, updateLastLoginAt=false, req, next }) => {
 
     // Payload:
     // {
@@ -680,6 +683,12 @@ const util = {
     })
 
     const now = util.timestampToMySQLDatetime()
+    let platform = `Unknown platform`
+    try {
+      platform = useragent.parse(req.headers['user-agent']).toString()
+    } catch(err) {
+      log(['Getting platform from user-agent', err.message, (userBeforeUpdate || {}).id, req && req.headers && req.headers['user-agent']], 3)
+    }
 
     const [ userBeforeUpdate ] = await util.runQuery({
       query: 'SELECT id, adminLevel FROM `user` WHERE idp_id=:idpId AND user_id_from_idp=:idpUserId',
@@ -704,6 +713,7 @@ const util = {
 
     if(updateLastLoginAt) {
       cols.last_login_at = now
+      cols.last_login_platform = platform
     }
 
     let query, vars
@@ -715,6 +725,7 @@ const util = {
       }
     } else {
       cols.last_login_at = now
+      cols.last_login_platform = platform
       cols.created_at = now
       query = 'INSERT INTO `user` SET :cols'
       vars = { cols }

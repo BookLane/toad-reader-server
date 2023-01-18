@@ -235,7 +235,7 @@ const logIn = ({ userId, req, next }) => {
 
 const authFuncs = {}
 
-const strategyCallback = function(idp, profile, done) {
+const strategyCallback = function(req, idp, profile, done) {
   log(['Profile from idp', profile], 2)
 
   const idpUserId = profile['idpUserId']
@@ -259,7 +259,7 @@ const strategyCallback = function(idp, profile, done) {
       idpUserId,
     }
 
-    util.getUserInfo({ idp, idpUserId, next: done, connection, log, userInfo }).then(returnUser)
+    util.getUserInfo({ idp, idpUserId, next: done, req, connection, log, userInfo }).then(returnUser)
 
   } else {  // old method: get userInfo from meta data
 
@@ -285,7 +285,7 @@ const strategyCallback = function(idp, profile, done) {
       done('Bad login.')
     }
   
-    util.updateUserInfo({ connection, log, userInfo, idpId, updateLastLoginAt: true, next: done }).then(returnUser)
+    util.updateUserInfo({ connection, log, userInfo, idpId, updateLastLoginAt: true, next: done, req }).then(returnUser)
   }
 }
 
@@ -338,9 +338,10 @@ connection.query('SELECT * FROM `idp` WHERE entryPoint IS NOT NULL',
           cert: row.idpcert,
           decryptionPvk: row.spkey,
           privateCert: row.spkey,
+          passReqToCallback: true,
         },
-        function(profile, done) {
-          strategyCallback(row, profile, done)
+        function(req, profile, done) {
+          strategyCallback(req, row, profile, done)
         }
       )
 
@@ -508,7 +509,7 @@ const ensureAuthenticated = async (req, res, next) => {
 
                   if(idp.userInfoEndpoint) {
 
-                    util.getUserInfo({ idp, idpUserId: token.id, next, connection, log }).then(logInSessionSharingUser)
+                    util.getUserInfo({ idp, idpUserId: token.id, req, next, connection, log }).then(logInSessionSharingUser)
 
                   } else {  // old method: get userInfo from meta data
 
@@ -525,6 +526,7 @@ const ensureAuthenticated = async (req, res, next) => {
                       idpId,
                       updateLastLoginAt: true,
                       next,
+                      req,
                     }).then(logInSessionSharingUser)
 
                   }

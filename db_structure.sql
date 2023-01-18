@@ -1,23 +1,22 @@
 # ************************************************************
-# Sequel Pro SQL dump
-# Version 5420
+# Sequel Ace SQL dump
+# Version 20044
 #
-# https://www.sequelpro.com/
-# https://github.com/sequelpro/sequelpro
+# https://sequel-ace.com/
+# https://github.com/Sequel-Ace/Sequel-Ace
 #
-# Host: localhost (MySQL 8.0.22)
+# Host: 127.0.0.1 (MySQL 8.0.22)
 # Database: ToadReader
-# Generation Time: 2022-08-19 19:03:19 +0000
+# Generation Time: 2023-01-05 19:38:36 +0000
 # ************************************************************
 
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
 /*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
-/*!40101 SET NAMES utf8 */;
 SET NAMES utf8mb4;
 /*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
-/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
+/*!40101 SET @OLD_SQL_MODE='NO_AUTO_VALUE_ON_ZERO', SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
 
 
@@ -612,6 +611,7 @@ CREATE TABLE `user` (
   `adminLevel` enum('NONE','ADMIN','SUPER_ADMIN') CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT 'NONE',
   `created_at` datetime(3) NOT NULL,
   `last_login_at` datetime(3) NOT NULL,
+  `last_login_platform` varchar(255) COLLATE utf8_unicode_ci DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `user_id_from_idp` (`user_id_from_idp`,`idp_id`),
   KEY `email` (`email`),
@@ -619,7 +619,8 @@ CREATE TABLE `user` (
   KEY `fullname` (`fullname`),
   KEY `adminLevel` (`adminLevel`),
   KEY `created_at` (`created_at`),
-  KEY `last_login_at` (`last_login_at`)
+  KEY `last_login_at` (`last_login_at`),
+  KEY `last_login_platform` (`last_login_platform`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
 
 

@@ -475,7 +475,7 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
                 next,
               })
 
-              loginInfo = await util.getUserInfo({ idp, idpUserId, next, connection, log })
+              loginInfo = await util.getUserInfo({ idp, idpUserId, next, req, connection, log })
               
             } else {
               // create the user if they do not exist
@@ -489,6 +489,7 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
                 idpId: idp.id,
                 updateLastLoginAt: true,
                 next,
+                req,
               })
             }
 
