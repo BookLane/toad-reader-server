@@ -465,7 +465,7 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
             if(idp.userInfoEndpoint) {
               // get user info, if endpoint provided
 
-              const [{ user_id_from_idp: idpUserId }] = await util.runQuery({
+              const [{ user_id_from_idp: idpUserId=email }={}] = await util.runQuery({
                 query: 'SELECT user_id_from_idp FROM `user` WHERE email=:email AND idp_id=:idpId LIMIT 1',
                 vars: {
                   email,
