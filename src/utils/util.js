@@ -9,6 +9,8 @@ const cookie = require('cookie-signature')
 const md5 = require('md5')
 const useragent = require('useragent')
 
+const getShopifyUserInfo = require('./getShopifyUserInfo')
+
 const fakeRedisClient = {}
 const API_VERSION = '1.0'
 
@@ -494,6 +496,27 @@ const util = {
       } catch (err) {
         log(['Fetch to userInfoEndpoint failed', url, err.message], 3)
         log(['Fetch response:', jwtStr, (response || {}).status, (response || {}).headers], 3)
+        // next('Bad login.')
+      }
+
+      return await util.updateUserInfo({ connection, log, userInfo, idpId: idp.id, updateLastLoginAt: true, next, req })
+    }
+
+    if(/^shopify:/.test(idp.userInfoEndpoint)) {
+
+      try {
+
+        userInfo = {
+          ...userInfo,
+          ...(await getShopifyUserInfo({
+            email: idpUserId,
+            idp,
+            log,
+          })),
+        }
+
+      } catch (err) {
+        log(['Fetch via shopify API failed', idpUserId, idp.userInfoEndpoint, err.message], 3)
         // next('Bad login.')
       }
 

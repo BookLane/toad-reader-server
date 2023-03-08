@@ -13,6 +13,7 @@
     "start": "node --expose-gc ./app.js"
   },
   "dependencies": {
+    "@shopify/shopify-api": "^6.2.0",
     "adm-zip": "0.4.13",
     "array-flat-polyfill": "^1.0.1",
     "aws-sdk": "2.799.0",

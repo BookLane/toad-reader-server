@@ -1,3 +1,4 @@
+const getShopifyUserInfo = require('../utils/getShopifyUserInfo')
 var util = require('../utils/util')
 
 module.exports = function (app, connection, log) {
@@ -17,6 +18,45 @@ module.exports = function (app, connection, log) {
       }).then(() => {
         res.send({ success: true })
       })
+    }
+  )
+
+  app.post('/updateuserinfo-shopify',
+    async (req, res, next) => {
+
+      const [ idp={} ] = await util.runQuery({
+        query: `SELECT * FROM idp WHERE domain=:domain`,
+        vars: {
+          domain: util.getIDPDomain(req.headers),
+        },
+        connection,
+        next,
+      })
+
+      if(/^shopify:/.test(idp.userInfoEndpoint)) {
+
+        try {
+
+          const { email } = req.body.customer
+
+          const userInfo = await getShopifyUserInfo({
+            email,
+            idp,
+            log,
+          })
+
+          await util.updateUserInfo({ connection, log, userInfo, idpId: idp.id, next, req })
+
+        } catch (err) {
+          log(['Fetch via shopify API failed (was in response to /updateuserinfo-shopify webhook)', email, idp.userInfoEndpoint, err.message], 3)
+          // next('Bad login.')
+          throw err
+        }
+  
+      }
+
+      res.send({ success: true })
+
     }
   )
 
