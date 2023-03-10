@@ -35,9 +35,11 @@ module.exports = function (app, connection, log) {
 
       if(/^shopify:/.test(idp.userInfoEndpoint)) {
 
+        let email
+
         try {
 
-          const { email } = req.body.customer
+          email = req.body.customer.email
 
           const userInfo = await getShopifyUserInfo({
             email,
@@ -48,7 +50,7 @@ module.exports = function (app, connection, log) {
           await util.updateUserInfo({ connection, log, userInfo, idpId: idp.id, next, req })
 
         } catch (err) {
-          log(['Fetch via shopify API failed (was in response to /updateuserinfo-shopify webhook)', email, idp.userInfoEndpoint, err.message], 3)
+          log(['Fetch via shopify API failed (was in response to /updateuserinfo-shopify webhook)', email, idp.userInfoEndpoint, err], 3)
           // next('Bad login.')
           throw err
         }
