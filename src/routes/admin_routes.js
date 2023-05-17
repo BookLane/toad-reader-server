@@ -4,6 +4,7 @@ const admzip = require('adm-zip')
 const sharp = require('sharp')
 const fetch = require('node-fetch')
 const mime = require('mime')
+const uuidv4 = require('uuid/v4')
 
 const util = require('../utils/util')
 const parseEpub = require('../utils/parseEpub')
@@ -1331,6 +1332,158 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
 
     log('Deliver user search results')
     res.send(users)
+
+  })
+
+  // common books on associated sites
+  app.get('/groupmemberswithcommonbooks', ensureAuthenticatedAndCheckIDP, async (req, res, next) => {
+
+    if(!req.user.isAdmin) {
+      log('No permission to get accociated sites', 3)
+      res.status(403).send({ errorType: "no_permission" })
+      return
+    }
+
+    const rows = await util.runQuery({
+      query: `
+        SELECT
+          igm2.idp_id AS idpId,
+          i.name,
+          i.domain,
+          b.*
+
+        FROM idp_group_member as igm1
+          LEFT JOIN idp_group_member as igm2 ON (igm1.idp_group_id = igm2.idp_group_id)
+          LEFT JOIN \`book-idp\` as bi1 ON (igm1.idp_id = bi1.idp_id)
+          LEFT JOIN \`book-idp\` as bi2 ON (igm2.idp_id = bi2.idp_id)
+          LEFT JOIN book as b ON (bi2.book_id = b.id)
+          LEFT JOIN idp as i ON (igm2.idp_id = i.id)
+
+        WHERE igm1.idp_id=:idpId
+          AND bi1.book_id=bi2.book_id
+          AND igm2.idp_id!=:idpId
+      `,
+      vars: {
+        idpId: req.user.idpId,
+      },
+      connection,
+      next,
+    })
+
+    const booksByGroupMember = {}
+    rows.forEach(({ idpId, name, domain, ...book }) => {
+      booksByGroupMember[idpId] = booksByGroupMember[idpId] || {
+        idpId,
+        name,
+        domain,
+        commonBooks: [],
+      }
+      booksByGroupMember[idpId].commonBooks.push(book)
+    })
+    const groupMembers = Object.values(booksByGroupMember)
+
+    log('Deliver common books from associated sites')
+    res.send({ groupMembers })
+
+  })
+
+  // copy interactive tools to book on associated site
+  app.post('/copytools', ensureAuthenticatedAndCheckIDP, async (req, res, next) => {
+
+    if(!req.user.isAdmin) {
+      log('No permission to copy tools', 3)
+      res.status(403).send({ errorType: "no_permission" })
+      return
+    }
+
+    if(!util.paramsOk(req.body, ['pasteIdpId', 'bookId'], ['clearExistingToolsFirst'])) {
+      log(['Invalid parameter(s)', req.body], 3)
+      res.status(400).send()
+      return
+    }
+
+    const sourceClassroomUid = `${req.user.idpId}-${req.body.bookId}`
+    const destinationClassroomId = `${req.body.pasteIdpId}-${req.body.bookId}`
+    const now = util.timestampToMySQLDatetime()
+
+    const toolRowsToCopy = await util.runQuery({
+      query: `
+        SELECT
+          t.spineIdRef,
+          t.cfi,
+          t.ordering,
+          t.name,
+          t.toolType,
+          t.data,
+          t.isDiscussion,
+          t.undo_array,
+          t.due_at,
+          t.closes_at,
+          t.creatorType
+
+        FROM tool AS t
+
+        WHERE t.classroom_uid=:classroomUid
+          AND t.published_at IS NOT NULL
+          AND t.deleted_at IS NULL
+          AND t.currently_published_tool_uid IS NULL
+      `,
+      vars: {
+        classroomUid: sourceClassroomUid,
+      },
+      connection,
+      next,
+    })
+
+    const vars = {
+      destinationClassroomId,
+      now,
+      defaultDestinationClassroom: {
+        uid: destinationClassroomId,
+        idp_id: req.body.pasteIdpId,
+        book_id: req.body.bookId,
+        created_at: now,
+        updated_at: now,
+      },
+    }
+
+    toolRowsToCopy.forEach((tool, idx) => {
+      tool.uid = uuidv4()
+      tool.classroom_uid = destinationClassroomId
+      tool.created_at = now
+      tool.updated_at = now
+      tool.published_at = now
+      vars[`tool_insert_${idx}`] = tool
+    })
+
+    const queries = [
+
+      `START TRANSACTION`,
+
+      ...(!req.body.clearExistingToolsFirst ? [] : [`
+        UPDATE tool
+        SET deleted_at=:now
+        WHERE classroom_uid=:destinationClassroomId
+          AND deleted_at IS NULL
+      `]),
+
+      `INSERT IGNORE INTO classroom SET :defaultDestinationClassroom`,
+
+      ...toolRowsToCopy.map((tool, idx) => `INSERT INTO tool SET :tool_insert_${idx}`),
+
+      `COMMIT`,
+
+    ]
+
+    await util.runQuery({
+      queries,
+      vars,
+      connection,
+      next,
+    })
+
+    log(`Copy tools (from classroom ${sourceClassroomUid} to ${destinationClassroomId}) was successful`+(req.body.clearExistingToolsFirst ? ` (after existing ${destinationClassroomId} tools were deleted)` : ``))
+    res.send({ success: true, numToolsCopied: toolRowsToCopy.length })
 
   })
 
