@@ -39,7 +39,7 @@ module.exports = function (app, connection, log) {
 
         try {
 
-          email = req.body.customer.email
+          email = req.body.email || req.body.customer.email
 
           const userInfo = await getShopifyUserInfo({
             email,

@@ -53,9 +53,28 @@ const getShopifyUserInfo = async ({ email, idp, log }) => {
     const subscriptions = []
 
     const processedAtTimeById = {}
+    let customerMetafieldLines = ``
 
     for(let idx=0; idx<customers.length; idx++) {
       const { id } = customers[idx]
+
+      // get books/subscriptions issued to customers directly
+      log(['Get shopify customer metafield', email, id, idp.name], 1)
+      try {
+        const metafields = await tryShopify(() => (
+          shopify.rest.Metafield.all({
+            session: session,
+            metafield: {
+              owner_id: id,
+              owner_resource: `customer`,
+            },
+          })
+        ))
+        console.log('metafields', metafields)
+        const { value } = metafields.find(({ key, namespace }) => (namespace === `custom` && key === `toad_reader_info`)) || {}
+        customerMetafieldLines = `customer:\n${JSON.parse(value).join(`\n`)}`
+        processedAtTimeById[`customer:`] = 1
+      } catch(err) {}
 
       // bookIds
       log(['Get shopify orders by customer id', id, idp.name], 1)
@@ -91,9 +110,9 @@ const getShopifyUserInfo = async ({ email, idp, log }) => {
     const toadReaderCollectionResponse = await fetch(toadReaderCollectionHref)
     const toadReaderCollectionHtml = await toadReaderCollectionResponse.text()
 
-    toadReaderCollectionHtml.match(/(?:product|variants):.*\n(?:(?:book|subscription):.*\n)*/g).forEach(productOrVariant => {
+    ;`${customerMetafieldLines}\n${toadReaderCollectionHtml}`.match(/(?:product|variants|customer):.*\n(?:(?:book|subscription):.*\n)*/g).forEach(productOrVariant => {
 
-      const [ x, productOrVariantKey, booksAndSubscriptions ] = productOrVariant.match(/^((?:product|variants):.*)\n((?:.|\n)*)$/)
+      const [ x, productOrVariantKey, booksAndSubscriptions ] = productOrVariant.match(/^((?:product|variants|customer):.*)\n((?:.|\n)*)$/)
 
       const processedAtTime = processedAtTimeById[productOrVariantKey]
       if(!processedAtTime) return
@@ -127,6 +146,10 @@ const getShopifyUserInfo = async ({ email, idp, log }) => {
             item.expiration = processedAtTime + 1000*60*60*24 * parseInt(infoValue, 10)
           } else if(infoKey === `enhanced_days`) {
             item.enhancedToolsExpiration = processedAtTime + 1000*60*60*24 * parseInt(infoValue, 10)
+          } else if(infoKey === `expires`) {
+            item.expiration = new Date(infoValue).getTime()
+          } else if(infoKey === `enhanced_expires`) {
+            item.enhancedToolsExpiration = new Date(infoValue).getTime()
           } else {
             item[infoKey] = infoValue
           }
