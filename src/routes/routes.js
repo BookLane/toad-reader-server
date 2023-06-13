@@ -53,8 +53,11 @@ module.exports = function (app, s3, connection, passport, authFuncs, ensureAuthe
   require('./connect_to_classroom_routes')(app, connection, ensureAuthenticatedAndCheckIDP, log);
   require('./xapi_routes')(app, connection, ensureAuthenticatedAndCheckIDP, log);
 
-  var getAssetFromS3 = function(req, res, next, notFoundCallback) {
+  var getAssetFromS3 = function(req, res, next, notFoundCallback, tryWithoutDecode) {
     var urlWithoutQuery = req.originalUrl.replace(/(\?.*)?$/, '').replace(/^\/book/,'').replace(/%20/g, ' ');
+    if(!tryWithoutDecode) {
+      urlWithoutQuery = decodeURIComponent(urlWithoutQuery)
+    }
     var params = {
       Bucket: process.env.S3_BUCKET,
       Key: urlWithoutQuery.replace(/^\//,'')
@@ -77,6 +80,10 @@ module.exports = function (app, s3, connection, passport, authFuncs, ensureAuthe
     log(['Get S3 object', params.Key]);
     s3.getObject(params, function(err, data) {
       if(err) {
+
+        if(!tryWithoutDecode) {
+          return getAssetFromS3(req, res, next, notFoundCallback, true);
+        }
 
         if(err.statusCode == 304) {
           const responseHeaders = {

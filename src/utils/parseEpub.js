@@ -19,6 +19,9 @@ const normalizePath = path => {
     path = removeDirBack(path)
   }
 
+  // decode URI
+  path = decodeURIComponent(path)
+
   return path
 }
 

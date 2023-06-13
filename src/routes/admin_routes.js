@@ -154,7 +154,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
     const tmpDir = `tmp_epub_${util.getUTCTimeStamp()}`
     const toUploadDir = `${tmpDir}/toupload`
     const epubFilePaths = []
-    let bookRow, cleanUpBookIdpToDelete
+    let bookRow, cleanUpBookIdpToDelete, beganResponse
     const { replaceExisting } = req.query
 
     deleteFolderRecursive(tmpDir)
@@ -430,6 +430,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         }
 
         // From this point, we expect it to be successful. Send some info to keep the connection alive.
+        beganResponse = true
         res.set('Content-Type', 'application/json')
         res.write(`{`)
         let timeOfLastResponseWrite = Date.now()
@@ -564,10 +565,18 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
           log(['Error in responding to import error!', err3.message], 3)
         }
 
-        res.status(400).send({
-          errorType: /^[-_a-z]+$/.test(err.message) ? err.message : "unable_to_process",
-          maxMB: req.user.idpMaxMBPerBook,
-        })
+        if(beganResponse) {
+          res.write(
+              `"success": false` +
+            `}`
+          )
+          res.end()
+        } else {
+          res.status(400).send({
+            errorType: /^[-_a-z]+$/.test(err.message) ? err.message : "unable_to_process",
+            maxMB: req.user.idpMaxMBPerBook,
+          })
+        }
       }
   
     })
