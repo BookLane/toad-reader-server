@@ -543,7 +543,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         try {
           if(cleanUpBookIdpToDelete) {
             await util.runQuery({
-              query: 'DELETE FROM `book-idp` WHERE idp_id=:idpId AND book_id=:bookId',
+              query: 'DELETE FROM `book-idp` WHERE idp_id=:idp_id AND book_id=:book_id',
               vars: cleanUpBookIdpToDelete,
               connection,
               next,
