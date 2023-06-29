@@ -512,6 +512,7 @@ const util = {
             email: idpUserId,
             idp,
             log,
+            waitToExecuteIfNecessary: true,
           })),
         }
 

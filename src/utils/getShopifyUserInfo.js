@@ -4,8 +4,9 @@ const { shopifyApi } = require('@shopify/shopify-api')
 const { restResources } = require("@shopify/shopify-api/rest/admin/2023-01")
 const fetch = require('node-fetch')
 
+let currentNumberOfWaitingShopifyRequests = 0
 
-const getShopifyUserInfo = async ({ email, idp, log }) => {
+const getShopifyUserInfo = async ({ email, idp, log, waitToExecuteIfNecessary }) => {
 
   try {
 
@@ -14,9 +15,15 @@ const getShopifyUserInfo = async ({ email, idp, log }) => {
         try {
           return await func()
         } catch(err) {
-          if(/Shopify is throttling requests/.test(err.message)) {
+          if(
+            /Shopify is throttling requests/.test(err.message)
+            && waitToExecuteIfNecessary
+            && currentNumberOfWaitingShopifyRequests < 25
+          ) {
             log([`Waiting a second due to Shopify overload...`], 1)
+            currentNumberOfWaitingShopifyRequests++
             await new Promise(resolve => setTimeout(resolve, 1000))
+            currentNumberOfWaitingShopifyRequests--
           } else {
             throw err
           }
@@ -41,13 +48,13 @@ const getShopifyUserInfo = async ({ email, idp, log }) => {
     const session = shopify.session.customAppSession(hostName)
 
     log(['Get shopify customers', email, idp.name], 1)
-    const { customers } = await tryShopify(() => (
+    const { customers=[] } = await tryShopify(() => (
       shopify.rest.Customer.search({
         session: session,
         query: `email:${email}`,
         fields: "id,email,first_name,last_name",
       })
-    ))
+    )) || {}
 
     const books = []
     const subscriptions = []
@@ -87,7 +94,7 @@ const getShopifyUserInfo = async ({ email, idp, log }) => {
               fields: "line_items,processed_at",
               status: "any",
             })
-          ))
+          )) || { orders: [] }
         )
           .orders
           .map(({ line_items, processed_at }) => line_items.map(lineItem => ({ ...lineItem, processed_at })))
