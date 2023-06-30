@@ -1,1 +1,24 @@
-{}
+{
+	"default": {
+		"{{item1}}, {{item2}}": "{{item1}}, {{item2}}",
+		"Hi,": "Oi,",
+		"Quote from {{title}}": "Citação de {{title}}",
+		"Comment": "Comente",
+		"Share:": "Compartilhar:",
+		"Copy link": "Link de cópia",
+		"Copied": "Copiada",
+		"Read at the quote": "Leia na citação",
+		"Account deletion confirmation code": "Código de confirmação de exclusão de conta",
+		"You started the process to permanently delete your {{name}} account. If you have changed your mind, you may discard this email. To proceed, enter the following code into the text field where you began the account deletion process.": "Você iniciou o processo para excluir permanentemente sua conta {{name}}. Se você mudou de ideia, pode descartar este e-mail. Para continuar, insira o código a seguir no campo de texto onde você iniciou o processo de exclusão da conta.",
+		"Account deletion confirmation code: {{code}}": "Código de confirmação de exclusão da conta: {{code}}",
+		"Note: This code expires in 15 minutes.": "Nota: Este código expira em 15 minutos.",
+		"Book Default": "Padrão do livro",
+		"Login code": "Código de acesso",
+		"Your login code: {{code}}": "Seu código de login: {{code}}",
+		"Enter this code into the native or web app.": "Insira este código no aplicativo nativo ou da web."
+	},
+	"enhanced": {
+		"This launch link has expired.": "Este link de lançamento expirou.",
+		"Reading due soon – {{book_title}}": "Leitura prevista para breve – {{book_title}}"
+	}
+}

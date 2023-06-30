@@ -1142,13 +1142,33 @@ const util = {
         })
 
         const getSet = row => Object.keys(row).map(key => `${key}=${connection.escape(row[key])}`).join(', ')
-        const getWhere = row => [ 'idp_id', 'book_id', 'user_id' ].map(key => `${key}=${connection.escape(row[key])}`).join(' AND ')
+        const getWhere = row => [ 'idp_id', 'user_id', 'book_id' ].map(key => `${key}=${connection.escape(row[key])}`).join(' AND ')
+
+        const inserts = Object.values(updatedComputedBookAccessRowsByBookIdAndUserId).filter(row => !computedBookAccessRowsByBookIdAndUserId[getKey(row)])
+        const userIdsToDelete = Object.values(computedBookAccessRowsByBookIdAndUserId).filter(row => !updatedComputedBookAccessRowsByBookIdAndUserId[getKey(row)]).map(({ user_id }) => user_id)
+        const userIdsToNotDelete = Object.values(computedBookAccessRowsByBookIdAndUserId).filter(row => updatedComputedBookAccessRowsByBookIdAndUserId[getKey(row)]).map(({ user_id }) => user_id)
 
         const modificationQueries = [
           // insert where needed
-          ...Object.values(updatedComputedBookAccessRowsByBookIdAndUserId)
-            .filter(row => !computedBookAccessRowsByBookIdAndUserId[getKey(row)])
-            .map(row => `INSERT INTO computed_book_access SET ${getSet(row)}`),
+          ...(
+            inserts.length > 0
+              ? [`
+                INSERT INTO computed_book_access (${
+                  Object.keys(inserts[0]).join(',')
+                }) VALUES ${
+                  inserts
+                    .map(row => `
+                      (${
+                        Object.keys(row).map(key => (
+                          connection.escape(row[key])
+                        ))
+                      })
+                    `)
+                    .join(',')
+                }
+              `]
+              : []
+          ),
 
           // update where needed
           ...Object.values(updatedComputedBookAccessRowsByBookIdAndUserId)
@@ -1162,9 +1182,26 @@ const util = {
             .map(row => `UPDATE computed_book_access SET ${getSet(row)} WHERE ${getWhere(row)}`),
 
           // delete where needed
-          ...Object.values(computedBookAccessRowsByBookIdAndUserId)
-            .filter(row => !updatedComputedBookAccessRowsByBookIdAndUserId[getKey(row)])
-            .map(row => `DELETE FROM computed_book_access WHERE ${getWhere(row)}`),
+          // NOTE: if it is ever slow due to a subscription having a TON of books and a user losing access to that sub,
+          // then do the sort of thing for when there is a userId but no bookId.
+          ...(
+            (userId || !bookId)
+              ? (
+                Object.values(computedBookAccessRowsByBookIdAndUserId)
+                  .filter(row => !updatedComputedBookAccessRowsByBookIdAndUserId[getKey(row)])
+                  .map(row => `DELETE FROM computed_book_access WHERE ${getWhere(row)}`)
+              )
+              : ([`
+                DELETE FROM computed_book_access
+                WHERE idp_id=${connection.escape(idpId)}
+                  AND book_id=${connection.escape(bookId)}
+                  AND user_id ${
+                    userIdsToDelete.length > userIdsToNotDelete.length ? `NOT` : ``
+                  } IN(${
+                    [ 0, ...(userIdsToDelete.length > userIdsToNotDelete.length ? userIdsToNotDelete : userIdsToDelete) ].join(',')
+                  })
+              `])
+          )
         ]
 
         if(modificationQueries.length === 0) {

@@ -1,18 +1,24 @@
 {
 	"default": {
-		"Hi,": "TRANSLATION NEEDED",
+		"{{item1}}, {{item2}}": "{{item1}}, {{item2}}",
+		"Hi,": "Hola,",
 		"Quote from {{title}}": "Citar de {{title}}",
 		"Comment": "Comentar",
 		"Share:": "Compartir:",
 		"Copy link": "Copiar enlace",
 		"Copied": "Copiado",
 		"Read at the quote": "Leer en la cita",
+		"Account deletion confirmation code": "Código de confirmación de eliminación de cuenta",
+		"You started the process to permanently delete your {{name}} account. If you have changed your mind, you may discard this email. To proceed, enter the following code into the text field where you began the account deletion process.": "Comenzaste el proceso para eliminar permanentemente tu cuenta de {{name}}. Si ha cambiado de opinión, puede descartar este correo electrónico. Para continuar, ingrese el siguiente código en el campo de texto donde comenzó el proceso de eliminación de la cuenta.",
+		"Account deletion confirmation code: {{code}}": "Código de confirmación de eliminación de cuenta: {{code}}",
+		"Note: This code expires in 15 minutes.": "Nota: Este código expira en 15 minutos.",
+		"Book Default": "Libro por defecto",
 		"Login code": "Código de inicio de sesión",
 		"Your login code: {{code}}": "Tu código de inicio de sesión: {{code}}",
-		"Enter this code into the native or web app.": "Ingresa este código en la aplicación instalada o web.",
-		"Note: This code expires in 15 minutes.": "Nota: Este código expira en 15 minutos."
+		"Enter this code into the native or web app.": "Ingresa este código en la aplicación instalada o web."
 	},
 	"enhanced": {
-		"This launch link has expired.": "TRANSLATION NEEDED"
+		"This launch link has expired.": "Este enlace de lanzamiento ha caducado.",
+		"Reading due soon – {{book_title}}": "Lectura pendiente pronto: {{book_title}}"
 	}
 }

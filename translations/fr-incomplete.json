@@ -1,0 +1,24 @@
+{
+	"default": {
+		"{{item1}}, {{item2}}": "TRANSLATION NEEDED",
+		"Hi,": "TRANSLATION NEEDED",
+		"Quote from {{title}}": "TRANSLATION NEEDED",
+		"Comment": "TRANSLATION NEEDED",
+		"Share:": "TRANSLATION NEEDED",
+		"Copy link": "TRANSLATION NEEDED",
+		"Copied": "TRANSLATION NEEDED",
+		"Read at the quote": "TRANSLATION NEEDED",
+		"Account deletion confirmation code": "TRANSLATION NEEDED",
+		"You started the process to permanently delete your {{name}} account. If you have changed your mind, you may discard this email. To proceed, enter the following code into the text field where you began the account deletion process.": "TRANSLATION NEEDED",
+		"Account deletion confirmation code: {{code}}": "TRANSLATION NEEDED",
+		"Note: This code expires in 15 minutes.": "TRANSLATION NEEDED",
+		"Book Default": "TRANSLATION NEEDED",
+		"Login code": "TRANSLATION NEEDED",
+		"Your login code: {{code}}": "TRANSLATION NEEDED",
+		"Enter this code into the native or web app.": "TRANSLATION NEEDED"
+	},
+	"enhanced": {
+		"This launch link has expired.": "TRANSLATION NEEDED",
+		"Reading due soon – {{book_title}}": "TRANSLATION NEEDED"
+	}
+}
