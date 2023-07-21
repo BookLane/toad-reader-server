@@ -1,1 +1,24 @@
-{}
+{
+	"default": {
+		"{{item1}}, {{item2}}": "{{item1}}, {{item2}}",
+		"Hi,": "Bonjour,",
+		"Quote from {{title}}": "Citation de {{title}}",
+		"Comment": "Commentaire",
+		"Share:": "Partager :",
+		"Copy link": "Copier le lien",
+		"Copied": "Copié",
+		"Read at the quote": "Lire à la citation",
+		"Account deletion confirmation code": "Code de confirmation de suppression de compte",
+		"You started the process to permanently delete your {{name}} account. If you have changed your mind, you may discard this email. To proceed, enter the following code into the text field where you began the account deletion process.": "Vous avez entamé le processus de suppression permanente de votre compte {{name}}. Si vous avez changé d'avis, vous pouvez ignorer cet e-mail. Pour continuer, saisissez le code suivant dans le champ de texte où vous avez commencé le processus de suppression du compte.",
+		"Account deletion confirmation code: {{code}}": "Code de confirmation de suppression de compte : {{code}}",
+		"Note: This code expires in 15 minutes.": "Note : Ce code expire dans 15 minutes.",
+		"Book Default": "Livre par défaut",
+		"Login code": "Code de connexion",
+		"Your login code: {{code}}": "Votre code de connexion est : {{code}}",
+		"Enter this code into the native or web app.": "Renseignez ce code dans l'application native (Android ou iOS) ou la web app (lire.blfstore.com sur votre navigateur)."
+	},
+	"enhanced": {
+		"This launch link has expired.": "Ce lien de lancement a expiré.",
+		"Reading due soon – {{book_title}}": "Lecture prévue bientôt - {{book_title}}"
+	}
+}
