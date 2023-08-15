@@ -111,11 +111,20 @@ const getShopifyUserInfo = async ({ email, idp, log, waitToExecuteIfNecessary })
         }
       })
 
+      log(['Got shopify orders by customer id', id, idp.name, JSON.stringify(processedAtTimeById)], 1)
+
     }
-    // console.log('products', JSON.stringify(processedAtTimeById))
 
     const toadReaderCollectionResponse = await fetch(toadReaderCollectionHref)
-    const toadReaderCollectionHtml = await toadReaderCollectionResponse.text()
+    let toadReaderCollectionHtml = await toadReaderCollectionResponse.text()
+    const numPages = Math.ceil((parseInt((toadReaderCollectionHtml.match(/^COUNT:([0-9]+)/) || [])[1], 10) || 0) / 50)
+
+    if(numPages > 1) {
+      await Promise.all(Array(numPages - 1).fill().map(async (x, idx) => {
+        const toadReaderCollectionResponse = await fetch(`${toadReaderCollectionHref}?page=${idx+2}`)
+        toadReaderCollectionHtml += `\n${await toadReaderCollectionResponse.text()}`
+      }))
+    }
 
     ;`${customerMetafieldLines}\n${toadReaderCollectionHtml}`.match(/(?:product|variants|customer):.*\n(?:(?:book|subscription):.*\n)*/g).forEach(productOrVariant => {
 
