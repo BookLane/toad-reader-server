@@ -33,14 +33,18 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
           FROM tool as t
             LEFT JOIN classroom as c ON (c.uid=t.classroom_uid)
             LEFT JOIN classroom_member as cm ON (cm.classroom_uid=c.uid AND cm.user_id=:userId AND cm.deleted_at IS NULL)
-            LEFT JOIN computed_book_access as cba ON (cba.book_id=c.book_id)
+            LEFT JOIN computed_book_access as cba ON (
+              cba.book_id=c.book_id
+              AND cba.idp_id=:idpId
+              AND cba.user_id=:userId
+              AND (cba.expires_at IS NULL OR cba.expires_at>:now)
+            )
+
           WHERE t.uid=:toolUid
             AND t.deleted_at IS NULL
             AND c.deleted_at IS NULL
             AND c.idp_id=:idpId
-            AND cba.idp_id=:idpId
-            AND cba.user_id=:userId
-            AND (cba.expires_at IS NULL OR cba.expires_at>:now)
+            ${req.user.isAdmin ? `` : `AND cba.book_id IS NOT NULL`}
           ;
 
           SELECT internalJWT FROM idp WHERE id=:idpId
