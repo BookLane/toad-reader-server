@@ -11,6 +11,9 @@ const parseEpub = require('../utils/parseEpub')
 const { getIndexedBook } = require('../utils/indexEpub')
 const dueDateReminders = require('../crons/due_date_reminders')
 
+const MAX_AUDIOBOOK_FILE_MB = 30  // over an hour, on average
+const MAX_AUDIOBOOK_MB = 500
+
 module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, log) {
 
   const deleteFolderRecursive = path => {
@@ -777,6 +780,203 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
 
   })
 
+  // create or update an audiobook
+  app.post('/audiobook', async (req, res, next) => {
+
+    if(!(req.user || {}).isAdmin) {
+      log('No permission to create/update audiobooks', 3)
+      res.status(403).send({ errorType: "no_permission" })
+      return
+    }
+
+    if(
+      !util.paramsOk(req.body, ['book'])
+      || typeof req.body.book !== `object`
+      || !util.paramsOk(req.body.book, ['title', 'author', 'isbn', 'audiobookInfo'], ['id'])
+      || typeof req.body.book.audiobookInfo !== `object`
+      || !util.paramsOk(req.body.book.audiobookInfo, ['spines'])
+    ) {
+      log(['Invalid parameter(s)', req.body], 3)
+      res.status(400).send()
+      return
+    }
+
+    let epubSizeInMB = 0
+    await Promise.all(req.body.book.audiobookInfo.spines.map(async ({ filename }) => {
+      const data = await s3.listObjects({
+        Bucket: process.env.S3_BUCKET,
+        Key: `epub_content/book_${bookId}/${filename}`,
+        ObjectAttributes: [ `ObjectSize` ],
+      }).promise()
+      epubSizeInMB += data.ObjectSize*1024*1024
+    }))
+    epubSizeInMB = parseInt(epubSizeInMB, 10)
+
+    if(epubSizeInMB > MAX_AUDIOBOOK_MB) {
+      res.status(400).send({
+        errorType: "audiobook_too_large",
+        maxMB: MAX_AUDIOBOOK_FILE_MB,
+      })
+      return
+    }
+
+    bookRow = {
+      ...req.body.book,
+      epubSizeInMB,
+      updated_at: util.timestampToMySQLDatetime()
+    }
+
+    util.convertJsonColsToStrings({ tableName: 'book', row: bookRow })
+
+    if(!req.body.book.id) {  // extra stuff for initial insert
+
+      log(['Insert book row', bookRow], 2)
+      bookRow.id = (await util.runQuery({
+        query: 'INSERT INTO `book` SET ?',
+        vars: bookRow,
+        connection,
+        next,
+      })).insertId
+
+      bookRow.rootUrl = `epub_content/book_${bookRow.id}`
+
+      const bookIdpRow = {
+        book_id: bookRow.id,
+        idp_id: req.user.idpId,
+      }
+
+      log(['INSERT book-idp row', bookIdpRow], 2)
+      await util.runQuery({
+        query: 'INSERT INTO `book-idp` SET ?',
+        vars: bookIdpRow,
+        connection,
+        next,
+      })
+
+      await util.updateComputedBookAccess({ idpId: req.user.idpId, bookId: bookRow.id, connection, log })
+
+    }
+
+    log(['Update book row', bookRow.id, bookRow], 2)
+    await util.runQuery({
+      query: 'UPDATE `book` SET :bookRow WHERE id=:bookId',
+      vars: {
+        bookId: bookRow.id,
+        bookRow,
+      },
+      connection,
+      next,
+    })
+
+    return util.getLibrary({ req, res, next, log, connection, newBookId: bookRow.id })
+
+  })
+
+  // upload audiobook file
+  app.post('/audiobookfile/:bookId', ensureAuthenticatedAndCheckIDP, async (req, res, next) => {
+
+    if(!(req.user || {}).isAdmin) {
+      log('No permission to upload audiobook files', 3)
+      res.status(403).send({ errorType: "no_permission" })
+      return
+    }
+
+    const { bookId } = req.params
+
+    const tmpDir = 'tmp_file_' + util.getUTCTimeStamp()
+
+    deleteFolderRecursive(tmpDir)
+
+    fs.mkdir(tmpDir, err => {
+      if(err) return next(err)
+
+      const form = new multiparty.Form({
+        uploadDir: tmpDir,
+      })
+
+      let processedOneFile = false  // at this point, we only allow one upload at a time
+
+      form.on('file', async (name, file) => {
+
+        const coverImageFileTypes = [ `png`, `jpg`, `jpeg` ]
+        const spineFileTypes = [ `mp3`, `aac`, `m4a` ]
+
+        if(processedOneFile) return
+        processedOneFile = true
+
+        const extension = (file.originalFilename.match(/\.[^.]+$/gi) || [])[0]
+
+        if(
+          !coverImageFileTypes.includes(extension)
+          && !spineFileTypes.includes(extension)
+        ) {
+          res.status(400).send({
+            errorType: "invalid_file_type",
+          })
+          return
+        }
+
+        const filename = `${uuidv4()}.${extension}`
+        let body, key
+
+        if(coverImageFileTypes.includes(extension)) {
+
+          body = await (
+            sharp(file.path)
+              .resize(284)  // twice of the 142px width that is shown on the share page
+              .png()
+              .toBuffer()
+          )
+          key = `epub_content/covers/book_${bookId}.png`
+
+        } else {
+
+          const fileSizeInMB = Math.ceil(file.size/1024/1024)
+
+          if(fileSizeInMB > MAX_AUDIOBOOK_FILE_MB) {
+            res.status(400).send({
+              errorType: "file_too_large",
+              maxMB: MAX_AUDIOBOOK_FILE_MB,
+            })
+            return
+          }
+  
+          body = fs.createReadStream(file.path)
+          key = `epub_content/book_${bookId}/${filename}`
+
+        }
+
+        log(['Upload audiobook file to S3', key])
+
+        await s3.putObject({
+          Bucket: process.env.S3_BUCKET,
+          Key: key,
+          Body: body,
+          ContentLength: body.byteCount,
+          ContentType: mime.getType(key),
+        }).promise()
+
+        log(['...uploaded audiobook file to S3', key])
+
+        res.send({
+          success: true,
+          filename,
+        })
+
+      })
+
+      form.on('error', err => {
+        log(['audiobookfile error', err], 3)
+        deleteFolderRecursive(tmpDir)
+        res.status(400).send({ errorType: "bad_file" })
+      })
+
+      form.parse(req)
+
+    })
+
+  })
+
   // update subscription-book rows
   app.post('/setsubscriptions/:bookId', ensureAuthenticatedAndCheckIDP, async (req, res, next) => {
 
@@ -1148,10 +1348,12 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         })
 
         const useEnhancedReader = idpRows[idpIndex].use_enhanced_reader_at && new Date(idpRows[idpIndex].use_enhanced_reader_at) < new Date(toDate)
+        const useAudiobooks = idpRows[idpIndex].use_audiobooks_at && new Date(idpRows[idpIndex].use_audiobooks_at) < new Date(toDate)
+        const useEnhancedReaderOrAudiobook = !!(useEnhancedReader || useAudiobooks)
         const numActiveUsers = parseInt(activeUsersRows[0].numActiveUsers, 10)
         let totalCostInCents
 
-        if(idpRows[idpIndex].specialPricing === 'OLD' && !useEnhancedReader) {
+        if(idpRows[idpIndex].specialPricing === 'OLD' && !useEnhancedReaderOrAudiobook) {
 
           if(i === 0) {
             reportInfo[idpIndex].data.push({
@@ -1181,27 +1383,27 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
               {
                 'Active users': 'Up to 1,000',
                 'Standard eReader': '$250 per month',
-                'Enhanced eReader': '$700 per month',
+                'Interactive eReader / Audiobooks': '$700 per month',
               },
               {
                 'Active users': '1,001 - 2,000',
                 'Standard eReader': '$400 per month',
-                'Enhanced eReader': '$1200 per month',
+                'Interactive eReader / Audiobooks': '$1200 per month',
               },
               {
                 'Active users': '2,001 - 5,000',
                 'Standard eReader': '$750 per month',
-                'Enhanced eReader': '$2000 per month',
+                'Interactive eReader / Audiobooks': '$2000 per month',
               },
               {
                 'Active users': '5,001 - 10,000',
                 'Standard eReader': '$1000 per month',
-                'Enhanced eReader': '$3000 per month',
+                'Interactive eReader / Audiobooks': '$3000 per month',
               },
               {
                 'Active users': '10,000+',
                 'Standard eReader': '$0.10 per active user per month',
-                'Enhanced eReader': '$0.30 per active user per month',
+                'Interactive eReader / Audiobooks': '$0.30 per active user per month',
               },
             ]
 
@@ -1209,7 +1411,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
               costChartRows.unshift({
                 'Active users': 'Up to 400',
                 'Standard eReader': '$100 per month',
-                'Enhanced eReader': '$280 per month',
+                'Interactive eReader / Audiobooks': '$280 per month',
               })
               costChartRows[1]['Active users'] = '401 - 1,000'
             }
@@ -1222,17 +1424,17 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
           }
 
           if(numActiveUsers <= 400 && idpRows[idpIndex].specialPricing === 'NON-PROFIT') {
-            totalCostInCents = (useEnhancedReader ? 280 : 100) * 100
+            totalCostInCents = (useEnhancedReaderOrAudiobook ? 280 : 100) * 100
           } else if(numActiveUsers <= 1000) {
-            totalCostInCents = (useEnhancedReader ? 700 : 250) * 100
+            totalCostInCents = (useEnhancedReaderOrAudiobook ? 700 : 250) * 100
           } else if(numActiveUsers <= 2000) {
-            totalCostInCents = (useEnhancedReader ? 1200 : 400) * 100
+            totalCostInCents = (useEnhancedReaderOrAudiobook ? 1200 : 400) * 100
           } else if(numActiveUsers <= 5000) {
-            totalCostInCents = (useEnhancedReader ? 2000 : 750) * 100
+            totalCostInCents = (useEnhancedReaderOrAudiobook ? 2000 : 750) * 100
           } else if(numActiveUsers <= 10000) {
-            totalCostInCents = (useEnhancedReader ? 3000 : 1000) * 100
+            totalCostInCents = (useEnhancedReaderOrAudiobook ? 3000 : 1000) * 100
           } else {
-            totalCostInCents = (useEnhancedReader ? (30 * numActiveUsers) : (10 * numActiveUsers))
+            totalCostInCents = (useEnhancedReaderOrAudiobook ? (30 * numActiveUsers) : (10 * numActiveUsers))
           }
 
         }
@@ -1248,7 +1450,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
           heading: `${heading} – Usage Cost ${i === 0 ? `(not yet complete)` : ``}`,
           rows: [
             {
-              'eReader version': useEnhancedReader ? `Enhanced eReader` : `Standard eReader`,
+              'eReader version': useEnhancedReaderOrAudiobook ? `Interactive eReader / Audiobooks` : `Standard eReader`,
               'Active users': numActiveUsers,
               'Fee': `$${totalCostInCents}`.replace(/(..)$/, '\.$1'),
             },

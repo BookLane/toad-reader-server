@@ -196,7 +196,8 @@ const jsonCols = {
   tool: [ 'data', 'undo_array' ],
   classroom: [ 'syllabus', 'draftData', 'lti_configurations' ],
   book_instance: [ 'flags' ],
-  computed_book_access: [ 'flags' ],
+  book: [ 'audiobookInfo' ],
+  computed_book_access: [ 'audiobookInfo', 'flags' ],
   book_textnode_index: [ 'context' ],
   metadata_key: [ 'options' ],
 }
@@ -1603,12 +1604,12 @@ const util = {
     })
   }),
 
-  getLibrary: async ({ req, res, next, log, connection }) => {
+  getLibrary: async ({ req, res, next, log, connection, newBookId }) => {
 
     const now = util.timestampToMySQLDatetime();
 
     const [ idp ] = await util.runQuery({
-      query: `SELECT i.use_enhanced_reader_at FROM idp AS i WHERE i.id=:idpId`,
+      query: `SELECT i.use_enhanced_reader_at, i.use_audiobooks_at FROM idp AS i WHERE i.id=:idpId`,
       vars: {
         idpId: req.user.idpId,
       },
@@ -1617,6 +1618,7 @@ const util = {
     })
 
     const useEnhancedReader = idp.use_enhanced_reader_at && new Date(idp.use_enhanced_reader_at) < new Date()
+    const useAudiobook = idp.use_audiobooks_at && new Date(idp.use_audiobooks_at) < new Date()
 
     let versionField = `"BASE"`
     if(useEnhancedReader) {
@@ -1636,6 +1638,7 @@ const util = {
         b.author,
         b.coverHref,
         b.epubSizeInMB,
+        b.audiobookInfo,
         b.isbn,
         bi.link_href,
         bi.link_label,
@@ -1677,6 +1680,9 @@ const util = {
         )
       WHERE b.rootUrl IS NOT NULL
         AND bi.idp_id=:idpId
+        ${useAudiobook ? `` : `
+          AND b.audiobookInfo IS NULL
+        `}
         ${req.user.isAdmin ? `` : `
           AND cba.book_id IS NOT NULL
         `}
@@ -1728,6 +1734,7 @@ const util = {
           log(['No change to library.', rows.length])
           return res.send({
             noChange: true,
+            newBookId,
           })
           
         } else if(req.query.hash !== undefined) {
@@ -1735,6 +1742,7 @@ const util = {
           return res.send({
             hash,
             books: rows,
+            newBookId,
           })
           
         } else {
