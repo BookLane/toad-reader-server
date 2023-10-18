@@ -794,7 +794,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
       || typeof req.body.book !== `object`
       || !util.paramsOk(req.body.book, ['title', 'author', 'isbn', 'audiobookInfo'], ['id'])
       || typeof req.body.book.audiobookInfo !== `object`
-      || !util.paramsOk(req.body.book.audiobookInfo, ['spines'])
+      || !util.paramsOk(req.body.book.audiobookInfo, ['spines', 'coverFilename'])
     ) {
       log(['Invalid parameter(s)', req.body], 3)
       res.status(400).send()
@@ -898,36 +898,25 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
 
       form.on('file', async (name, file) => {
 
-        const coverImageFileTypes = [ `png`, `jpg`, `jpeg` ]
-        const spineFileTypes = [ `mp3`, `aac`, `m4a` ]
+        const isCoverImage = /^image\//.test(mime.getType(file.originalFilename))
 
         if(processedOneFile) return
         processedOneFile = true
 
         const extension = (file.originalFilename.match(/\.[^.]+$/gi) || [])[0]
 
-        if(
-          !coverImageFileTypes.includes(extension)
-          && !spineFileTypes.includes(extension)
-        ) {
-          res.status(400).send({
-            errorType: "invalid_file_type",
-          })
-          return
-        }
+        let filename, key, body
 
-        const filename = `${uuidv4()}.${extension}`
-        let body, key
+        if(isCoverImage) {
 
-        if(coverImageFileTypes.includes(extension)) {
-
+          filename = `book_${bookId}_${uuidv4()}.png`
+          key = `epub_content/covers/${filename}`
           body = await (
             sharp(file.path)
-              .resize(284)  // twice of the 142px width that is shown on the share page
+              .resize(800, 800)  // twice the 400px width that is the max in the UI
               .png()
               .toBuffer()
           )
-          key = `epub_content/covers/book_${bookId}.png`
 
         } else {
 
@@ -940,9 +929,10 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
             })
             return
           }
-  
-          body = fs.createReadStream(file.path)
+
+          filename = `${uuidv4()}${extension}`
           key = `epub_content/book_${bookId}/${filename}`
+          body = fs.createReadStream(file.path)
 
         }
 
