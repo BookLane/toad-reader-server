@@ -803,19 +803,18 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
 
     let epubSizeInMB = 0
     await Promise.all(req.body.book.audiobookInfo.spines.map(async ({ filename }) => {
-      const data = await s3.listObjects({
+      const data = await s3.getObjectAttributes({
         Bucket: process.env.S3_BUCKET,
-        Key: `epub_content/book_${bookId}/${filename}`,
+        Key: `epub_content/book_${req.body.book.id}/${filename}`,
         ObjectAttributes: [ `ObjectSize` ],
       }).promise()
-      epubSizeInMB += data.ObjectSize*1024*1024
+      epubSizeInMB += data.ObjectSize/1024/1024
     }))
-    epubSizeInMB = parseInt(epubSizeInMB, 10)
+    epubSizeInMB = Math.ceil(epubSizeInMB, 10)
 
     if(epubSizeInMB > MAX_AUDIOBOOK_MB) {
       res.status(400).send({
-        errorType: "audiobook_too_large",
-        maxMB: MAX_AUDIOBOOK_FILE_MB,
+        errorMessage: `Total size of this audiobook exceeds ${MAX_AUDIOBOOK_MB} mb max.`,
       })
       return
     }
