@@ -51,7 +51,7 @@ String
 
 ##### On Success: `[User Info Payload]` (see below)
 
-##### On Error (eg. idpUserId not valid): HTTP Status Code `400`
+##### On Error: HTTP Status Code `401` for idpUserId not found
 
 #### Notes
 
