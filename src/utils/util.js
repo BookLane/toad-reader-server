@@ -455,6 +455,7 @@ const util = {
     idpUserId,
     next,
     req,
+    res,
     connection,
     log,
     userInfo={},
@@ -475,7 +476,12 @@ const util = {
 
         response = await fetch(url)
 
-        if(response.status !== 200) {
+        if(response.status === 401 && res) {
+          return res.send({
+            success: false,
+            error: 'User not found.',
+          })      
+        } else if(response.status !== 200) {
           log([`Invalid response from userInfoEndpoint`, url], 3)
           // next('Bad login.')
         }
@@ -534,7 +540,12 @@ const util = {
 
       response = await fetch(url)
 
-      if(response.status !== 200) {
+      if(response.status === 401 && res) {
+        return res.send({
+          success: false,
+          error: 'User not found.',
+        })
+      } else if(response.status !== 200) {
         log([`Invalid response from userInfoEndpoint`, url], 3)
         // next('Bad login.')
       }

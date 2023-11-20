@@ -509,7 +509,7 @@ const ensureAuthenticated = async (req, res, next) => {
 
                   if(idp.userInfoEndpoint) {
 
-                    util.getUserInfo({ idp, idpUserId: token.id, req, next, connection, log }).then(logInSessionSharingUser)
+                    util.getUserInfo({ idp, idpUserId: token.id, req, res, next, connection, log }).then(logInSessionSharingUser)
 
                   } else {  // old method: get userInfo from meta data
 

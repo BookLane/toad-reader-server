@@ -475,7 +475,7 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
                 next,
               })
 
-              loginInfo = await util.getUserInfo({ idp, idpUserId, next, req, connection, log })
+              loginInfo = await util.getUserInfo({ idp, idpUserId, next, req, res, connection, log })
               
             } else {
               // create the user if they do not exist
