@@ -541,10 +541,28 @@ const util = {
       response = await fetch(url)
 
       if(response.status === 401 && res) {
-        return res.send({
-          success: false,
-          error: 'User not found.',
+        const [{ adminLevel=`NONE`, email }={}] = await util.runQuery({
+          query: 'SELECT adminLevel FROM `user` WHERE user_id_from_idp=:idpUserId AND idp_id=:idpId LIMIT 1',
+          vars: {
+            idpUserId,
+            idpId: idp.id,
+          },
+          connection,
+          next,
         })
+        if(adminLevel === `NONE`) {
+          return res.send({
+            success: false,
+            error: 'User not found.',
+          })
+        }
+        userInfo = {
+          idpUserId,
+          email: email || idpUserId,
+          books: [],
+          ...userInfo,
+        }
+        return await util.updateUserInfo({ connection, log, userInfo, idpId: idp.id, updateLastLoginAt: true, next, req })
       } else if(response.status !== 200) {
         log([`Invalid response from userInfoEndpoint`, url], 3)
         // next('Bad login.')
@@ -1103,23 +1121,27 @@ const util = {
         const getKey = ({ book_id, user_id }) => `${book_id} ${user_id}`
 
         const getLaterMySQLDatetime = (datetime1, datetime2) => (
-          util.mySQLDatetimeToTimestamp(datetime1) > util.mySQLDatetimeToTimestamp(datetime2)
-            ? datetime1
-            : datetime2
+          (datetime1 === null || datetime2 === null)
+            ? null  // if one does not have an expiration date, then give it no expiration date.
+            : (
+              util.mySQLDatetimeToTimestamp(datetime1) > util.mySQLDatetimeToTimestamp(datetime2)
+                ? datetime1
+                : datetime2
+            )
         )
 
-        const getCompiledRow = (row1, row2={}) => {
+        const getCompiledRow = (row1, row2) => {
           const versionPrecedentOrder = [ 'BASE', 'ENHANCED', 'INSTRUCTOR', 'PUBLISHER' ]
           let flags = null
 
           try {
             flags = (  // combine of the two
-              (row1.flags || row2.flags)
+              (row1.flags || (row2 || {}).flags)
                 ? JSON.stringify(
                   [
                     ...new Set([
                       ...JSON.parse(row1.flags || '[]'),
-                      ...JSON.parse(row2.flags || '[]'),
+                      ...JSON.parse((row2 || {}).flags || '[]'),
                     ]),
                   ]
                 )
@@ -1131,9 +1153,9 @@ const util = {
             idp_id: row1.idp_id,
             book_id: row1.book_id,
             user_id: row1.user_id,
-            version: versionPrecedentOrder.indexOf(row1.version) > versionPrecedentOrder.indexOf(row2.version) ? row1.version : row2.version,
-            expires_at: getLaterMySQLDatetime(row1.expires_at, row2.expires_at),  // the latest between the two
-            enhanced_tools_expire_at: getLaterMySQLDatetime(row1.enhanced_tools_expire_at, row2.enhanced_tools_expire_at),  // the latest between the two
+            version: (!row2 || versionPrecedentOrder.indexOf(row1.version) > versionPrecedentOrder.indexOf(row2.version)) ? row1.version : row2.version,
+            expires_at: row2 ? getLaterMySQLDatetime(row1.expires_at, row2.expires_at) : row1.expires_at,
+            enhanced_tools_expire_at: row2 ? getLaterMySQLDatetime(row1.enhanced_tools_expire_at, row2.enhanced_tools_expire_at) : row1.enhanced_tools_expire_at,
             flags,
           }
         }
