@@ -699,6 +699,7 @@ const util = {
     // dedup books
     const bookIdObj = {}
     const books = (userInfo.books || []).filter(({ id, version, expiration, enhancedToolsExpiration, flags }) => {
+      id = parseInt(id, 10)
       if(!bookIdObj[id]) {
 
         // check validity
@@ -726,6 +727,7 @@ const util = {
     // dedup subscriptions
     const subscriptionIdObj = {}
     const subscriptions = (userInfo.subscriptions || []).filter(({ id, expiration, enhancedToolsExpiration }) => {
+      id = parseInt(id, 10)
       if(!subscriptionIdObj[id]) {
 
         // check validity
@@ -812,15 +814,15 @@ const util = {
         query: 'SELECT book_id FROM `book-idp` WHERE idp_id=:idpId AND book_id IN(:bookIds)',
         vars: {
           idpId,
-          bookIds: books.map(({ id }) => id).concat([0]),
+          bookIds: books.map(({ id }) => parseInt(id, 10)).concat([0]),
         },
         connection,
         next,
       })
 
-      const idpBookIds = rows.map(({ book_id }) => parseInt(book_id))
+      const idpBookIds = rows.map(({ book_id }) => parseInt(book_id, 10))
 
-      const filteredBooks = books.filter(({ id }) => idpBookIds.includes(parseInt(id)))
+      const filteredBooks = books.filter(({ id }) => idpBookIds.includes(parseInt(id, 10)))
   
       log(['filtered books by the book-idp', filteredBooks])
 
@@ -839,7 +841,7 @@ const util = {
 
         const insertCols = {
           ...updateCols,
-          book_id: id,
+          book_id: parseInt(id, 10),
           user_id: userId,
           idp_id: idpId,
           first_given_access_at: now,
@@ -872,7 +874,7 @@ const util = {
             },
             idpId,
             userId,
-            bookIds: filteredBooks.map(({ id }) => id).concat([0]),
+            bookIds: filteredBooks.map(({ id }) => parseInt(id, 10)).concat([0]),
             now,
           },
           connection,
@@ -891,15 +893,15 @@ const util = {
         query: 'SELECT id FROM `subscription` WHERE idp_id=:idpId AND id IN(:subscriptionIds)',
         vars: {
           idpId,
-          subscriptionIds: subscriptions.map(({ id }) => id).concat([0]),
+          subscriptionIds: subscriptions.map(({ id }) => parseInt(id, 10)).concat([0]),
         },
         connection,
         next,
       })
 
-      const idpSubscriptionIds = rows.map(({ id }) => parseInt(id))
+      const idpSubscriptionIds = rows.map(({ id }) => parseInt(id, 10))
 
-      const filteredSubscriptions = subscriptions.filter(({ id }) => idpSubscriptionIds.includes(parseInt(id)))
+      const filteredSubscriptions = subscriptions.filter(({ id }) => idpSubscriptionIds.includes(parseInt(id, 10)))
   
       log(['filtered subscriptions by the subscription table', filteredSubscriptions])
 
@@ -916,7 +918,7 @@ const util = {
 
         const insertCols = {
           ...updateCols,
-          subscription_id: id,
+          subscription_id: parseInt(id, 10),
           user_id: userId,
           first_given_access_at: now,
         }
@@ -947,7 +949,7 @@ const util = {
               expires_at: now,
             },
             userId,
-            subscriptionIds: filteredSubscriptions.map(({ id }) => id).concat([0]),
+            subscriptionIds: filteredSubscriptions.map(({ id }) => parseInt(id, 10)).concat([0]),
             now,
           },
           connection,
