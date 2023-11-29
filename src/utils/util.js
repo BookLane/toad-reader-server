@@ -535,6 +535,7 @@ const util = {
     const connectorCharacter = /\?/.test(idp.userInfoEndpoint) ? `&` : `?`
     let response, jwtStr
     const url = `${idp.userInfoEndpoint}${connectorCharacter}version=${API_VERSION}&payload=${payload}`
+    log([`URL being sent to userInfoEndpoint...`, url], 3)
 
     try {
 
@@ -551,6 +552,11 @@ const util = {
           next,
         })
         if(adminLevel === `NONE`) {
+          let responseText
+          try {
+            responseText = await response.text()
+          } catch(e) {}
+          log([`User not found (401) response from userInfoEndpoint`, responseText], 3)
           return res.send({
             success: false,
             error: 'User not found.',
