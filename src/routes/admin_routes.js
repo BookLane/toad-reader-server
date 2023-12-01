@@ -5,6 +5,7 @@ const sharp = require('sharp')
 const fetch = require('node-fetch')
 const mime = require('mime')
 const uuidv4 = require('uuid/v4')
+const mm = require('music-metadata')
 
 const util = require('../utils/util')
 const parseEpub = require('../utils/parseEpub')
@@ -904,7 +905,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
 
         const extension = (file.originalFilename.match(/\.[^.]+$/gi) || [])[0]
 
-        let filename, key, body
+        let filename, key, body, durationMS
 
         if(isCoverImage) {
 
@@ -919,9 +920,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
 
         } else {
 
-          const fileSizeInMB = Math.ceil(file.size/1024/1024)
-
-          if(fileSizeInMB > MAX_AUDIOBOOK_FILE_MB) {
+          if(Math.ceil(file.size/1024/1024) > MAX_AUDIOBOOK_FILE_MB) {
             res.status(400).send({
               errorType: "file_too_large",
               maxMB: MAX_AUDIOBOOK_FILE_MB,
@@ -932,6 +931,9 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
           filename = `${uuidv4()}${extension}`
           key = `epub_content/book_${bookId}/${filename}`
           body = fs.createReadStream(file.path)
+
+          const metadata = await mm.parseStream(fs.createReadStream(file.path), { mimeType: mime.getType(key), size: body.byteCount }, { duration: true })
+          durationMS = parseInt(metadata.format.duration * 1000, 10)
 
         }
 
@@ -950,6 +952,8 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         res.send({
           success: true,
           filename,
+          fileSizeInMB: Math.round(file.size/1024/1024),
+          durationMS,
         })
 
       })
