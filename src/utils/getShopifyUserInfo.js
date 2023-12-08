@@ -39,10 +39,10 @@ const getShopifyUserInfo = async ({ email, idp, log, waitToExecuteIfNecessary })
       fullname: ``,
     }
 
-    await Promise.all(idp.userInfoEndpoint.replace(/^shopify:/, '').split(';').map(async endpointInfo => {
+    await Promise.all(idp.userInfoEndpoint.replace(/^shopify:/, '').split('\n').map(async (endpointInfo, idx) => {
       const [ hostName, toadReaderCollectionHref ] = endpointInfo.split(' ')
 
-      const [ apiKey, apiSecretKey ] = idp.userInfoJWT.split(':')
+      const [ apiKey, apiSecretKey ] = (idp.userInfoJWT.split('\n')[idx] || ``).split(':')
       const shopify = shopifyApi({
         apiKey,
         apiSecretKey,
@@ -132,7 +132,7 @@ const getShopifyUserInfo = async ({ email, idp, log, waitToExecuteIfNecessary })
         }))
       }
 
-      ;`${customerMetafieldLines}\n${toadReaderCollectionHtml}`.match(/(?:product|variants|customer):.*\n(?:(?:book|subscription):.*\n)*/g).forEach(productOrVariant => {
+      ;(`${customerMetafieldLines}\n${toadReaderCollectionHtml}`.match(/(?:product|variants|customer):.*\n(?:(?:book|subscription):.*\n)*/g) || []).forEach(productOrVariant => {
 
         const [ x, productOrVariantKey, booksAndSubscriptions ] = productOrVariant.match(/^((?:product|variants|customer):.*)\n((?:.|\n)*)$/)
 
