@@ -1319,7 +1319,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         if(new Date(fromDate) < new Date(idpRows[idpIndex].created_at)) break
 
         let activeUsersRows = await util.runQuery({
-          query:       `
+          query: `
             SELECT COUNT(*) as numActiveUsers
             FROM (
               SELECT COUNT(*)
