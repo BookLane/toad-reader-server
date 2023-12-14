@@ -12,7 +12,7 @@ const parseEpub = require('../utils/parseEpub')
 const { getIndexedBook } = require('../utils/indexEpub')
 const dueDateReminders = require('../crons/due_date_reminders')
 
-const MAX_AUDIOBOOK_FILE_MB = 30  // over an hour, on average
+const MAX_AUDIOBOOK_FILE_MB = 50  // over an hour, on average
 const MAX_AUDIOBOOK_MB = 500
 
 module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, log) {
