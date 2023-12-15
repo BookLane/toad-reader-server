@@ -1,13 +1,13 @@
 # ************************************************************
 # Sequel Ace SQL dump
-# Version 20044
+# Version 20062
 #
 # https://sequel-ace.com/
 # https://github.com/Sequel-Ace/Sequel-Ace
 #
 # Host: 127.0.0.1 (MySQL 8.0.22)
 # Database: ToadReader
-# Generation Time: 2023-01-05 19:38:36 +0000
+# Generation Time: 2023-12-15 15:33:15 +0000
 # ************************************************************
 
 
@@ -33,6 +33,7 @@ CREATE TABLE `book` (
   `updated_at` datetime(3) NOT NULL,
   `standardPriceInCents` int DEFAULT NULL,
   `epubSizeInMB` int DEFAULT NULL,
+  `audiobookInfo` text CHARACTER SET utf8mb4 COLLATE utf8mb4_bin,
   PRIMARY KEY (`id`),
   KEY `rootUrl` (`rootUrl`),
   KEY `isbn` (`isbn`)
@@ -261,7 +262,8 @@ CREATE TABLE `computed_book_access` (
   KEY `user_id` (`user_id`),
   KEY `version` (`version`),
   KEY `expires_at` (`expires_at`),
-  KEY `enhanced_tools_expire_at` (`enhanced_tools_expire_at`)
+  KEY `enhanced_tools_expire_at` (`enhanced_tools_expire_at`),
+  KEY `idp_id_3` (`idp_id`,`book_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
@@ -288,6 +290,7 @@ CREATE TABLE `highlight` (
   `cfi` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
   `color` tinyint unsigned NOT NULL,
   `note` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
+  `sketch` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin,
   `share_code` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
   `share_quote` text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci,
   `updated_at` datetime(3) NOT NULL,
@@ -313,6 +316,7 @@ CREATE TABLE `idp` (
   `domain` varchar(253) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL DEFAULT '',
   `contactEmail` text COLLATE utf8_bin,
   `use_enhanced_reader_at` datetime(3) DEFAULT NULL,
+  `use_audiobooks_at` datetime(3) DEFAULT NULL,
   `specialPricing` enum('OLD','NON-PROFIT','ORIG-ORCA') CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
   `fromEmail` text CHARACTER SET utf8 COLLATE utf8_general_ci,
   `authMethod` enum('SESSION_SHARING','SHIBBOLETH','EMAIL','NONE_OR_EMAIL') CHARACTER SET utf8 COLLATE utf8_bin NOT NULL DEFAULT 'NONE_OR_EMAIL',

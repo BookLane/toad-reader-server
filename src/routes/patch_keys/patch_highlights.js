@@ -24,7 +24,7 @@ module.exports = {
 
     if((body.highlights || []).length > 0) {
       preQueries.queries.push(`
-        SELECT spineIdRef, cfi, updated_at, IF(note="", 0, 1) as hasnote
+        SELECT spineIdRef, cfi, updated_at, IF(note="" OR sketch IS NOT NULL, 0, 1) as hasnote
         FROM highlight
         WHERE user_id=?
           AND book_id=?
@@ -91,7 +91,7 @@ module.exports = {
       for(let idx in highlights) {
         const highlight = highlights[idx]
         
-        if(!util.paramsOk(highlight, ['updated_at','spineIdRef','cfi'], ['color','note','share_code','share_quote','_delete'])) {
+        if(!util.paramsOk(highlight, ['updated_at','spineIdRef','cfi'], ['color','note','sketch','share_code','share_quote','_delete'])) {
           return getErrorObj('invalid parameters');
         }
 
