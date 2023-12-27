@@ -200,6 +200,7 @@ const jsonCols = {
   computed_book_access: [ 'audiobookInfo', 'flags' ],
   book_textnode_index: [ 'context' ],
   metadata_key: [ 'options' ],
+  highlight: [ 'sketch' ],
 }
 
 const util = {

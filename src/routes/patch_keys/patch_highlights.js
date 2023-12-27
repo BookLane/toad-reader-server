@@ -120,6 +120,7 @@ module.exports = {
 
         var updatedAtTimestamp = highlight.updated_at;
         util.convertTimestampsToMySQLDatetimes(highlight);
+        util.convertJsonColsToStrings({ tableName: 'highlight', row: highlight })
         // since I do not know whether to INSERT or UPDATE, just DELETE them all then then INSERT
         if(highlight._delete) {
           if(currentHighlightsHasNote[getHighlightId(highlight)]) {

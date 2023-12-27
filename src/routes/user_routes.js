@@ -373,6 +373,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
 
             // get highlights
             util.convertMySQLDatetimesToTimestamps(highlights)
+            util.convertJsonColsFromStrings({ tableName: 'highlight', rows: highlights })
             bookUserData.highlights = highlights
 
             if(hasAccessToEnhancedTools || isPublisher) {
@@ -503,6 +504,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
 
               // add instructor highlights
               util.convertMySQLDatetimesToTimestamps(instructorHighlights)
+              util.convertJsonColsFromStrings({ tableName: 'highlight', rows: instructorHighlights })
               instructorHighlights.forEach(highlight => {
                 classroomsByUid[highlight.classroom_uid].instructorHighlights.push(highlight)
                 delete highlight.classroom_uid
