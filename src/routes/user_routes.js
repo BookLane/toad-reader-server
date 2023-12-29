@@ -391,7 +391,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
 
                 if(te_uid) {
                   const isUpdateEngagementToolType = (
-                    [ 'POLL' ].includes(toolType)
+                    [ 'POLL', 'SKETCH' ].includes(toolType)
                     || (
                       [ 'QUESTION' ].includes(toolType)
                       && !isDiscussion

@@ -1748,7 +1748,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
               LEFT JOIN book AS b ON (b.id = c.book_id)
             WHERE te.user_id = :userId
               AND te.deleted_at IS NULL
-              AND t.toolType IN ('QUIZ','QUESTION','POLL')
+              AND t.toolType IN ('QUIZ','QUESTION','POLL','SKETCH')
             ORDER BY te.updated_at DESC
             LIMIT :limit
           `,

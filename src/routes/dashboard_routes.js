@@ -339,6 +339,166 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
     }
   )
 
+  // get sketches
+  app.get('/getsketches/:classroomUid',
+    ensureAuthenticatedAndCheckIDP,
+    async (req, res, next) => {
+
+      if(!(await util.getClassroomIfHasPermission({ connection, req, next, roles: ["INSTRUCTOR"] }))) {
+        return res.status(400).send({ success: false, error: "Invalid permissions" })
+      }
+
+      const toolEngagementRows = await util.runQuery({
+        query: `
+
+          SELECT t.uid, t.spineIdRef, t.cfi, t.name, t.data, te.user_id, te.text
+
+          FROM tool as t
+            LEFT JOIN tool_engagement as te ON (te.tool_uid=t.uid)
+
+          WHERE t.classroom_uid=:classroomUid
+            AND t.toolType="SKETCH"
+            AND t.published_at IS NOT NULL
+            AND t.deleted_at IS NULL
+            AND t.currently_published_tool_uid IS NULL
+
+            AND te.deleted_at IS NULL
+
+          ORDER BY t.ordering, t.uid, te.user_id, te.updated_at DESC
+
+        `,
+        vars: {
+          classroomUid: req.params.classroomUid,
+        },
+        connection,
+        next,
+      })
+
+      const sketchesByToolAndUser = {}
+      const sketchSetupsByLoc = {}
+      const sketchSetupUidsAccountedFor = {}
+
+      toolEngagementRows.forEach(tool => {
+
+        util.convertJsonColsFromStrings({ tableName: 'tool', row: tool })
+        const { uid, spineIdRef, cfi, name, data, user_id, text } = tool
+
+        if(!sketchSetupUidsAccountedFor[uid]) {
+          sketchSetupUidsAccountedFor[uid] = true
+
+          if(!sketchSetupsByLoc[spineIdRef]) {
+            sketchSetupsByLoc[spineIdRef] = {}
+          }
+
+          const cfiOrNullStr = cfi || 'NULL'
+
+          if(!sketchSetupsByLoc[spineIdRef][cfiOrNullStr]) {
+            sketchSetupsByLoc[spineIdRef][cfiOrNullStr] = []
+          }
+
+          sketchesByToolAndUser[uid] = {}
+          sketchSetupsByLoc[spineIdRef][cfiOrNullStr].push({
+            uid,
+            name,
+            instructions: data.instructions || "",
+            background: data.background,
+            sketches: sketchesByToolAndUser[uid],
+          })
+        }
+
+        if(user_id) {
+          sketchesByToolAndUser[uid][user_id] = text
+        }
+
+      })
+
+      return res.send({
+        success: true,
+        sketchSetupsByLoc,
+      })
+
+    }
+  )
+
+  // get my sketches
+  app.get('/getmysketches/:classroomUid',
+    ensureAuthenticatedAndCheckIDP,
+    async (req, res, next) => {
+
+      if(!(await util.getClassroomIfHasPermission({ connection, req, next, roles: ["STUDENT"] }))) {
+        return res.send({ success: false, error: "Invalid permissions" })
+      }
+
+      const toolEngagementRows = await util.runQuery({
+        query: `
+
+          SELECT t.uid, t.spineIdRef, t.cfi, t.name, t.data, te.text
+
+          FROM tool as t
+            LEFT JOIN tool_engagement as te ON (te.tool_uid=t.uid)
+
+          WHERE t.classroom_uid=:classroomUid
+            AND t.toolType="SKETCH"
+            AND t.published_at IS NOT NULL
+            AND t.deleted_at IS NULL
+            AND t.currently_published_tool_uid IS NULL
+
+            AND (
+              te.uid IS NULL
+              OR (
+                te.user_id=:userId
+                AND te.deleted_at IS NULL
+              )
+            )
+
+          ORDER BY t.ordering, t.uid, te.updated_at DESC
+
+        `,
+        vars: {
+          classroomUid: req.params.classroomUid,
+          userId: req.user.id,
+        },
+        connection,
+        next,
+      })
+
+      const sketchesByLoc = {}
+
+      util.convertMySQLDatetimesToTimestamps(toolEngagementRows)
+
+      toolEngagementRows.forEach(tool => {
+
+        util.convertJsonColsFromStrings({ tableName: 'tool', row: tool })
+        const { uid, spineIdRef, cfi, name, data, text } = tool
+
+        if(!sketchesByLoc[spineIdRef]) {
+          sketchesByLoc[spineIdRef] = {}
+        }
+
+        const cfiOrNullStr = cfi || 'NULL'
+
+        if(!sketchesByLoc[spineIdRef][cfiOrNullStr]) {
+          sketchesByLoc[spineIdRef][cfiOrNullStr] = []
+        }
+
+        sketchesByLoc[spineIdRef][cfiOrNullStr].push({
+          uid,
+          name,
+          instructions: data.instructions || "",
+          background: data.background,
+          sketch: text,
+        })
+
+      })
+
+      return res.send({
+        success: true,
+        sketchesByLoc,
+      })
+
+    }
+  )
+
   // get polls
   app.get('/getpolls/:classroomUid',
     ensureAuthenticatedAndCheckIDP,

@@ -532,7 +532,7 @@ CREATE TABLE `tool` (
   `cfi` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
   `ordering` int unsigned NOT NULL,
   `name` varchar(255) NOT NULL DEFAULT '',
-  `toolType` enum('QUIZ','NOTES_INSERT','LTI','VIDEO','QUESTION','POLL','DOCUMENT','IMAGES','AUDIO') NOT NULL DEFAULT 'NOTES_INSERT',
+  `toolType` enum('QUIZ','NOTES_INSERT','LTI','VIDEO','QUESTION','POLL','DOCUMENT','IMAGES','AUDIO','SKETCH') NOT NULL DEFAULT 'NOTES_INSERT',
   `data` text NOT NULL,
   `isDiscussion` tinyint(1) NOT NULL,
   `undo_array` text NOT NULL,
