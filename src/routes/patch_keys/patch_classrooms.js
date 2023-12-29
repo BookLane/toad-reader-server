@@ -18,7 +18,7 @@ const getErrorObj = error => ({
 })
 
 module.exports = {
-  
+
   addPreQueries: ({
     body,
     params,
@@ -197,7 +197,7 @@ module.exports = {
               return getErrorObj('invalid permissions: user with PUBLISHER computed_book_access can only edit the default version')
             }
             if(
-              !util.paramsOk(classroom, ['uid'], ['tools', 'lti_configurations', 'draftData', 'updated_at'])
+              !util.paramsOk(classroom, ['uid'], ['tools', 'toolEngagements', 'lti_configurations', 'draftData', 'updated_at'])
               || !util.paramsOk(classroom.draftData || {}, [], ['lti_configurations'])
             ) {
               return getErrorObj('invalid permissions: user with PUBLISHER computed_book_access can only edit tools and lti_configurations related to the default version')
