@@ -347,6 +347,7 @@ CREATE TABLE `idp` (
   `language` varchar(5) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
   `created_at` datetime(3) NOT NULL,
   `demo_expires_at` datetime(3) DEFAULT NULL,
+  `deviceLoginLimit`int DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `domain` (`domain`),
   KEY `nameQualifier` (`nameQualifier`),

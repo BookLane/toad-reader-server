@@ -160,10 +160,11 @@ const getIdpPrefixedValues = row => ({
   idpConsentText: row.consentText,
   idpMaxMBPerBook: row.maxMBPerBook,
   idpMaxMBPerFile: row.maxMBPerFile,
+  idpDeviceLoginLimit: row.deviceLoginLimit,
 })
 
 const deserializeUser = ({ userId, ssoData, next }) => new Promise(resolve => {
-  
+
   const fields = `
     user.id,
     user.user_id_from_idp,
@@ -180,7 +181,8 @@ const deserializeUser = ({ userId, ssoData, next }) => new Promise(resolve => {
     idp.consentText,
     idp.maxMBPerBook,
     idp.maxMBPerFile,
-    idp.entryPoint
+    idp.entryPoint,
+    idp.deviceLoginLimit
   `
 
   connection.query(''
@@ -224,11 +226,43 @@ passport.deserializeUser((partialUser, done) => {
   })
 })
 
-const logIn = ({ userId, req, next }) => {
+const logIn = ({ userId, req, next, deviceLoginLimit }) => {
   deserializeUser({ userId, next }).then(user => {
     req.login(user, function(err) {
       if (err) { return next(err) }
-      return next()
+
+      if(deviceLoginLimit && user.id >= 0) {
+
+        const id = `user sessions for id: ${user.id}`
+        util.redisStore.get(id, (err, value) => {
+          if(err) return next(err)
+
+          let sessions = []
+          try {
+            sessions = JSON.parse(value)
+          } catch(err) {}
+
+          if(!sessions.includes(req.sessionID)) {
+            sessions = (
+              sessions.length >= deviceLoginLimit
+                ? [ req.sessionID ]
+                : [ ...sessions, req.sessionID ]
+            )
+            util.redisStore.set(
+              id,
+              JSON.stringify(sessions),
+              (err, value) => {
+                if(err) return next(err)
+                next()
+              }
+            )
+          }
+
+        })
+
+      } else {
+        return next()
+      }
     })
   })
 }
@@ -396,6 +430,28 @@ connection.query('SELECT * FROM `idp` WHERE entryPoint IS NOT NULL',
 
 const ensureAuthenticated = async (req, res, next) => {
 
+  const isValidLogin = () => new Promise(resolve => {
+
+    if(!req.user.idpDeviceLoginLimit || req.user.id < 0) return resolve(true)
+
+    const id = `user sessions for id: ${req.user.id}`
+    util.redisStore.get(id, (err, value) => {
+
+      let sessions = []
+      try {
+        sessions = JSON.parse(value)
+      } catch(err) {}
+
+      if(!sessions.includes(req.sessionID)) {
+        return resolve(false)
+      }
+
+      return resolve(true)
+
+    })
+
+  })
+
   if(req.headers['x-tenant-auth']) {
     log(['x-tenant-auth header found', req.headers['x-tenant-auth'], util.getIDPDomain(req.headers)])
 
@@ -430,7 +486,12 @@ const ensureAuthenticated = async (req, res, next) => {
     }
 
   } else if (req.isAuthenticated()) {
-    return next()
+    if(await isValidLogin()) {
+      return next()
+    } else {
+      req.logout()
+      return res.status(403).send({ error: 'Please login' })
+    }
 
   } else if(
     (

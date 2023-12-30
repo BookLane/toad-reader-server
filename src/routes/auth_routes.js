@@ -2,6 +2,34 @@ const util = require('../utils/util')
 const { i18n } = require("inline-i18n")
 const sendEmail = require("../utils/sendEmail")
 
+const clearFromDeviceLoginLimitList = async ({ req, userId }) => {
+  if(req.user.idpDeviceLoginLimit && userId >= 0) {
+
+    await new Promise((resolve, reject) => {
+      const id = `user sessions for id: ${userId}`
+      util.redisStore.get(id, (err, value) => {
+        if(err) return reject(err)
+
+        let sessions = []
+        try {
+          sessions = JSON.parse(value)
+        } catch(err) {}
+
+        sessions = sessions.filter(session => session !== req.sessionID)
+        util.redisStore.set(
+          id,
+          JSON.stringify(sessions),
+          (err, value) => {
+            if(err) return reject(err)
+            resolve()
+          }
+        )
+
+      })
+    })
+
+  }
+}
 module.exports = function (app, passport, authFuncs, connection, ensureAuthenticated, logIn, log) {
 
   app.get('/setcookie',
@@ -230,6 +258,8 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
         res.redirect(`/logout/callback${req.query.noredirect ? `?noredirect=1` : ``}`);
       }
 
+      await clearFromDeviceLoginLimitList({ req, userId })
+
       req.logout()  // do this after the redirect (and not just in the callback) since Safari will not send cookies in the iframe so that SLO will not work
 
       if(req.headers['x-push-token'] && req.headers['x-push-token'] !== 'none') {
@@ -255,8 +285,9 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
   )
 
   app.all(['/logout/callback', '/login'],
-    function (req, res) {
+    async (req, res) => {
       log('Logout callback (will delete cookie)', 2)
+      req.user && await clearFromDeviceLoginLimitList({ req, userId: req.user.id })
       req.logout()  // this will not work on Safari any longer since it will not send cookies in an iframe
       if(req.query.noredirect) {
         res.send({ success: true })
@@ -401,7 +432,44 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
         res.status(500).send({ success: false, error: err.message })
       }
 
-      res.send({ success: true })
+      let numSessionsThisWillLogOut = 0
+
+      const [ user ] = await util.runQuery({
+        query: `
+          SELECT u.id, i.deviceLoginLimit
+          FROM user AS u
+            LEFT JOIN idp AS i ON (i.id = u.idp_id)
+          WHERE u.email=:email
+            AND i.domain=:domain
+        `,
+        vars: {
+          email: req.query.email,
+          domain: util.getIDPDomain(req.headers),
+        },
+        connection,
+        next,
+      })
+
+      if(user && user.deviceLoginLimit) {
+        await new Promise((resolve, reject) => {
+          const id = `user sessions for id: ${user.id}`
+          util.redisStore.get(id, (err, value) => {
+            if(err) return reject(err)
+
+            let sessions = []
+            try {
+              sessions = JSON.parse(value)
+              if(sessions.length >= user.deviceLoginLimit) {
+                numSessionsThisWillLogOut = user.deviceLoginLimit
+              }
+            } catch(err) {}
+
+            resolve()
+          })
+        })
+      }
+
+      res.send({ success: true, numSessionsThisWillLogOut })
 
     },
   )
@@ -496,6 +564,7 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
             // log them in
             await logIn({
               ...loginInfo,
+              deviceLoginLimit: idp.deviceLoginLimit,
               req,
               next: err => {
                 if(err) return next(err)
