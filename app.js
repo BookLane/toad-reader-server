@@ -239,7 +239,7 @@ const logIn = ({ userId, req, next, deviceLoginLimit }) => {
 
           let sessions = []
           try {
-            sessions = JSON.parse(value)
+            sessions = JSON.parse(value) || []
           } catch(err) {}
 
           if(!sessions.includes(req.sessionID)) {
@@ -439,7 +439,7 @@ const ensureAuthenticated = async (req, res, next) => {
 
       let sessions = []
       try {
-        sessions = JSON.parse(value)
+        sessions = JSON.parse(value) || []
       } catch(err) {}
 
       if(!sessions.includes(req.sessionID)) {

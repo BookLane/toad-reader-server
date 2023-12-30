@@ -12,7 +12,7 @@ const clearFromDeviceLoginLimitList = async ({ req, userId }) => {
 
         let sessions = []
         try {
-          sessions = JSON.parse(value)
+          sessions = JSON.parse(value) || []
         } catch(err) {}
 
         sessions = sessions.filter(session => session !== req.sessionID)
@@ -458,7 +458,7 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
 
             let sessions = []
             try {
-              sessions = JSON.parse(value)
+              sessions = JSON.parse(value) || []
               if(sessions.length >= user.deviceLoginLimit) {
                 numSessionsThisWillLogOut = user.deviceLoginLimit
               }
