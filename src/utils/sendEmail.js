@@ -75,6 +75,18 @@ const sendEmail = input => {
       replyToAddrs = replyToAddrs || fromAddr
       replyToAddrs = replyToAddrs instanceof Array ? replyToAddrs : [replyToAddrs]
 
+      // remove invalid chars
+      const fixAddr = addr => {
+        const [ x, name, email ] = addr.match(/^(.*) <([^>]+)>$/) || []
+        if(!name) return addr
+        return `${name.replace(/[^-a-z. ]/gi, ``)} <${email}>`
+      }
+      toAddrs = toAddrs.map(fixAddr)
+      fromAddr = fixAddr(fromAddr)
+      replyToAddrs = replyToAddrs.map(fixAddr)
+      ccAddrs = ccAddrs.map(fixAddr)
+      bccAddrs = bccAddrs.map(fixAddr)
+
       // if there is a WHITELISTED_EMAILS list, do a fake send to any email not on it
       if(process.env.WHITELISTED_EMAILS) {
         const whitelistedEmails = process.env.WHITELISTED_EMAILS.split(' ')
