@@ -256,6 +256,8 @@ const logIn = ({ userId, req, next, deviceLoginLimit }) => {
                 next()
               }
             )
+          } else {
+            next()
           }
 
         })
