@@ -125,6 +125,19 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
     })
   }
 
+  const getImageFileType = fileNameOrPath => {
+    const mimeType = mime.getType(fileNameOrPath)
+    const fileType = /jpeg/.test(mimeType) ? `jpeg` : (/webp/.test(mimeType) ? `webp` : `png`)
+    return fileType
+  }
+
+  const getAdjustedImageBody = (path, fileType, width, height) => (
+    sharp(path)
+      .resize(width, height)
+      [fileType]()
+      .toBuffer()
+  )
+
   // delete a book
   app.delete(['/', '/book/:bookId'], ensureAuthenticatedAndCheckIDP, async (req, res, next) => {
 
@@ -191,9 +204,9 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         }
 
         const putEPUBFile = async (relfilepath, body) => {
-          const key = relfilepath
-            ? `epub_content/book_${bookRow.id}/${relfilepath}`
-            : `epub_content/covers/book_${bookRow.id}.png`
+          const key = /^epub_content\/covers\//.test(relfilepath)
+            ? relfilepath
+            : `epub_content/book_${bookRow.id}/${relfilepath}`
           
           log(['Upload file to S3', key])
   
@@ -497,14 +510,11 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         // following block needs to be down here after bookRow.id gets updated if replaceExisting is true
         bookRow.rootUrl = `epub_content/book_${bookRow.id}`
         if(coverHref) {
-          bookRow.coverHref = `epub_content/book_${bookRow.id}/${coverHref}`
-          const imgData = await (
-            sharp(`${toUploadDir}/${coverHref}`)
-              .resize(284)  // twice of the 142px width that is shown on the share page
-              .png()
-              .toBuffer()
-          )
-          await putEPUBFile(null, imgData)
+          const fileType = getImageFileType(coverHref)
+          bookRow.coverHref = `epub_content/covers/${uuidv4()}.${fileType}`
+          // Width of 480 is twice that of the ~240px max width for the most recent book
+          const imgData = await getAdjustedImageBody(`${toUploadDir}/${coverHref}`, fileType, 480)
+          await putEPUBFile(bookRow.coverHref, imgData)
         }
 
         // clean up
@@ -793,9 +803,9 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
     if(
       !util.paramsOk(req.body, ['book'])
       || typeof req.body.book !== `object`
-      || !util.paramsOk(req.body.book, ['title', 'author', 'isbn', 'audiobookInfo'], ['id'])
+      || !util.paramsOk(req.body.book, ['title', 'author', 'isbn', 'coverHref', 'audiobookInfo'], ['id'])
       || typeof req.body.book.audiobookInfo !== `object`
-      || !util.paramsOk(req.body.book.audiobookInfo, ['spines', 'coverFilename'])
+      || !util.paramsOk(req.body.book.audiobookInfo, ['spines'])
     ) {
       log(['Invalid parameter(s)', req.body], 3)
       res.status(400).send()
@@ -872,7 +882,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
 
   })
 
-  // upload audiobook file
+  // upload audiobook file (or a new cover image for an ebook)
   app.post('/audiobookfile/:bookId', ensureAuthenticatedAndCheckIDP, async (req, res, next) => {
 
     if(!(req.user || {}).isAdmin) {
@@ -882,6 +892,29 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
     }
 
     const { bookId } = req.params
+
+    // check that this IDP has access to this book and also see if it is an audiobook
+
+    const [ bookRows, bookIdpRows ] = await util.runQuery({
+      queries: [
+        'SELECT * FROM `book` WHERE id=:bookId LIMIT 1',
+        'SELECT * FROM `book-idp` WHERE book_id=:bookId AND idp_id=:idpId LIMIT 1',
+      ],
+      vars: {
+        idpId: req.user.idpId,
+        bookId,
+      },
+      connection,
+      next,
+    })
+
+    if(bookId !== `new` && (bookIdpRows.length !== 1 || bookRows.length !== 1)) {
+      log(['Book ID not associated with this client', req.body], 3)
+      res.status(400).send()
+      return
+    }
+
+    const isAudiobook = !bookRows[0] || !!bookRows[0].audiobookInfo
 
     const tmpDir = 'tmp_file_' + util.getUTCTimeStamp()
 
@@ -909,14 +942,10 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
 
         if(isCoverImage) {
 
-          filename = `book_${bookId}_${uuidv4()}.png`
+          const fileType = getImageFileType(file.path)
+          filename = `${uuidv4()}.${fileType}`
           key = `epub_content/covers/${filename}`
-          body = await (
-            sharp(file.path)
-              .resize(800, 800)  // twice the 400px width that is the max in the UI
-              .png()
-              .toBuffer()
-          )
+          body = await getAdjustedImageBody(file.path, fileType, ...(isAudiobook ? [ 800, 800 ] : [ 480 ]))
 
         } else {
 
@@ -1225,14 +1254,41 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
       return
     }
 
-    let vars = {
+    const vars = {
       idpId: req.user.idpId,
       bookId: req.body.bookId,
+      bookUpdate: {
+        id: req.body.bookId,  // this is here in case neither title, author, nor isbn is sent, to prevent the update from failing
+      },
     }
+
+    const bookIdpRows = await util.runQuery({
+      query: 'SELECT * FROM `book-idp` WHERE book_id=:bookId AND idp_id=:idpId LIMIT 1',
+      vars,
+      connection,
+      next,
+    })
+
+    if(bookIdpRows.length !== 1) {
+      log(['Book ID not associated with this client', req.body], 3)
+      res.status(400).send()
+      return
+    }
+
+    const otherMetadataValues = []
+    req.body.metadataValues.forEach(metadataValue => {
+      if([ 'title', 'author', 'isbn', 'coverHref' ].includes(metadataValue.metadata_key_id)) {
+        vars.bookUpdate[metadataValue.metadata_key_id] = `${metadataValue.value || ``}`
+      } else {
+        otherMetadataValues.push(metadataValue)
+      }
+    })
 
     const queries = [
 
       `START TRANSACTION`,
+
+      `UPDATE book SET :bookUpdate WHERE id=:bookId`,
 
       `
         DELETE FROM metadata_value
@@ -1245,14 +1301,11 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
           )
       `,
 
-      ...req.body.metadataValues.map(({ metadata_key_id, value }, idx) => {
-        vars = {
-          ...vars,
-          [`insert_${idx}`]: {
-            book_id: vars.bookId,
-            metadata_key_id,
-            value,
-          },
+      ...otherMetadataValues.map(({ metadata_key_id, value }, idx) => {
+        vars[`insert_${idx}`] = {
+          book_id: vars.bookId,
+          metadata_key_id,
+          value,
         }
         return `INSERT INTO metadata_value SET :insert_${idx}`
       }),
