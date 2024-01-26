@@ -58,7 +58,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
     res.send(returnData);
   })
 
-  const sendSharePage = async ({ share_quote, note, title, author, fullname, book_id, spineIdRef, cfi, language, domain, inIframe, req, res, next }) => {
+  const sendSharePage = async ({ share_quote, note, title, author, coverHref, fullname, book_id, spineIdRef, cfi, language, domain, inIframe, req, res, next }) => {
 
     if(!share_quote) {
       return res.send("Not found.")
@@ -78,6 +78,12 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
       abridgedNote = abridgedNote.substring(0, 113) + '...'
     }
 
+    const bookImageUrl = (
+      /^epub_content\/covers\//.test(coverHref || ``)
+        ? `${frontendBaseUrl}/${coverHref}`
+        : `${frontendBaseUrl}/epub_content/covers/book_${book_id}.png`  // this also was the old way of doing things
+    )
+
     let sharePage = fs.readFileSync(__dirname + '/../templates/share-page.html', 'utf8')
       .replace(/{{page_title}}/g, i18n("Quote from {{title}}", { title: title }, { locale }))
       .replace(/{{favicon_url}}/g, frontendBaseUrl + '/favicon.ico')
@@ -87,7 +93,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
       .replace(/{{url_noquotes}}/g, urlWithoutEditing.replace(/"/g, '&quot;'))
       .replace(/{{url_escaped}}/g, encodeURIComp(urlWithoutEditing))
       .replace(/{{read_here_url}}/g, `${frontendBaseUrl}/#/book/${book_id}/#${spineIdRef ? encodeURIComponent(JSON.stringify({ latestLocation: { spineIdRef, cfi } })) : ``}`)
-      .replace(/{{book_image_url}}/g, `${frontendBaseUrl}/epub_content/covers/book_${book_id}.png`)
+      .replace(/{{book_image_url}}/g, bookImageUrl)
       .replace(/{{book_title}}/g, title)
       .replace(/{{book_author}}/g, author)
       .replace(/{{comment}}/g, i18n("Comment", {}, { locale }))
@@ -118,7 +124,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
     log(['Find info for share page', req.params.shareCode]);
     const highlight = (await util.runQuery({
       query: `
-        SELECT h.share_quote, h.note, h.spineIdRef, h.cfi, h.book_id, b.title, b.author, u.fullname, i.language, i.domain
+        SELECT h.share_quote, h.note, h.spineIdRef, h.cfi, h.book_id, b.title, b.author, b.coverHref, u.fullname, i.language, i.domain
         FROM highlight AS h
           LEFT JOIN book AS b ON (b.id=h.book_id)
           LEFT JOIN user AS u ON (u.id=h.user_id)

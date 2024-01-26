@@ -367,7 +367,11 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
             title: rows[0].title,
             author: rows[0].author,
             isbn: rows[0].isbn || '',
-            thumbnailHref: `${util.getFrontendBaseUrl(req)}/epub_content/covers/book_${rows[0].id}.png`,
+            thumbnailHref: (
+              /^epub_content\/covers\//.test(rows[0].coverHref || ``)
+                ? `${util.getFrontendBaseUrl(req)}/${rows[0].coverHref}`
+                : `${util.getFrontendBaseUrl(req)}/epub_content/covers/book_${rows[0].id}.png`  // this also was the old way of doing things
+            ),
             epubSizeInMB: rows[0].epubSizeInMB,
           }
 
@@ -542,7 +546,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
             `"title": "${bookRow.title.replace(/"/g, '\\"')}",` +
             `"author": "${bookRow.author.replace(/"/g, '\\"')}",` +
             `"isbn": "${(bookRow.isbn || '').replace(/"/g, '\\"')}",` +
-            `"thumbnailHref": "${util.getFrontendBaseUrl(req)}/epub_content/covers/book_${bookRow.id}.png",` +
+            `"thumbnailHref": "${util.getFrontendBaseUrl(req)}/${bookRow.coverHref}",` +
             `"epubSizeInMB": ${bookRow.epubSizeInMB}` +
             `}`
           )
