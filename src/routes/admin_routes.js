@@ -807,9 +807,9 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
     if(
       !util.paramsOk(req.body, ['book'])
       || typeof req.body.book !== `object`
-      || !util.paramsOk(req.body.book, ['title', 'author', 'isbn', 'coverHref', 'audiobookInfo'], ['id'])
+      || !util.paramsOk(req.body.book, ['audiobookInfo'], ['id', 'title', 'author', 'isbn', 'coverHref'])
       || typeof req.body.book.audiobookInfo !== `object`
-      || !util.paramsOk(req.body.book.audiobookInfo, ['spines'])
+      || !util.paramsOk(req.body.book.audiobookInfo, ['spines'], ['coverFilename'])  // coverFilename is needed for old audiobooks
     ) {
       log(['Invalid parameter(s)', req.body], 3)
       res.status(400).send()
