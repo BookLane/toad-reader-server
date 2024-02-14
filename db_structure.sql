@@ -7,7 +7,7 @@
 #
 # Host: 127.0.0.1 (MySQL 8.0.22)
 # Database: ToadReader
-# Generation Time: 2023-12-15 15:33:15 +0000
+# Generation Time: 2024-02-14 16:16:03 +0000
 # ************************************************************
 
 
@@ -347,7 +347,11 @@ CREATE TABLE `idp` (
   `language` varchar(5) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
   `created_at` datetime(3) NOT NULL,
   `demo_expires_at` datetime(3) DEFAULT NULL,
-  `deviceLoginLimit`int DEFAULT NULL,
+  `deviceLoginLimit` int DEFAULT NULL,
+  `emailBGColor` varchar(30) COLLATE utf8_bin DEFAULT NULL,
+  `emailInnerBGColor` varchar(30) COLLATE utf8_bin DEFAULT NULL,
+  `emailLogoUrl` text COLLATE utf8_bin,
+  `emailHideName` tinyint(1) NOT NULL DEFAULT '0',
   PRIMARY KEY (`id`),
   UNIQUE KEY `domain` (`domain`),
   KEY `nameQualifier` (`nameQualifier`),
@@ -533,7 +537,7 @@ CREATE TABLE `tool` (
   `cfi` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
   `ordering` int unsigned NOT NULL,
   `name` varchar(255) NOT NULL DEFAULT '',
-  `toolType` enum('QUIZ','NOTES_INSERT','LTI','VIDEO','QUESTION','POLL','DOCUMENT','IMAGES','AUDIO','SKETCH') NOT NULL DEFAULT 'NOTES_INSERT',
+  `toolType` enum('QUIZ','NOTES_INSERT','LTI','VIDEO','QUESTION','POLL','DOCUMENT','IMAGES','AUDIO','SKETCH') CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT 'NOTES_INSERT',
   `data` text NOT NULL,
   `isDiscussion` tinyint(1) NOT NULL,
   `undo_array` text NOT NULL,
