@@ -1322,7 +1322,7 @@ const util = {
     })
   },
 
-  createAccessCode: ({ digitOptions=`ABCDEFGHJKMNPQRSTUVWXYZ23456789`, codeLength=6 }={}) => (
+  createAccessCode: ({ digitOptions=`0123456789`, codeLength=6 }={}) => (  // if I ever want to go back to unambiguous letters and digits, here that is: `ABCDEFGHJKMNPQRSTUVWXYZ23456789`
     Array(codeLength)
       .fill(0)
       .map(() => digitOptions[parseInt(Math.random() * digitOptions.length, 10)])
