@@ -15,7 +15,7 @@
 		"Book Default": "Livre par défaut",
 		"Login code": "Code de connexion",
 		"Your login code: {{code}}": "Votre code de connexion est : {{code}}",
-		"Enter this code into the native or web app.": "Renseignez ce code dans l'application native (Android ou iOS) ou la web app (lire.blfstore.com sur votre navigateur)."
+		"Enter this temporary verification code into the app to sign in. If you didn’t try to sign in, you can safely ignore this email.": "Renseignez ce code dans l'application native (Android ou iOS) ou la web app (lire.blfstore.com sur votre navigateur)."
 	},
 	"enhanced": {
 		"This launch link has expired.": "Ce lien de lancement a expiré.",

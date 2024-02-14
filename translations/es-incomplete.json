@@ -15,7 +15,7 @@
 		"Book Default": "Libro por defecto",
 		"Login code": "Código de inicio de sesión",
 		"Your login code: {{code}}": "Tu código de inicio de sesión: {{code}}",
-		"Enter this code into the native or web app.": "Ingresa este código en la aplicación instalada o web."
+		"Enter this temporary verification code into the app to sign in. If you didn’t try to sign in, you can safely ignore this email.": "Ingresa este código en la aplicación instalada o web."
 	},
 	"enhanced": {
 		"This launch link has expired.": "Este enlace de lanzamiento ha caducado.",
