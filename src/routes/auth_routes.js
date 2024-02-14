@@ -418,12 +418,15 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
         // send the email
         await sendEmail({
           toAddrs: req.query.email,
-          subject: i18n("Login code", {}, { locale }),
+          subject: i18n("Login code: {{code}}", { code: accessCode }, { locale }),
           body: `
-            <p>${i18n("Your login code: {{code}}", { code: `<span style="font-weight: bold;">${accessCode}</span>` }, { locale })}</p>
-            <p>${i18n("Enter this code into the native or web app.", {}, { locale })}</p>
-            <p style="font-size: 12px; color: #777;">${i18n("Note: This code expires in 15 minutes.", {}, { locale })}</p>
+            <div style="background: black; border-radius: 5px; line-height: 60px; color: white; text-align: center; font-size: 22px; letter-spacing: 5px;">${accessCode}</div>
+            <p style="text-align: center; margin-top: 30px;">${i18n("Enter this temporary verification code into the app to sign in. If you didn’t try to sign in, you can safely ignore this email.", {}, { locale })}</p>
+            <p style="text-align: center; font-size: 14px; font-weight: bold; margin-bottom: 5px;">${i18n("Note: This code expires in 15 minutes.", {}, { locale })}</p>
           `,
+          skipGreeting: true,
+          skipInnerBG: true,
+          bodyMaxWidth: 400,
           connection,
           req,
         })

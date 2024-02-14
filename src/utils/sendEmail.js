@@ -22,7 +22,7 @@ const sendEmail = input => {
 
   return new Promise((resolve, reject) => {
 
-    let { toAddrs, ccAddrs=[], bccAddrs=[], replyToAddrs, subject, body, connection, req, language } = input
+    let { toAddrs, ccAddrs=[], bccAddrs=[], replyToAddrs, subject, body, connection, req, language, skipGreeting, skipInnerBG, bodyMaxWidth } = input
 
     const locale = language || req.idpLang || 'en'
 
@@ -36,19 +36,22 @@ const sendEmail = input => {
           reject(err.message || 'email send failed')
         }
 
-        const { fromEmail, name, domain } = rows[0]
+        const { fromEmail, name, domain, emailBGColor, emailInnerBGColor, emailLogoUrl, emailHideName } = rows[0]
 
         body = `
-          <div style="background-color: #F7F7F7"; padding: 0 20px;">
-            <div style="max-width: 650px; margin: 0 auto;">
-              <div style="text-align: center; padding: 20px 0 10px;">
-                <a href="https://${domain}" style="text-decoration: none; font-size: 18px; color: black;">${util.escapeHTML(name)}</a>
-              </div>  
-              <div style="border: 1px solid rgba(0,0,0,.1); border-radius: 5px; padding: 20px; background: white; font-size: 15px;">
-                <div style="margin-bottom: 20px;">${i18n("Hi,", {}, { locale })}</div>
+          <div style="background-color: ${emailBGColor || `#F7F7F7`}"; padding: 0 20px;">
+            <div style="max-width: ${bodyMaxWidth || 650}px; margin: 0 auto;">
+              <div style="text-align: center; padding: 50px 0 15px;">
+                <a href="https://${domain}" style="text-decoration: none; font-size: 23px; color: black;">
+                  ${!emailLogoUrl ? `` : `<img src="${emailLogoUrl}" style="height: 56px; vertical-align: middle; ${emailHideName ? `` : `margin-right: 4px;`} background: white; border-radius: 10px;">`}
+                  ${emailHideName ? `` : util.escapeHTML(name)}
+                </a>
+              </div>
+              <div style="border-radius: 5px; padding: 20px; background: ${(skipInnerBG && `transparent`) || emailInnerBGColor || `white`}; font-size: 15px;">
+                ${skipGreeting ? `` : `<div style="margin-bottom: 20px;">${i18n("Hi,", {}, { locale })}</div>`}
                 <div>${body}</div>
-              </div>  
-              <div style="padding: 10px 20px 20px 20px; font-size: 12px; text-align: center;">
+              </div>
+              <div style="padding: 20px 20px 50px 20px; font-size: 12px; text-align: center;">
                 <div>
                   <a href="https://${domain}">
                     ${util.escapeHTML(domain)}
