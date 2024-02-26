@@ -121,15 +121,22 @@ const getShopifyUserInfo = async ({ email, idp, log, waitToExecuteIfNecessary })
 
       }
 
-      const toadReaderCollectionResponse = await fetch(toadReaderCollectionHref)
-      let toadReaderCollectionHtml = await toadReaderCollectionResponse.text()
-      const numPages = Math.ceil((parseInt((toadReaderCollectionHtml.match(/^COUNT:([0-9]+)/) || [])[1], 10) || 0) / 50)
+      let toadReaderCollectionHtml = ``
 
-      if(numPages > 1) {
-        await Promise.all(Array(numPages - 1).fill().map(async (x, idx) => {
-          const toadReaderCollectionResponse = await fetch(`${toadReaderCollectionHref}?page=${idx+2}`)
-          toadReaderCollectionHtml += `\n${await toadReaderCollectionResponse.text()}`
-        }))
+      if(Object.values(processedAtTimeById).length > 0) {
+
+        const toadReaderCollectionResponse = await fetch(toadReaderCollectionHref)
+        toadReaderCollectionHtml = await toadReaderCollectionResponse.text()
+        const numPages = Math.ceil((parseInt((toadReaderCollectionHtml.match(/^COUNT:([0-9]+)/) || [])[1], 10) || 0) / 50)
+
+        if(numPages > 1) {
+          await Promise.all(Array(numPages - 1).fill().map(async (x, idx) => {
+            const toadReaderCollectionResponse = await fetch(`${toadReaderCollectionHref}?page=${idx+2}`)
+            const newLines = await toadReaderCollectionResponse.text()
+            toadReaderCollectionHtml += `\n${newLines}`
+          }))
+        }
+
       }
 
       ;(`${customerMetafieldLines}\n${toadReaderCollectionHtml}`.match(/(?:product|variants|customer):.*\n(?:(?:book|subscription):.*\n)*/g) || []).forEach(productOrVariant => {
