@@ -112,6 +112,7 @@ CREATE TABLE `book_textnode_index_term` (
   KEY `book_id` (`book_id`),
   KEY `term` (`term`),
   KEY `count` (`count`)
+  KEY `book_id_2` (`book_id`,`term`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
