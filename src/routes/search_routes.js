@@ -88,6 +88,20 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
       }
 
       log(`Search "${searchStr}"...`)
+
+      const nonWord = `[- .,;–—"“”\\'‘’\`~!()|\\\\\\\\{}\\\\[\\\\]:<>/?*]`
+      const mysqlReadyQuery = searchStr
+        .replace(/[- .,;–—"“”'‘’`~!()|\\{}\[\]:<>/?*]+/g, " ")
+        .replace(/  +/g, ' ')
+        .trim()
+        .split(' ')
+        .filter(Boolean)
+        .sort((a,b) => /\*$/.test(a) ? -1 : (/\*$/.test(b) ? 1 : (b.length - a.length || b-a)))  // longest words first
+        .dedup()
+        .slice(0, 9)
+        .map(w => `AND bti.text REGEXP '(^|${nonWord})${w}($|${nonWord})'`)
+        .join(' ')
+  
       const results = await util.runQuery({
         query: `
           SELECT
@@ -114,9 +128,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
               ${!bookId ? `` : `
                 AND b.id=:bookId
               `}
-              AND
-                MATCH(bti.text)
-                AGAINST(:search IN BOOLEAN MODE)
+              ${mysqlReadyQuery}
 
             ORDER BY ll.updated_at DESC
 
@@ -128,7 +140,6 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
           userId: req.user.id,
           idpId: req.user.idpId,
           now,
-          search: searchStr.split(new RegExp(util.SPACE_OR_PUNCTUATION, 'u')).map(term => `+${term}`).join(' '),
         },
         connection,
         next,
