@@ -35,8 +35,8 @@ module.exports = async ({ s3, connection, next, log }) => {
 
   // Too beefy for indexes: 44, 180, 265, 502
 
-  for(let idx in books) {
-    const bookId = books[idx].id
+  for(let book of books) {
+    const bookId = book.id
   
     const baseUri = `epub_content/book_${bookId}`
 

@@ -56,8 +56,7 @@ module.exports = {
     let containedOldPatch = false;
 
     if((members || []).length > 0) {
-      for(let idx in members) {
-        const member = members[idx]
+      for(let member of members) {
 
         if(!util.paramsOk(member, ['updated_at','user_id'], ['classroom_group_uid','role','_delete'])) {
           return getErrorObj('invalid parameters (members)');

@@ -88,8 +88,7 @@ module.exports = {
         currentHighlightsHasNote[getHighlightId(dbHighlight)] = !!dbHighlight.hasnote;
       })
 
-      for(let idx in highlights) {
-        const highlight = highlights[idx]
+      for(let highlight of highlights) {
         
         if(!util.paramsOk(highlight, ['updated_at','spineIdRef','cfi'], ['color','note','sketch','share_code','share_quote','_delete'])) {
           return getErrorObj(`invalid parameters (highlight: ${JSON.stringify(highlight)})`);

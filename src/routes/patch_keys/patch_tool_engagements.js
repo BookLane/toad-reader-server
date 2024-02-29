@@ -144,8 +144,7 @@ module.exports = {
         return getErrorObj(parseError)
       }
 
-      for(let idx in toolEngagements) {
-        const toolEngagement = toolEngagements[idx]
+      for(let toolEngagement of toolEngagements) {
 
         const dbToolEngagement = toolEngagement.uid ? dbToolEngagementsByUid[toolEngagement.uid] : dbToolEngagementsByToolUid[toolEngagement.tool_uid]
         if(dbToolEngagement) {

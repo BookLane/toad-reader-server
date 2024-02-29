@@ -334,8 +334,8 @@ connection.query(
       return
     }
 
-    for(let idx in rows) {
-      await util.updateComputedBookAccess({ idpId: rows[idx].id, connection, log })
+    for(let row of rows) {
+      await util.updateComputedBookAccess({ idpId: row.id, connection, log })
     }
   }
 )

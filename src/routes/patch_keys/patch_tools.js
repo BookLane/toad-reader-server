@@ -58,8 +58,7 @@ module.exports = {
     let containedOldPatch = false;
 
     if((tools || []).length > 0) {
-      for(let idx in tools) {
-        const tool = tools[idx]
+      for(let tool of tools) {
 
         if(!util.paramsOk(
           tool,

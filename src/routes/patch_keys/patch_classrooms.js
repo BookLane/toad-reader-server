@@ -154,8 +154,7 @@ module.exports = {
     let containedOldPatch = false
 
     if((classrooms || []).length > 0) {
-      for(let idx in classrooms) {
-        const classroom = classrooms[idx]
+      for(let classroom of classrooms) {
 
         if(!util.paramsOk(
           classroom,

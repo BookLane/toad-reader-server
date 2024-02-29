@@ -63,8 +63,7 @@ module.exports = {
     let containedOldPatch = false
 
     if((instructorHighlights || []).length > 0) {
-      for(let idx in instructorHighlights) {
-        const instructorHighlight = instructorHighlights[idx]
+      for(let instructorHighlight of instructorHighlights) {
 
         if(!util.paramsOk(instructorHighlight, ['spineIdRef', 'cfi'], ['created_at', 'author_id', '_delete'])) {
           return getErrorObj(`invalid parameters (instructorHighlight: ${JSON.stringify(instructorHighlight)})`)

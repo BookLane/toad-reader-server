@@ -58,8 +58,7 @@ module.exports = {
         classroomUid,
       })
 
-      for(let idx in scheduleDates) {
-        const scheduleDate = scheduleDates[idx]
+      for(let scheduleDate of scheduleDates) {
 
         if(!util.paramsOk(scheduleDate, ['due_at', 'items'])) {
           return getErrorObj('invalid parameters (scheduleDate)')
