@@ -90,17 +90,20 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
       log(`Search "${searchStr}"...`)
 
       const nonWord = `[- .,;–—"“”\\'‘’\`~!()|\\\\\\\\{}\\\\[\\\\]:<>/?*]`
-      const mysqlReadyQuery = searchStr
-        .replace(/[- .,;–—"“”'‘’`~!()|\\{}\[\]:<>/?*]+/g, " ")
-        .replace(/  +/g, ' ')
-        .trim()
-        .split(' ')
-        .filter(Boolean)
-        .sort((a,b) => /\*$/.test(a) ? -1 : (/\*$/.test(b) ? 1 : (b.length - a.length || b-a)))  // longest words first
-        .dedup()
-        .slice(0, 9)
-        .map(w => `AND bti.text REGEXP '(^|${nonWord})${w}($|${nonWord})'`)
-        .join(' ')
+      const mysqlReadyQuery = (
+        util.dedup(
+          searchStr
+            .replace(/[- .,;–—"“”'‘’`~!()|\\{}\[\]:<>/?*]+/g, " ")
+            .replace(/  +/g, ' ')
+            .trim()
+            .split(' ')
+            .filter(Boolean)
+            .sort((a,b) => /\*$/.test(a) ? -1 : (/\*$/.test(b) ? 1 : (b.length - a.length || b-a)))  // longest words first
+        )
+          .slice(0, 9)
+          .map(w => `AND bti.text REGEXP '(^|${nonWord})${w}($|${nonWord})'`)
+          .join(' ')
+      )
   
       const results = await util.runQuery({
         query: `

@@ -92,7 +92,7 @@ module.exports = {
         const highlight = highlights[idx]
         
         if(!util.paramsOk(highlight, ['updated_at','spineIdRef','cfi'], ['color','note','sketch','share_code','share_quote','_delete'])) {
-          return getErrorObj('invalid parameters');
+          return getErrorObj(`invalid parameters (highlight: ${JSON.stringify(highlight)})`);
         }
 
         if(highlight._delete !== undefined && !highlight._delete) {

@@ -67,7 +67,7 @@ module.exports = {
           ['classroom_group_uid','spineIdRef','cfi','ordering','name','toolType','data','undo_array',
            'due_at','closes_at','published_at','currently_published_tool_uid','creatorType','_delete']
         )) {
-          return getErrorObj('invalid parameters')
+          return getErrorObj(`invalid parameters (tool: ${JSON.stringify(tool)})`)
         }
 
         if(tool._delete !== undefined && !tool._delete) {

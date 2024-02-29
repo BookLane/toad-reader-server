@@ -165,7 +165,7 @@ module.exports = {
            'published_at','scheduleDates','members','tools','toolEngagements','instructorHighlights',
            'based_off_classroom_uid','_delete']
         )) {
-          return getErrorObj('invalid parameters')
+          return getErrorObj(`invalid parameters (classroom: ${JSON.stringify(classroom)})`)
         }
 
         if(classroom._delete !== undefined && !classroom._delete) {

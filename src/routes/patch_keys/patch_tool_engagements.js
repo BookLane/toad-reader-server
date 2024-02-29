@@ -72,6 +72,7 @@ module.exports = {
     classroomUid,
     dbToolEngagements,
     user,
+    req,
   }) => {
 
     let containedOldPatch = false
@@ -96,7 +97,7 @@ module.exports = {
           return false
         }
 
-        if(![ 'QUIZ', 'QUESTION', 'POLL' ].includes(toolType)) {
+        if(![ 'QUIZ', 'QUESTION', 'POLL', 'SKETCH' ].includes(toolType)) {
           parseError = `invalid data: cannot patch engagement for toolType ${toolType}`
           return false
         }
@@ -106,8 +107,9 @@ module.exports = {
           return false
         }
 
-        if([ 'QUESTION', 'POLL' ].includes(toolType) && !toolUidsForToolEngagementsWithoutUids.includes(tool_uid)) {
-          parseError = `invalid data: cannot patch engagement for toolType ${toolType} with uid`
+        if([ 'QUESTION', 'POLL', 'SKETCH' ].includes(toolType) && !toolUidsForToolEngagementsWithoutUids.includes(tool_uid)) {
+          console.log(`ERR Allowed: invalid data: cannot patch engagement for toolType ${toolType} with uid ${uid}`)
+          // parseError = `invalid data: cannot patch engagement for toolType ${toolType} with uid ${uid}`
           return false
         }
 
@@ -155,7 +157,7 @@ module.exports = {
           ['updated_at','tool_uid'],
           ['uid','text','submitted_at','_delete','score','answers']
         )) {
-          return getErrorObj('invalid parameters')
+          return getErrorObj(`invalid parameters (toolEngagement: ${JSON.stringify(toolEngagement)})`)
         }
 
         if(toolEngagement.uid) {  // submission type
@@ -173,7 +175,9 @@ module.exports = {
           }
 
           if(dbToolEngagement && !toolEngagement._delete) {
-            return getErrorObj('invalid data: cannot update a submission toolType (i.e. identified by a uid)')
+            console.log('ERR Allowed: invalid data: cannot update a submission toolType (i.e. identified by a uid)', req.headers['user-agent'], req.headers['x-platform'])
+            continue
+            // return getErrorObj('invalid data: cannot update a submission toolType (i.e. identified by a uid)')
           }
 
         } else {  // update type
@@ -196,7 +200,16 @@ module.exports = {
           !Number.isInteger(answer)
           || answer < 0
         ))) {
-          return getErrorObj('invalid data: tool engagement answers must be an array of whole numbers')
+          console.log('ERR Allowed: invalid data: tool engagement answers must be an array of whole numbers', req.headers['user-agent'], req.headers['x-platform'])
+          toolEngagement.answers = toolEngagement.answers.map(answer => (
+            (
+              !Number.isInteger(answer)
+              || answer < 0
+            )
+              ? 0
+              : answer
+          ))
+          // return getErrorObj('invalid data: tool engagement answers must be an array of whole numbers')
         }
 
         if(dbToolEngagement && dbToolEngagement.classroom_uid !== classroomUid) {

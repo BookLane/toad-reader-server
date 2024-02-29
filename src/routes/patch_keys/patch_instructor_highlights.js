@@ -67,7 +67,7 @@ module.exports = {
         const instructorHighlight = instructorHighlights[idx]
 
         if(!util.paramsOk(instructorHighlight, ['spineIdRef', 'cfi'], ['created_at', 'author_id', '_delete'])) {
-          return getErrorObj('invalid parameters')
+          return getErrorObj(`invalid parameters (instructorHighlight: ${JSON.stringify(instructorHighlight)})`)
         }
 
         if(instructorHighlight._delete !== undefined && !instructorHighlight._delete) {

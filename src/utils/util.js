@@ -14,22 +14,6 @@ const getShopifyUserInfo = require('./getShopifyUserInfo')
 const fakeRedisClient = {}
 const API_VERSION = '1.0'
 
-// Array.dedup function (I made this up)
-if(!Array.prototype.dedup) {
-  Array.prototype.dedup = function (keyCreationFunc=JSON.stringify) {
-    const keys = {}
-    return this.filter(item => {
-      const key = keyCreationFunc(item)
-      if(keys[key]) {
-        return false
-      } else {
-        keys[key] = true
-        return true
-      }
-    })
-  }
-}
-
 var getXapiActor = function(params) {
   return {
     "name": params.req.user.fullname,
@@ -222,7 +206,20 @@ const jsonCols = {
 const util = {
 
   NOT_DELETED_AT_TIME: '0000-01-01 00:00:00',
-  
+
+  dedup: (ary, keyCreationFunc=JSON.stringify) => {
+    const keys = {}
+    return ary.filter(item => {
+      const key = keyCreationFunc(item)
+      if(keys[key]) {
+        return false
+      } else {
+        keys[key] = true
+        return true
+      }
+    })
+  },
+
   redisStore: (
     process.env.IS_DEV
       ? {
