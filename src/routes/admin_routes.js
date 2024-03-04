@@ -1377,16 +1377,17 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
 
         let activeUsersRows = await util.runQuery({
           query: `
-            SELECT COUNT(*) as numActiveUsers
-            FROM (
-              SELECT COUNT(*)
-              FROM user as u
-                LEFT JOIN reading_session as rs ON (rs.user_id=u.id)
-              WHERE u.idp_id=:idpId
-                AND rs.read_at>=:fromDate
-                AND rs.read_at<:toDate
-              GROUP BY u.id
-            ) as rs_per_u
+            SELECT COUNT(*) AS numActiveUsers
+            FROM user as u
+            WHERE u.idp_id=:idpId
+              AND (
+                SELECT id
+                FROM reading_session as rs
+                WHERE rs.user_id=u.id
+                  AND rs.read_at>=:fromDate
+                  AND rs.read_at<:toDate
+                LIMIT 1
+              ) IS NOT NULL
           `,
           vars: {
             idpId: idpRows[idpIndex].id,

@@ -472,6 +472,7 @@ CREATE TABLE `reading_session` (
   KEY `read_at` (`read_at`),
   KEY `duration_in_seconds` (`duration_in_seconds`),
   KEY `book_id_2` (`book_id`,`user_id`,`spineIdRef`)
+  KEY `user_id_2` (`user_id`,`read_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
