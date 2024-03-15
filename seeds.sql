@@ -6,3 +6,6 @@ INSERT INTO `user` (`id`, `user_id_from_idp`, `idp_id`, `email`, `fullname`, `ad
 VALUES
 	(3, 'dev@toadreader.com', 21, 'dev@toadreader.com', 'Mr. Dev', 'ADMIN', '2020-10-14 16:47:50.859', '2024-02-29 21:32:48.023', 'Chrome 122.0.0 / Mac OS X 10.15.7');
 
+INSERT INTO `user` (`id`, `user_id_from_idp`, `idp_id`, `email`, `fullname`, `adminLevel`, `created_at`, `last_login_at`, `last_login_platform`)
+VALUES
+	(-21, 'dummy@toadreader.com', 21, 'dummy@toadreader.com', 'No login', 'NONE', '2020-10-14 16:47:50.859', '2024-01-23 17:27:06.070', NULL);
