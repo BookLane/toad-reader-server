@@ -46,7 +46,7 @@ const getShopifyUserInfo = async ({ email, idp, log, waitToExecuteIfNecessary })
       const shopify = shopifyApi({
         apiKey,
         apiSecretKey,
-        apiVersion: `2023-01`, // LATEST_API_VERSION
+        apiVersion: `2024-01`, // LATEST_API_VERSION
         isCustomStoreApp: true,
         // scopes: [ 'read_all_orders' ],
         isEmbeddedApp: false,
