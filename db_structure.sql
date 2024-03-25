@@ -111,7 +111,7 @@ CREATE TABLE `book_textnode_index_term` (
   `count` int unsigned NOT NULL,
   KEY `book_id` (`book_id`),
   KEY `term` (`term`),
-  KEY `count` (`count`)
+  KEY `count` (`count`),
   KEY `book_id_2` (`book_id`,`term`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
@@ -471,7 +471,7 @@ CREATE TABLE `reading_session` (
   KEY `spineIdRef` (`spineIdRef`),
   KEY `read_at` (`read_at`),
   KEY `duration_in_seconds` (`duration_in_seconds`),
-  KEY `book_id_2` (`book_id`,`user_id`,`spineIdRef`)
+  KEY `book_id_2` (`book_id`,`user_id`,`spineIdRef`),
   KEY `user_id_2` (`user_id`,`read_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
