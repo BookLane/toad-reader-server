@@ -226,6 +226,11 @@ passport.deserializeUser((partialUser, done) => {
   })
 })
 
+// app.use((req, res, next) => {
+//   console.log('req >>>>>', req.originalUrl, req.path, req.headers, req.query, req.body)
+//   next()
+// })
+
 const logIn = ({ userId, req, next, deviceLoginLimit }) => {
   deserializeUser({ userId, next }).then(user => {
     req.login(user, function(err) {
