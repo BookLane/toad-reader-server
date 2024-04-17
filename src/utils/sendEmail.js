@@ -43,7 +43,7 @@ const sendEmail = input => {
             <div style="max-width: ${bodyMaxWidth || 650}px; margin: 0 auto;">
               <div style="text-align: center; padding: 50px 0 15px;">
                 <a href="https://${domain}" style="text-decoration: none; font-size: 23px; color: black;">
-                  ${!emailLogoUrl ? `` : `<img src="${emailLogoUrl}" style="height: 56px; vertical-align: middle; ${emailHideName ? `` : `margin-right: 4px;`} background: white; border-radius: 10px;">`}
+                  ${!emailLogoUrl ? `` : `<img src="${emailLogoUrl}" height="56" style="height: 56px; width: auto; vertical-align: middle; ${emailHideName ? `` : `margin-right: 4px;`} background: white; border-radius: 10px;" />`}
                   ${emailHideName ? `` : util.escapeHTML(name)}
                 </a>
               </div>
