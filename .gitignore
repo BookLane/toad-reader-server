@@ -4,6 +4,8 @@ node_modules
 .env
 .git
 
+.npmrc
+
 # Elastic Beanstalk Files
 .elasticbeanstalk/*
 !.elasticbeanstalk/*.cfg.yml
