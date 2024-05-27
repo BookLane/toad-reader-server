@@ -664,7 +664,7 @@ app.use(passport.session())
 
 ////////////// ROUTES //////////////
 
-require('./src/sockets/sockets')({ server, sessionParser, connection, log })
+// require('./src/sockets/sockets')({ server, sessionParser, connection, log })
 
 // force HTTPS
 app.use('*', function(req, res, next) {  
