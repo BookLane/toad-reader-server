@@ -1,5 +1,4 @@
 const moment = require('moment')
-const redis = require('redis')
 const jwt = require('jsonwebtoken')
 const fetch = require('node-fetch')
 const { i18n } = require("inline-i18n")
