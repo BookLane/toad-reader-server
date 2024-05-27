@@ -8,11 +8,20 @@ const s3 = new AWS.S3()
 const cookie = require('cookie-signature')
 const md5 = require('md5')
 const useragent = require('useragent')
+const session = require('express-session')
+const MySQLStore = require('express-mysql-session')(session)
 
 const getShopifyUserInfo = require('./getShopifyUserInfo')
 
-const fakeRedisClient = {}
 const API_VERSION = '1.0'
+
+const mySqlSessionOptions = {
+  host: process.env.OVERRIDE_RDS_HOSTNAME || process.env.RDS_HOSTNAME,
+  port: process.env.OVERRIDE_RDS_PORT || process.env.RDS_PORT,
+  user: process.env.OVERRIDE_RDS_USERNAME || process.env.RDS_USERNAME,
+  password: process.env.OVERRIDE_RDS_PASSWORD || process.env.RDS_PASSWORD,
+  database: process.env.OVERRIDE_RDS_DB_NAME || process.env.RDS_DB_NAME,
+}
 
 var getXapiActor = function(params) {
   return {
@@ -220,20 +229,9 @@ const util = {
     })
   },
 
-  redisStore: (
-    process.env.IS_DEV
-      ? {
-        get: (key, callback) => {
-          callback && callback(null, fakeRedisClient[key])
-        },
-        set: (key, val, ...otherParams) => {
-          fakeRedisClient[key] = val
-          const callback = otherParams.pop()
-          callback && callback()
-        },
-      }
-      : redis.createClient(process.env.REDIS_PORT, process.env.REDIS_HOSTNAME)
-  ),
+  session,
+
+  sessionStore: new MySQLStore(mySqlSessionOptions),
 
   getUTCTimeStamp: function(){
     return new Date().getTime();
@@ -1343,7 +1341,7 @@ const util = {
   ),
 
   getLoginInfoByAccessCode: ({ accessCode, destroyAfterGet, next }) => new Promise(resolve => {
-    util.redisStore.get(`login access code: ${accessCode}`, (err, value) => {
+    util.sessionStore.get(`login access code: ${accessCode}`, (err, value) => {
       if(err) return next(err)
 
       try {
@@ -1353,13 +1351,13 @@ const util = {
       }
 
       if(destroyAfterGet) {
-        util.redisStore.set(`login access code: ${accessCode}`, '', 'EX', 1)
+        util.sessionStore.set(`login access code: ${accessCode}`, '', 'EX', 1)
       }
     })
   }),
 
   setLoginInfoByAccessCode: ({ accessCode, loginInfo, next }) => new Promise(resolve => {
-    util.redisStore.set(
+    util.sessionStore.set(
       `login access code: ${accessCode}`,
       JSON.stringify(loginInfo),
       'EX',

@@ -7,7 +7,7 @@ const clearFromDeviceLoginLimitList = async ({ req, userId }) => {
 
     await new Promise((resolve, reject) => {
       const id = `user sessions for id: ${userId}`
-      util.redisStore.get(id, (err, value) => {
+      util.sessionStore.get(id, (err, value) => {
         if(err) return reject(err)
 
         let sessions = []
@@ -16,7 +16,7 @@ const clearFromDeviceLoginLimitList = async ({ req, userId }) => {
         } catch(err) {}
 
         sessions = sessions.filter(session => session !== req.sessionID)
-        util.redisStore.set(
+        util.sessionStore.set(
           id,
           JSON.stringify(sessions),
           (err, value) => {
@@ -456,7 +456,7 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
       if(user && user.deviceLoginLimit) {
         await new Promise((resolve, reject) => {
           const id = `user sessions for id: ${user.id}`
-          util.redisStore.get(id, (err, value) => {
+          util.sessionStore.get(id, (err, value) => {
             if(err) return reject(err)
 
             let sessions = []

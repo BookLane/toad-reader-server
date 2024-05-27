@@ -9,8 +9,6 @@ const cookieParser = require('cookie-parser')
 const mysql = require('mysql')
 const SqlString = require('mysql/lib/protocol/SqlString')
 const AWS = require('aws-sdk')
-const session = require('express-session')
-const RedisStore = require('connect-redis')(session)
 const passport = require('passport')
 const saml = require('passport-saml')
 require('dotenv').load()  //loads the local environment
@@ -21,11 +19,6 @@ const fs = require('fs')
 require("array-flat-polyfill")  // Array.flat function
 
 ////////////// SETUP SERVER //////////////
-
-const redisOptions = {
-  host: process.env.REDIS_HOSTNAME,
-  port: process.env.REDIS_PORT
-}
 
 const port = parseInt(process.env.PORT, 10) || process.env.PORT || 8080
 app.set('port', port)
@@ -39,8 +32,8 @@ const log = function(msgs, importanceLevel) {
     console.log.apply(this, msgs)
   }
 }
-const sessionParser = session({
-  store: process.env.IS_DEV ? null : new RedisStore(redisOptions),
+const sessionParser = util.session({
+  store: util.sessionStore,
   secret: process.env.SESSION_SECRET || 'secret',
   saveUninitialized: false,
   resave: false,
@@ -239,7 +232,7 @@ const logIn = ({ userId, req, next, deviceLoginLimit }) => {
       if(deviceLoginLimit && user.id >= 0) {
 
         const id = `user sessions for id: ${user.id}`
-        util.redisStore.get(id, (err, value) => {
+        util.sessionStore.get(id, (err, value) => {
           if(err) return next(err)
 
           let sessions = []
@@ -253,7 +246,7 @@ const logIn = ({ userId, req, next, deviceLoginLimit }) => {
                 ? [ req.sessionID ]
                 : [ ...sessions, req.sessionID ]
             )
-            util.redisStore.set(
+            util.sessionStore.set(
               id,
               JSON.stringify(sessions),
               (err, value) => {
@@ -442,7 +435,7 @@ const ensureAuthenticated = async (req, res, next) => {
     if(!req.user.idpDeviceLoginLimit || req.user.id < 0) return resolve(true)
 
     const id = `user sessions for id: ${req.user.id}`
-    util.redisStore.get(id, (err, value) => {
+    util.sessionStore.get(id, (err, value) => {
 
       let sessions = []
       try {
