@@ -3,16 +3,24 @@ const jwt = require('jsonwebtoken')
 const fetch = require('node-fetch')
 const { i18n } = require("inline-i18n")
 const AWS = require('aws-sdk')
-const s3 = new AWS.S3()
 const cookie = require('cookie-signature')
 const md5 = require('md5')
 const useragent = require('useragent')
 const session = require('express-session')
 const MySQLStore = require('express-mysql-session')(session)
+const mysql = require('mysql')
+const SqlString = require('mysql/lib/protocol/SqlString')
 
 const getShopifyUserInfo = require('./getShopifyUserInfo')
 
 const API_VERSION = '1.0'
+
+const s3Config = {}
+if(process.env.AWS_KEY && process.env.AWS_SECRET) {
+  s3Config.accessKeyId = process.env.AWS_KEY
+  s3Config.secretAccessKey = process.env.AWS_SECRET
+}
+const s3 = new AWS.S3(s3Config)
 
 const mySqlSessionOptions = {
   host: process.env.OVERRIDE_RDS_HOSTNAME || process.env.RDS_HOSTNAME,
@@ -213,6 +221,8 @@ const jsonCols = {
 
 const util = {
 
+  s3,
+
   NOT_DELETED_AT_TIME: '0000-01-01 00:00:00',
 
   dedup: (ary, keyCreationFunc=JSON.stringify) => {
@@ -408,7 +418,7 @@ const util = {
       return `${process.env.DEV_NETWORK_IP || `localhost`}:8080`
     }
   
-    if(env ? env === 'staging' : process.env.IS_STAGING) {
+    if(env ? env === 'staging' : (process.env.IS_STAGING === `1`)) {
       // staging environment
       return `${encodeDomain(domain, old)}.data.staging.toadreader.com`
     }
@@ -441,7 +451,7 @@ const util = {
       domain = `${process.env.DEV_NETWORK_IP || `localhost`}:19006`
     }
 
-    if(env ? env === 'staging' : process.env.IS_STAGING) {
+    if(env ? env === 'staging' : (process.env.IS_STAGING === `1`)) {
       domain = `${dashifyDomain(domain)}.staging.toadreader.com`
     }
 
@@ -1807,6 +1817,35 @@ const util = {
   },
 
   API_VERSION,
+
+  openConnection: () => (
+    mysql.createConnection({
+      host: process.env.OVERRIDE_RDS_HOSTNAME || process.env.RDS_HOSTNAME,
+      port: process.env.OVERRIDE_RDS_PORT || process.env.RDS_PORT,
+      user: process.env.OVERRIDE_RDS_USERNAME || process.env.RDS_USERNAME,
+      password: process.env.OVERRIDE_RDS_PASSWORD || process.env.RDS_PASSWORD,
+      database: process.env.OVERRIDE_RDS_DB_NAME || process.env.RDS_DB_NAME,
+      multipleStatements: true,
+      dateStrings: true,
+      charset : 'utf8mb4',
+      queryFormat: function (query, values) {
+        if(!values) return query
+    
+        if(/\:(\w+)/.test(query)) {
+          return query.replace(/\:(\w+)/g, (txt, key) => {
+            if(values.hasOwnProperty(key)) {
+              return this.escape(values[key])
+            }
+            return txt
+          })
+    
+        } else {
+          return SqlString.format(query, values, this.config.stringifyObjects, this.config.timezone)
+        }
+      },
+      // debug: true,
+    })
+  ),
 
 }
 

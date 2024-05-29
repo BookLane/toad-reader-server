@@ -3,11 +3,10 @@
 const express = require('express')
 const cors = require('cors')
 const app = express()
-const http = require('http')
+// const http = require('http')
+const serverless = require("serverless-http")
 const bodyParser = require('body-parser')
 const cookieParser = require('cookie-parser')
-const mysql = require('mysql')
-const SqlString = require('mysql/lib/protocol/SqlString')
 const AWS = require('aws-sdk')
 const passport = require('passport')
 const saml = require('passport-saml')
@@ -22,7 +21,7 @@ require("array-flat-polyfill")  // Array.flat function
 
 const port = parseInt(process.env.PORT, 10) || process.env.PORT || 8080
 app.set('port', port)
-const server = http.createServer(app)
+// const server = http.createServer(app)
 const log = function(msgs, importanceLevel) {
   const logLevel = parseInt(process.env.LOGLEVEL) || 3   // 1=verbose, 2=important, 3=errors only
   importanceLevel = importanceLevel || 1
@@ -65,34 +64,9 @@ app.use(cors(corsOptionsDelegate))
 
 ////////////// SETUP STORAGE //////////////
 
-const s3 = new AWS.S3()
+const s3 = util.s3
 
-const connection = mysql.createConnection({
-  host: process.env.OVERRIDE_RDS_HOSTNAME || process.env.RDS_HOSTNAME,
-  port: process.env.OVERRIDE_RDS_PORT || process.env.RDS_PORT,
-  user: process.env.OVERRIDE_RDS_USERNAME || process.env.RDS_USERNAME,
-  password: process.env.OVERRIDE_RDS_PASSWORD || process.env.RDS_PASSWORD,
-  database: process.env.OVERRIDE_RDS_DB_NAME || process.env.RDS_DB_NAME,
-  multipleStatements: true,
-  dateStrings: true,
-  charset : 'utf8mb4',
-  queryFormat: function (query, values) {
-    if(!values) return query
-
-    if(/\:(\w+)/.test(query)) {
-      return query.replace(/\:(\w+)/g, (txt, key) => {
-        if(values.hasOwnProperty(key)) {
-          return this.escape(values[key])
-        }
-        return txt
-      })
-
-    } else {
-      return SqlString.format(query, values, this.config.stringifyObjects, this.config.timezone)
-    }
-  },
-  // debug: true,
-})
+const connection = util.openConnection()
 
 ////////////// SETUP I18N //////////////
 
@@ -687,4 +661,14 @@ process.on('unhandledRejection', reason => {
 
 ////////////// LISTEN //////////////
 
-server.listen(port)
+// server.listen(port)
+
+// Local listener
+if(!!process.env.IS_DEV) {
+  app.listen(port, (err) => {
+    if (err) throw err
+    console.log('> Ready on http://localhost:8081')
+  })
+}
+
+module.exports.handler = serverless(app)

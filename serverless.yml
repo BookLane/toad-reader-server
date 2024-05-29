@@ -1,0 +1,55 @@
+org: booklane
+app: toad-reader-server
+service: toad-reader-server
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  role: arn:aws:iam::767398079027:role/toad-reader-server
+
+functions:
+  api:
+    handler: app.handler
+    timeout: 29  # the HTTP API request times out at 30 seconds; so 29 seconds is the max I can set this to
+    events:
+      - httpApi: '*'
+    environment:
+      ADMIN_EMAILS: ${param:ADMIN_EMAILS}
+      APP_URL: ${param:APP_URL}
+      AWS_KEY: ${param:AWS_KEY}
+      AWS_SECRET: ${param:AWS_SECRET}
+      CLOUDFRONT_KEY_PAIR_ID: ${param:CLOUDFRONT_KEY_PAIR_ID}
+      CLOUDFRONT_PRIVATE_KEY: ${param:CLOUDFRONT_PRIVATE_KEY}
+      IS_STAGING: ${param:IS_STAGING}
+      LOGIN_TEST_CODE: ${param:LOGIN_TEST_CODE}
+      LOGIN_TEST_EMAIL: ${param:LOGIN_TEST_EMAIL}
+      LOGLEVEL: ${param:LOGLEVEL}
+      RDS_DB_NAME: ${param:RDS_DB_NAME}
+      RDS_HOSTNAME: ${param:RDS_HOSTNAME}
+      RDS_PASSWORD: ${param:RDS_PASSWORD}
+      RDS_PORT: ${param:RDS_PORT}
+      RDS_USERNAME: ${param:RDS_USERNAME}
+      REQUIRE_HTTPS: ${param:REQUIRE_HTTPS}
+      S3_BUCKET: ${param:S3_BUCKET}
+      SESSION_SECRET: ${param:SESSION_SECRET}
+  crons:
+    handler: crons.handler
+    # memorySize: 2048  # mb
+    timeout: 60  # 1 minute
+    events:
+      - schedule: rate(1 minute)
+    environment:
+      IS_STAGING: ${param:IS_STAGING}
+      RDS_DB_NAME: ${param:RDS_DB_NAME}
+      RDS_HOSTNAME: ${param:RDS_HOSTNAME}
+      RDS_PASSWORD: ${param:RDS_PASSWORD}
+      RDS_PORT: ${param:RDS_PORT}
+      RDS_USERNAME: ${param:RDS_USERNAME}
+      REQUIRE_HTTPS: ${param:REQUIRE_HTTPS}
+      S3_BUCKET: ${param:S3_BUCKET}
+      SESSION_SECRET: ${param:SESSION_SECRET}
+
+package:
+  exclude:
+    - .env
