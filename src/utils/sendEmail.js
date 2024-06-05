@@ -2,7 +2,7 @@ const executeSendEmail = require('./executeSendEmail')
 const util = require('./util')
 const { i18n } = require("inline-i18n")
 
-const superAdminEmail = 'admin@resourcingeducation.com'
+const superAdminEmail = 'no-reply@toadreader.com'
 
 const sendEmail = input => {
 
