@@ -298,19 +298,19 @@ const strategyCallback = function(req, idp, profile, done) {
 }
 
 // re-compute all computed_book_access rows and update where necessary
-connection.query(
-  `SELECT id FROM idp`,
-  async (err, rows) => {
-    if(err) {
-      log(["Could not re-compute all computed_book_access rows.", err], 3)
-      return
-    }
+// connection.query(
+//   `SELECT id FROM idp`,
+//   async (err, rows) => {
+//     if(err) {
+//       log(["Could not re-compute all computed_book_access rows.", err], 3)
+//       return
+//     }
 
-    for(let row of rows) {
-      await util.updateComputedBookAccess({ idpId: row.id, connection, log })
-    }
-  }
-)
+//     for(let row of rows) {
+//       await util.updateComputedBookAccess({ idpId: row.id, connection, log })
+//     }
+//   }
+// )
 
 // setup SAML strategies for IDPs
 connection.query('SELECT * FROM `idp` WHERE entryPoint IS NOT NULL',
