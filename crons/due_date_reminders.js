@@ -4,7 +4,7 @@ const { i18n } = require("inline-i18n")
 
 var util = require('../src/utils/util')
 
-module.exports = async ({ connection, next }) => {
+module.exports = async ({ next }) => {
 
   const expo = new Expo()
   const cronRunUid = uuidv4()
@@ -44,7 +44,6 @@ module.exports = async ({ connection, next }) => {
     vars: {
       oneDayInTheFuture,
     },
-    connection,
     next,
   })
 
@@ -93,7 +92,6 @@ module.exports = async ({ connection, next }) => {
       vars: {
         classroom_uid,
       },
-      connection,
       next,
     })
 
@@ -115,7 +113,6 @@ module.exports = async ({ connection, next }) => {
         classroom_uid,
         due_at,
       },
-      connection,
       next,
     })
 

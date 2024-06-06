@@ -3,7 +3,7 @@ const url = require('url')
 const uuidv4 = require('uuid/v4')
 const util = require('../utils/util');
 
-module.exports = ({ server, sessionParser, connection, log }) => {
+module.exports = ({ server, sessionParser, log }) => {
 
   const wss = {
     discussion: new WebSocket.Server({
@@ -85,7 +85,7 @@ module.exports = ({ server, sessionParser, connection, log }) => {
     }
 
     // Check if they have permission to join the discussion
-    const classroomRow = await util.getClassroomIfHasPermission({ connection, req, next, roles: [ "STUDENT", "INSTRUCTOR" ] })
+    const classroomRow = await util.getClassroomIfHasPermission({ req, next, roles: [ "STUDENT", "INSTRUCTOR" ] })
 
     if(!classroomRow || classroomRow.uid === `${req.user.idpId}-${classroomRow.book_id}`) {
       log(['Socket rejected due to invalid permissions.', req.user, classroomUid, toolUid], 3)
@@ -160,7 +160,6 @@ module.exports = ({ server, sessionParser, connection, log }) => {
                 until: util.timestampToMySQLDatetime(until),
                 limit: fromAtLeast ? MAX_PAGE_SIZE : PAGE_SIZE,
               },
-              connection,
               next,
             })
 
@@ -205,7 +204,6 @@ module.exports = ({ server, sessionParser, connection, log }) => {
             await util.runQuery({
               query: `INSERT INTO tool_engagement SET ?`,
               vars: [ newResponse ],
-              connection,
               next,
             })
 

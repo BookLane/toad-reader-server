@@ -66,7 +66,14 @@ app.use(cors(corsOptionsDelegate))
 
 const s3 = util.s3
 
-const connection = util.openConnection()
+// ensure db connection for initial tasks
+if(!global.connection) util.openConnection()
+
+app.use(async (req, res, next) => {
+  // on each request, ensure db connection is working
+  await util.getValidConnection()
+  next()
+})
 
 ////////////// SETUP I18N //////////////
 
@@ -152,7 +159,7 @@ const deserializeUser = ({ userId, ssoData, next }) => new Promise(resolve => {
     idp.deviceLoginLimit
   `
 
-  connection.query(''
+  global.connection.query(''
     + 'SELECT ' + fields + ' '
     + 'FROM `user` '
     + 'LEFT JOIN `idp` ON (user.idp_id=idp.id) '
@@ -267,7 +274,7 @@ const strategyCallback = function(req, idp, profile, done) {
       idpUserId,
     }
 
-    util.getUserInfo({ idp, idpUserId, next: done, req, connection, log, userInfo }).then(returnUser)
+    util.getUserInfo({ idp, idpUserId, next: done, req, log, userInfo }).then(returnUser)
 
   } else {  // old method: get userInfo from meta data
 
@@ -293,12 +300,12 @@ const strategyCallback = function(req, idp, profile, done) {
       done('Bad login.')
     }
   
-    util.updateUserInfo({ connection, log, userInfo, idpId, updateLastLoginAt: true, next: done, req }).then(returnUser)
+    util.updateUserInfo({ log, userInfo, idpId, updateLastLoginAt: true, next: done, req }).then(returnUser)
   }
 }
 
 // re-compute all computed_book_access rows and update where necessary
-// connection.query(
+// global.connection.query(
 //   `SELECT id FROM idp`,
 //   async (err, rows) => {
 //     if(err) {
@@ -307,13 +314,13 @@ const strategyCallback = function(req, idp, profile, done) {
 //     }
 
 //     for(let row of rows) {
-//       await util.updateComputedBookAccess({ idpId: row.id, connection, log })
+//       await util.updateComputedBookAccess({ idpId: row.id, log })
 //     }
 //   }
 // )
 
 // setup SAML strategies for IDPs
-connection.query('SELECT * FROM `idp` WHERE entryPoint IS NOT NULL',
+global.connection.query('SELECT * FROM `idp` WHERE entryPoint IS NOT NULL',
   function (err, rows) {
     if (err) {
       log(["Could not setup IDPs.", err], 3)
@@ -434,7 +441,6 @@ const ensureAuthenticated = async (req, res, next) => {
       vars: {
         domain: util.getIDPDomain(req.headers),
       },
-      connection,
       next,
     })
 
@@ -494,7 +500,7 @@ const ensureAuthenticated = async (req, res, next) => {
     // }
     
     log('Checking if IDP requires authentication')
-    connection.query('SELECT * FROM `idp` WHERE domain=?',
+    global.connection.query('SELECT * FROM `idp` WHERE domain=?',
       [util.getIDPDomain(req.headers)],
       function (err, rows) {
         if (err) return next(err)
@@ -544,12 +550,11 @@ const ensureAuthenticated = async (req, res, next) => {
 
                   if(idp.userInfoEndpoint) {
 
-                    util.getUserInfo({ idp, idpUserId: token.id, req, res, next, connection, log }).then(logInSessionSharingUser)
+                    util.getUserInfo({ idp, idpUserId: token.id, req, res, next, log }).then(logInSessionSharingUser)
 
                   } else {  // old method: get userInfo from meta data
 
                     util.updateUserInfo({
-                      connection,
                       log,
                       userInfo: Object.assign(
                         {},
@@ -638,7 +643,7 @@ app.use(passport.session())
 
 ////////////// ROUTES //////////////
 
-// require('./src/sockets/sockets')({ server, sessionParser, connection, log })
+// require('./src/sockets/sockets')({ server, sessionParser, log })
 
 // force HTTPS
 app.use('*', function(req, res, next) {  
@@ -653,7 +658,7 @@ app.use('*', function(req, res, next) {
   }
 })
 
-require('./src/routes/routes')(app, s3, connection, passport, authFuncs, ensureAuthenticated, logIn, log)
+require('./src/routes/routes')(app, s3, passport, authFuncs, ensureAuthenticated, logIn, log)
 
 process.on('unhandledRejection', reason => {
   log(['Unhandled node error', reason.stack || reason], 3)

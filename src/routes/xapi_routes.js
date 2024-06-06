@@ -2,7 +2,7 @@ const util = require('../utils/util');
 
 var threadIdx = 0;
 
-module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log) {
+module.exports = function (app, ensureAuthenticatedAndCheckIDP, log) {
 
   // books.toadreader.com/reportReading
   app.post('/reportReading', ensureAuthenticatedAndCheckIDP, function (req, res, next) {
@@ -20,7 +20,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
       return;
     }
 
-    connection.query('SELECT * FROM `book` WHERE id IN(?)',
+    global.connection.query('SELECT * FROM `book` WHERE id IN(?)',
       [req.body.readingRecords.map(function(reading) { return reading.bookId })],
       function (err, rows, fields) {
         if (err) return next(err);
@@ -87,7 +87,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
           if(queriesToRun.length > 0) {
             var query = queriesToRun.shift();
             log(['Report reading query', `thread:${threadId}`, query]);
-            connection.query(query.query, query.vars, function (err, result) {
+            global.connection.query(query.query, query.vars, function (err, result) {
               if (err && err.code !== 'ER_DUP_ENTRY') {
                 log(['Duplicate and so ignored', `thread:${threadId}`], 3);
                 // return next(err);

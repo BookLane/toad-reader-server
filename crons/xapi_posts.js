@@ -2,14 +2,14 @@ const uuidv4 = require('uuid/v4');
 
 const util = require('../src/utils/util');
 
-module.exports = async ({ connection, next }) => {
+module.exports = async ({ next }) => {
 
   const cronRunUid = uuidv4()
   const currentMySQLDatetime = util.timestampToMySQLDatetime();
 
   console.log('Cron: xapi posts', cronRunUid);
 
-  connection.query('SELECT * FROM `idp` WHERE xapiOn=? AND (demo_expires_at IS NULL OR demo_expires_at>?)',
+  global.connection.query('SELECT * FROM `idp` WHERE xapiOn=? AND (demo_expires_at IS NULL OR demo_expires_at>?)',
     [1, currentMySQLDatetime],
     function (err, rows) {
       if (err) {
@@ -41,7 +41,7 @@ module.exports = async ({ connection, next }) => {
 
         // get the xapi queue
         console.log('Cron: Get xapiQueue for idp id #' + row.id, cronRunUid);
-        connection.query('SELECT * FROM `xapiQueue` WHERE idp_id=? ORDER BY created_at DESC LIMIT ?',
+        global.connection.query('SELECT * FROM `xapiQueue` WHERE idp_id=? ORDER BY created_at DESC LIMIT ?',
           [row.id, row.xapiMaxBatchSize],
           function (err, statementRows) {
             if (err) {
@@ -91,7 +91,7 @@ module.exports = async ({ connection, next }) => {
                   });
         
                   console.log('Cron: Delete successfully sent statements from xapiQueue queue. Ids: ' + statementIds.join(', '), cronRunUid);
-                  connection.query('DELETE FROM `xapiQueue` WHERE id IN(?)', [statementIds], function (err, result) {
+                  global.connection.query('DELETE FROM `xapiQueue` WHERE id IN(?)', [statementIds], function (err, result) {
                     if (err) console.log(err, cronRunUid);
                     markDone();
                   });

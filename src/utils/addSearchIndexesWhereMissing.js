@@ -3,7 +3,7 @@ const { getIndexedBook } = require('./indexEpub')
 const { runQuery, getFromS3, convertJsonColsToStrings } = require('./util')
 const mime = require('mime')
 
-module.exports = async ({ s3, connection, next, log }) => {
+module.exports = async ({ s3, next, log }) => {
 
   return
 
@@ -27,7 +27,6 @@ module.exports = async ({ s3, connection, next, log }) => {
     `,
     vars: {
     },
-    connection,
     next,
   })
 
@@ -98,7 +97,6 @@ module.exports = async ({ s3, connection, next, log }) => {
         vars: {
           bookId,
         },
-        connection,
         next,
       })
   
@@ -115,7 +113,6 @@ module.exports = async ({ s3, connection, next, log }) => {
             ...textnodeInfo,
             book_id: bookId,
           })),
-          connection,
           next,
         })
       }
@@ -134,7 +131,6 @@ module.exports = async ({ s3, connection, next, log }) => {
             count: searchTermCounts[searchTerm],
             book_id: bookId,
           })),
-          connection,
           next,
         })
       }

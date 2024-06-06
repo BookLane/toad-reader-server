@@ -30,7 +30,7 @@ const clearFromDeviceLoginLimitList = async ({ req, userId }) => {
 
   }
 }
-module.exports = function (app, passport, authFuncs, connection, ensureAuthenticated, logIn, log) {
+module.exports = function (app, passport, authFuncs, ensureAuthenticated, logIn, log) {
 
   app.get('/setcookie',
     (req, res) => {
@@ -276,7 +276,6 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
               deleted_at: now,
             },
           },
-          connection,
           next,
         })
       }
@@ -373,7 +372,7 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
 
   // passwordless login
   app.get('/loginwithemail',
-    util.setIdpLang({ connection }),
+    util.setIdpLang(),
     async (req, res, next) => {
       log('Authenticate user via email', 2)
 
@@ -427,7 +426,6 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
           skipGreeting: true,
           skipInnerBG: true,
           bodyMaxWidth: 400,
-          connection,
           req,
         })
 
@@ -449,7 +447,6 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
           email: req.query.email,
           domain: util.getIDPDomain(req.headers),
         },
-        connection,
         next,
       })
 
@@ -522,7 +519,7 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
 
       if(email) {
 
-        connection.query(
+        global.connection.query(
           `SELECT * FROM idp WHERE domain=:domain`,
           {
             domain: util.getIDPDomain(req.headers),
@@ -542,16 +539,14 @@ module.exports = function (app, passport, authFuncs, connection, ensureAuthentic
                   email,
                   idpId: idp.id,
                 },
-                connection,
                 next,
               })
 
-              loginInfo = await util.getUserInfo({ idp, idpUserId, next, req, res, connection, log })
+              loginInfo = await util.getUserInfo({ idp, idpUserId, next, req, res, log })
               
             } else {
               // create the user if they do not exist
               loginInfo = await util.updateUserInfo({
-                connection,
                 log,
                 userInfo: {
                   idpUserId: email,

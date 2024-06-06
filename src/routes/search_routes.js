@@ -1,6 +1,6 @@
 const util = require('../utils/util')
 
-module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log) {
+module.exports = function (app, ensureAuthenticatedAndCheckIDP, log) {
 
   // get search term suggestions
   app.get(['/searchtermsuggest', '/searchtermsuggest/:bookId'],
@@ -53,7 +53,6 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
           idpId: req.user.idpId,
           now,
         },
-        connection,
         next,
       })
 
@@ -79,7 +78,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
       const now = util.timestampToMySQLDatetime()
 
       if(bookId) {
-        const accessInfo = await util.hasAccess({ bookId, req, connection, log, next })
+        const accessInfo = await util.hasAccess({ bookId, req, log, next })
         if(!accessInfo) {
           log(['Forbidden search: user does not have access to this book'], 3)
           res.status(403).send({ error: 'Forbidden' })
@@ -144,7 +143,6 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
           idpId: req.user.idpId,
           now,
         },
-        connection,
         next,
       })
 

@@ -22,11 +22,11 @@ const sendEmail = input => {
 
   return new Promise((resolve, reject) => {
 
-    let { toAddrs, ccAddrs=[], bccAddrs=[], replyToAddrs, subject, body, connection, req, language, skipGreeting, skipInnerBG, bodyMaxWidth } = input
+    let { toAddrs, ccAddrs=[], bccAddrs=[], replyToAddrs, subject, body, req, language, skipGreeting, skipInnerBG, bodyMaxWidth } = input
 
     const locale = language || req.idpLang || 'en'
 
-    connection.query(
+    global.connection.query(
       `SELECT * FROM idp WHERE domain=:domain`,
       {
         domain: util.getIDPDomain(req.headers),

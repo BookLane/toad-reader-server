@@ -27,7 +27,7 @@ if(baseTmpDir) {
   baseTmpDir = `${baseTmpDir}/`
 }
 
-module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, log) {
+module.exports = function (app, s3, ensureAuthenticatedAndCheckIDP, log) {
 
   const deleteFolderRecursive = path => {
     log(['Delete folder', path], 2)
@@ -80,7 +80,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
       vars: {
         bookId,
       },
-      connection,
       next,
     })
 
@@ -98,7 +97,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
       vars: {
         bookId,
       },
-      connection,
       next,
     })
 
@@ -113,7 +111,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
       vars: {
         bookId,
       },
-      connection,
       next,
     })
 
@@ -132,7 +129,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
       vars: {
         bookId,
       },
-      connection,
       next,
     })
   }
@@ -169,13 +165,12 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         bookId: req.params.bookId,
         idpId: req.user.idpId,
       },
-      connection,
       next,
     })
 
     log('Delete (idp disassociation) successful', 2)
 
-    await util.updateComputedBookAccess({ idpId: req.user.idpId, bookId: req.params.bookId, connection, log })
+    await util.updateComputedBookAccess({ idpId: req.user.idpId, bookId: req.params.bookId, log })
 
     res.send({ success: true });
           
@@ -277,7 +272,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         bookRow.id = (await util.runQuery({
           query: 'INSERT INTO `book` SET ?',
           vars: bookRow,
-          connection,
           next,
         })).insertId
 
@@ -364,7 +358,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
             ...bookRow,
             idpId: req.user.idpId,
           },
-          connection,
           next,
         })
 
@@ -407,11 +400,10 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
             await util.runQuery({
               query: 'INSERT INTO `book-idp` SET ?',
               vars,
-              connection,
               next,
             })
 
-            await util.updateComputedBookAccess({ idpId: req.user.idpId, bookId: rows[0].id, connection, log })
+            await util.updateComputedBookAccess({ idpId: req.user.idpId, bookId: rows[0].id, log })
 
             log('Import unnecessary (book exists in idp with same group; added association)', 2)
             res.send({
@@ -461,7 +453,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
           await util.runQuery({
             query: 'INSERT INTO `book-idp` SET ?',
             vars,
-            connection,
             next,
           })
         }
@@ -499,7 +490,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
               textnodeInfo.hitIndex,
               textnodeInfo.context,
             ])).flat(),
-            connection,
             next,
           })
 
@@ -520,7 +510,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
               searchTermCounts[searchTerm],
               bookRow.id,
             ])).flat(),
-            connection,
             next,
           })
 
@@ -547,11 +536,10 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
             bookId: bookRow.id,
             bookRow,
           },
-          connection,
           next,
         })
 
-        await util.updateComputedBookAccess({ idpId: req.user.idpId, bookId: bookRow.id, connection, log })
+        await util.updateComputedBookAccess({ idpId: req.user.idpId, bookId: bookRow.id, log })
 
         log('Import successful', 2)
         try {  // If everything was successful, but the connection timed out, don't delete it.
@@ -580,7 +568,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
             await util.runQuery({
               query: 'DELETE FROM `book-idp` WHERE idp_id=:idp_id AND book_id=:book_id',
               vars: cleanUpBookIdpToDelete,
-              connection,
               next,
             })
           }
@@ -590,7 +577,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
 
           if(bookRow) {
             await deleteBookIfUnassociated(bookRow.id, next)
-            await util.updateComputedBookAccess({ idpId: req.user.idpId, bookId: bookRow.id, connection, log })
+            await util.updateComputedBookAccess({ idpId: req.user.idpId, bookId: bookRow.id, log })
           }
 
           deleteFolderRecursive(tmpDir)
@@ -632,7 +619,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
       const { classroomUid } = req.params
 
       await util.dieOnNoClassroomEditPermission({
-        connection,
         next,
         req,
         log,
@@ -783,7 +769,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
       await util.runQuery({
         queries,
         vars,
-        connection,
         next,
       })
 
@@ -803,7 +788,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
       vars: {
         domain: util.getIDPDomain(req.headers),  // they may not be logged in, and so we find this by domain and not idpId
       },
-      connection,
       next,
     })
 
@@ -864,7 +848,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
       bookRow.id = (await util.runQuery({
         query: 'INSERT INTO `book` SET ?',
         vars: bookRow,
-        connection,
         next,
       })).insertId
 
@@ -879,11 +862,10 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
       await util.runQuery({
         query: 'INSERT INTO `book-idp` SET ?',
         vars: bookIdpRow,
-        connection,
         next,
       })
 
-      await util.updateComputedBookAccess({ idpId: req.user.idpId, bookId: bookRow.id, connection, log })
+      await util.updateComputedBookAccess({ idpId: req.user.idpId, bookId: bookRow.id, log })
 
     }
 
@@ -894,11 +876,10 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         bookId: bookRow.id,
         bookRow,
       },
-      connection,
       next,
     })
 
-    return util.getLibrary({ req, res, next, log, connection, newBookId: bookRow.id })
+    return util.getLibrary({ req, res, next, log, newBookId: bookRow.id })
 
   })
 
@@ -924,7 +905,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         idpId: req.user.idpId,
         bookId,
       },
-      connection,
       next,
     })
 
@@ -1070,7 +1050,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         idpId: req.user.idpId,
         negativeIdpId: req.user.idpId * -1,
       },
-      connection,
       next,
     })
 
@@ -1132,11 +1111,10 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
     await util.runQuery({
       queries,
       vars,
-      connection,
       next,
     })
 
-    await util.updateComputedBookAccess({ idpId: req.user.idpId, bookId: req.params.bookId, connection, log })
+    await util.updateComputedBookAccess({ idpId: req.user.idpId, bookId: req.params.bookId, log })
 
     res.send({ success: true })
 
@@ -1216,7 +1194,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
       await util.runQuery({
         queries,
         vars,
-        connection,
         next,
       })
 
@@ -1236,7 +1213,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
       vars: {
         domain: util.getIDPDomain(req.headers),  // they may not be logged in, and so we find this by domain and not idpId
       },
-      connection,
       next,
     })
 
@@ -1285,7 +1261,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
     const bookIdpRows = await util.runQuery({
       query: 'SELECT * FROM `book-idp` WHERE book_id=:bookId AND idp_id=:idpId LIMIT 1',
       vars,
-      connection,
       next,
     })
 
@@ -1337,11 +1312,10 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
     await util.runQuery({
       queries,
       vars,
-      connection,
       next,
     })
 
-    return util.getLibrary({ req, res, next, log, connection })
+    return util.getLibrary({ req, res, next, log })
 
   })
 
@@ -1368,7 +1342,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
       vars: {
         idpId: req.user.idpId,
       },
-      connection,
       next,
     })
 
@@ -1410,7 +1383,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
             fromDate,
             toDate,
           },
-          connection,
           next,
         })
 
@@ -1542,7 +1514,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
           vars: {
             idpId: idpRows[idpIndex].id,
           },
-          connection,
           next,
         })
 
@@ -1604,7 +1575,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         searchStr: req.query.searchStr,
         likeSearchStr: `${req.query.searchStr.replace(/([_%])/g, '\\$1')}%`,
       },
-      connection,
       next,
     })
 
@@ -1644,7 +1614,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
       vars: {
         idpId: req.user.idpId,
       },
-      connection,
       next,
     })
 
@@ -1709,7 +1678,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
       vars: {
         classroomUid: sourceClassroomUid,
       },
-      connection,
       next,
     })
 
@@ -1756,7 +1724,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
     await util.runQuery({
       queries,
       vars,
-      connection,
       next,
     })
 
@@ -1785,7 +1752,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         id: req.query.userId,
         idpId: req.user.idpId,
       },
-      connection,
       next,
     })
 
@@ -1832,7 +1798,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
           idpId: req.user.idpId,
           limit: parseInt(req.query.limit || 3),
         },
-        connection,
         next,
       })
 

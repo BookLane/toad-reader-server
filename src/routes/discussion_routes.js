@@ -2,7 +2,7 @@ const uuidv4 = require('uuid/v4')
 
 const util = require('../utils/util');
 
-module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log) {
+module.exports = function (app, ensureAuthenticatedAndCheckIDP, log) {
 
   app.post('/discussion/getResponses',
     ensureAuthenticatedAndCheckIDP,
@@ -60,7 +60,6 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
           until: util.timestampToMySQLDatetime(until),
           limit: fromAtLeast ? MAX_PAGE_SIZE : PAGE_SIZE,
         },
-        connection,
         next,
       })
 
@@ -105,7 +104,6 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
       await util.runQuery({
         query: `INSERT INTO tool_engagement SET ?`,
         vars: [ newResponse ],
-        connection,
         next,
       })
 
