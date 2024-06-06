@@ -47,6 +47,14 @@ const sessionParser = util.session({
 // console.log('ENV >>> ', process.env)
 
 
+////////////// WAIT FOR INITIAL SETUP //////////////
+
+const readyPromises = []
+app.use(async (req, res, next) => {
+  await Promise.all(readyPromises)
+  next()
+})
+
 ////////////// SETUP CORS //////////////
 const corsOptionsDelegate = (req, callback) => {
   const corsOptions = {}
@@ -62,12 +70,12 @@ const corsOptionsDelegate = (req, callback) => {
 
 app.use(cors(corsOptionsDelegate))
 
-////////////// SETUP STORAGE //////////////
+////////////// SETUP STORAGE AND DB //////////////
 
 const s3 = util.s3
 
 // ensure db connection for initial tasks
-if(!global.connection) util.openConnection()
+readyPromises.push(util.getValidConnection())
 
 app.use(async (req, res, next) => {
   // on each request, ensure db connection is working
@@ -80,31 +88,37 @@ app.use(async (req, res, next) => {
 const translationsDir = `./translations`
 const locales = [ 'en' ]
 
-fs.readdir(translationsDir, (err, files) => {
-  if(err) {
-    log('Could not set up i18n because the translations dir was not found.', 3)
-    return
-  }
-
-  files.forEach(file => {
-    const regex = /\.json$/
-    if(!regex.test(file)) return
-    locales.push(file.replace(regex, ''))
-  })
-
-  log(['locales:', locales], 1)
-
-  i18nSetup({
-    locales,
-    fetchLocale: locale => new Promise((resolve, reject) => fs.readFile(`${translationsDir}/${locale}.json`, (err, contents) => {
+readyPromises.push(
+  new Promise(i18nPromiseResolve => {
+    fs.readdir(translationsDir, (err, files) => {
       if(err) {
-        reject(err)
-      } else {
-        resolve(JSON.parse(contents))
+        log('Could not set up i18n because the translations dir was not found.', 3)
+        i18nPromiseResolve()
+        return
       }
-    })),
+
+      files.forEach(file => {
+        const regex = /\.json$/
+        if(!regex.test(file)) return
+        locales.push(file.replace(regex, ''))
+      })
+
+      log(['locales:', locales], 1)
+
+      i18nSetup({
+        locales,
+        fetchLocale: locale => new Promise((resolve, reject) => fs.readFile(`${translationsDir}/${locale}.json`, (err, contents) => {
+          if(err) {
+            reject(err)
+          } else {
+            resolve(JSON.parse(contents))
+          }
+        })),
+      })
+    })
+    i18nPromiseResolve()
   })
-})
+)
 
 ////////////// SETUP PASSPORT //////////////
 
@@ -320,93 +334,100 @@ const strategyCallback = function(req, idp, profile, done) {
 // )
 
 // setup SAML strategies for IDPs
-global.connection.query('SELECT * FROM `idp` WHERE entryPoint IS NOT NULL',
-  function (err, rows) {
-    if (err) {
-      log(["Could not setup IDPs.", err], 3)
-      return
-    }
-
-    // next block is temporary
-    rows = rows
-      .map(row => ([
-        row,
-        {
-          ...row,
-          old: true,
-        },
-      ]))
-      .flat()
-
-    rows.forEach(function(row) {
-      const baseUrl = util.getDataOrigin(row)
-      const samlStrategy = new saml.Strategy(
-        {
-          issuer: baseUrl + "/shibboleth",
-          identifierFormat: null,
-          validateInResponseTo: false,
-          disableRequestedAuthnContext: true,
-          callbackUrl: baseUrl + "/login/" + row.id + "/callback",
-          entryPoint: row.entryPoint,
-          logoutUrl: row.logoutUrl,
-          logoutCallbackUrl: baseUrl + "/logout/callback",
-          cert: row.idpcert,
-          decryptionPvk: row.spkey,
-          privateCert: row.spkey,
-          passReqToCallback: true,
-        },
-        function(req, profile, done) {
-          strategyCallback(req, row, profile, done)
+readyPromises.push(
+  new Promise(shibbolethSetupPromiseResolve => {
+    global.connection.query('SELECT * FROM `idp` WHERE entryPoint IS NOT NULL',
+      function (err, rows) {
+        if (err) {
+          log(["Could not setup IDPs.", err], 3)
+          shibbolethSetupPromiseResolve()
+          return
         }
-      )
 
-      const dataDomain = util.getDataDomain(row)
+        // next block is temporary
+        rows = rows
+          .map(row => ([
+            row,
+            {
+              ...row,
+              old: true,
+            },
+          ]))
+          .flat()
 
-      passport.use(dataDomain, samlStrategy)
-
-      authFuncs[dataDomain] = {
-        getMetaData: function() {
-          return samlStrategy.generateServiceProviderMetadata(row.spcert, row.spcert)
-        },
-        logout: function(req, res, next) {
-          log(['Logout', req.user], 2)
-
-          switch(process.env.AUTH_METHOD_OVERRIDE || row.authMethod) {
-            case 'SESSION_SHARING': {
-              log('Redirect to session-sharing SLO')
-              res.redirect(
-                row.sessionSharingAsRecipientInfo.logoutUrl
-                || `${util.getFrontendBaseUrl(req)}#/error#${encodeURIComponent(JSON.stringify({ message: "Your session has timed out. Please log out and log back in again.", widget: 1 }))}`
-              )
-              break
+        rows.forEach(function(row) {
+          const baseUrl = util.getDataOrigin(row)
+          const samlStrategy = new saml.Strategy(
+            {
+              issuer: baseUrl + "/shibboleth",
+              identifierFormat: null,
+              validateInResponseTo: false,
+              disableRequestedAuthnContext: true,
+              callbackUrl: baseUrl + "/login/" + row.id + "/callback",
+              entryPoint: row.entryPoint,
+              logoutUrl: row.logoutUrl,
+              logoutCallbackUrl: baseUrl + "/logout/callback",
+              cert: row.idpcert,
+              decryptionPvk: row.spkey,
+              privateCert: row.spkey,
+              passReqToCallback: true,
+            },
+            function(req, profile, done) {
+              strategyCallback(req, row, profile, done)
             }
-            case 'SHIBBOLETH': {
-              if(req.user.ssoData) {
-                log('Redirect to SLO')
-                samlStrategy.logout({ user: req.user.ssoData }, function(err2, req2){
-                  if (err2) return next(err2)
-    
-                  log('Back from SLO')
-                  //redirect to the IdP Logout URL
-                  res.redirect(req2)
-                })
-              } else {
-                // not sure why it gets here sometimes, but it does
-                log('No ssoData. Skipping SLO and redirecting to /logout/callback.', 2)
-                res.redirect("/logout/callback")
+          )
+
+          const dataDomain = util.getDataDomain(row)
+
+          passport.use(dataDomain, samlStrategy)
+
+          authFuncs[dataDomain] = {
+            getMetaData: function() {
+              return samlStrategy.generateServiceProviderMetadata(row.spcert, row.spcert)
+            },
+            logout: function(req, res, next) {
+              log(['Logout', req.user], 2)
+
+              switch(process.env.AUTH_METHOD_OVERRIDE || row.authMethod) {
+                case 'SESSION_SHARING': {
+                  log('Redirect to session-sharing SLO')
+                  res.redirect(
+                    row.sessionSharingAsRecipientInfo.logoutUrl
+                    || `${util.getFrontendBaseUrl(req)}#/error#${encodeURIComponent(JSON.stringify({ message: "Your session has timed out. Please log out and log back in again.", widget: 1 }))}`
+                  )
+                  break
+                }
+                case 'SHIBBOLETH': {
+                  if(req.user.ssoData) {
+                    log('Redirect to SLO')
+                    samlStrategy.logout({ user: req.user.ssoData }, function(err2, req2){
+                      if (err2) return next(err2)
+        
+                      log('Back from SLO')
+                      //redirect to the IdP Logout URL
+                      res.redirect(req2)
+                    })
+                  } else {
+                    // not sure why it gets here sometimes, but it does
+                    log('No ssoData. Skipping SLO and redirecting to /logout/callback.', 2)
+                    res.redirect("/logout/callback")
+                  }
+                  break
+                }
+                default: {
+                  log('No call to SLO', 2)
+                  res.redirect("/logout/callback")
+                }
               }
-              break
-            }
-            default: {
-              log('No call to SLO', 2)
-              res.redirect("/logout/callback")
             }
           }
-        }
-      }
 
-    })
-  }
+        })
+
+        shibbolethSetupPromiseResolve()
+      }
+    )
+  })
 )
 
 const ensureAuthenticated = async (req, res, next) => {
