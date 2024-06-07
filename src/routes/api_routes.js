@@ -17,6 +17,14 @@ module.exports = function (app, connection, log) {
         req,
       }).then(() => {
         res.send({ success: true })
+
+        // Refresh the session
+        if (req.session) {
+          req.session.reload(err => {
+            if (err) log(['Session reload failed.', err], 3)
+            else log(['Session reloaded successfully'], 1)
+          })
+        }
       })
     }
   )
