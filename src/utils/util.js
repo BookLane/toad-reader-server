@@ -1428,7 +1428,10 @@ const util = {
         // },
         vars,
         (err, result) => {
-          if(err) return next(err)
+          if(err) {
+            next(err)
+            resolve()
+          }
           resolve(result)
         }
       )

@@ -24,12 +24,12 @@ const sendEmail = input => {
 
     let { toAddrs, ccAddrs=[], bccAddrs=[], replyToAddrs, subject, body, req, language, skipGreeting, skipInnerBG, bodyMaxWidth } = input
 
-    const locale = language || req.idpLang || 'en'
+    const locale = language || (req || {}).idpLang || 'en'
 
     global.connection.query(
       `SELECT * FROM idp WHERE domain=:domain`,
       {
-        domain: util.getIDPDomain(req.headers),
+        domain: req ? util.getIDPDomain(req.headers) : `books.toadreader.com`,
       },
       (err, rows) => {
         if(err) {

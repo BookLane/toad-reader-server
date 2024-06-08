@@ -15,6 +15,7 @@ const util = require('./src/utils/util')
 const jwt = require('jsonwebtoken')
 const { i18nSetup } = require("inline-i18n")
 const fs = require('fs')
+const sendEmail = require('./src/utils/sendEmail')
 require("array-flat-polyfill")  // Array.flat function
 
 ////////////// SETUP SERVER //////////////
@@ -335,99 +336,114 @@ const strategyCallback = function(req, idp, profile, done) {
 
 // setup SAML strategies for IDPs
 readyPromises.push(
-  new Promise(shibbolethSetupPromiseResolve => {
-    global.connection.query('SELECT * FROM `idp` WHERE entryPoint IS NOT NULL',
-      function (err, rows) {
-        if (err) {
-          log(["Could not setup IDPs.", err], 3)
-          shibbolethSetupPromiseResolve()
-          return
+  (async () => {
+
+    let rows
+
+    // try 5 times before giving up
+    for(let i=0; i<5; i++) {
+      rows = await util.runQuery({
+        query: 'SELECT * FROM `idp` WHERE entryPoint IS NOT NULL',
+        next: err => {
+          log(["Could not setup IDPs.", i<4 ? `(Will retry)` : `(No more retries)`, err], 3)
+        },
+      })
+      if(rows) break
+      await new Promise(resolve => setTimeout(resolve, 500))
+      await util.getValidConnection()
+    }
+
+    if(!rows) {
+      await sendEmail({
+        toAddrs: `support@toadreader.com`,
+        subject: `SERVER ERROR: Could not run start-up query to create IDP endpoints`,
+        body: `Fix this problem immediately as it means that tenants with Shibboleth cannot log in.`,
+      })
+      return
+    }
+
+    // next block is temporary
+    rows = rows
+      .map(row => ([
+        row,
+        {
+          ...row,
+          old: true,
+        },
+      ]))
+      .flat()
+
+    rows.forEach(function(row) {
+      const baseUrl = util.getDataOrigin(row)
+      const samlStrategy = new saml.Strategy(
+        {
+          issuer: baseUrl + "/shibboleth",
+          identifierFormat: null,
+          validateInResponseTo: false,
+          disableRequestedAuthnContext: true,
+          callbackUrl: baseUrl + "/login/" + row.id + "/callback",
+          entryPoint: row.entryPoint,
+          logoutUrl: row.logoutUrl,
+          logoutCallbackUrl: baseUrl + "/logout/callback",
+          cert: row.idpcert,
+          decryptionPvk: row.spkey,
+          privateCert: row.spkey,
+          passReqToCallback: true,
+        },
+        function(req, profile, done) {
+          strategyCallback(req, row, profile, done)
         }
+      )
 
-        // next block is temporary
-        rows = rows
-          .map(row => ([
-            row,
-            {
-              ...row,
-              old: true,
-            },
-          ]))
-          .flat()
+      const dataDomain = util.getDataDomain(row)
 
-        rows.forEach(function(row) {
-          const baseUrl = util.getDataOrigin(row)
-          const samlStrategy = new saml.Strategy(
-            {
-              issuer: baseUrl + "/shibboleth",
-              identifierFormat: null,
-              validateInResponseTo: false,
-              disableRequestedAuthnContext: true,
-              callbackUrl: baseUrl + "/login/" + row.id + "/callback",
-              entryPoint: row.entryPoint,
-              logoutUrl: row.logoutUrl,
-              logoutCallbackUrl: baseUrl + "/logout/callback",
-              cert: row.idpcert,
-              decryptionPvk: row.spkey,
-              privateCert: row.spkey,
-              passReqToCallback: true,
-            },
-            function(req, profile, done) {
-              strategyCallback(req, row, profile, done)
+      passport.use(dataDomain, samlStrategy)
+
+      authFuncs[dataDomain] = {
+        getMetaData: function() {
+          return samlStrategy.generateServiceProviderMetadata(row.spcert, row.spcert)
+        },
+        logout: function(req, res, next) {
+          log(['Logout', req.user], 2)
+
+          switch(process.env.AUTH_METHOD_OVERRIDE || row.authMethod) {
+            case 'SESSION_SHARING': {
+              log('Redirect to session-sharing SLO')
+              res.redirect(
+                row.sessionSharingAsRecipientInfo.logoutUrl
+                || `${util.getFrontendBaseUrl(req)}#/error#${encodeURIComponent(JSON.stringify({ message: "Your session has timed out. Please log out and log back in again.", widget: 1 }))}`
+              )
+              break
             }
-          )
-
-          const dataDomain = util.getDataDomain(row)
-
-          passport.use(dataDomain, samlStrategy)
-
-          authFuncs[dataDomain] = {
-            getMetaData: function() {
-              return samlStrategy.generateServiceProviderMetadata(row.spcert, row.spcert)
-            },
-            logout: function(req, res, next) {
-              log(['Logout', req.user], 2)
-
-              switch(process.env.AUTH_METHOD_OVERRIDE || row.authMethod) {
-                case 'SESSION_SHARING': {
-                  log('Redirect to session-sharing SLO')
-                  res.redirect(
-                    row.sessionSharingAsRecipientInfo.logoutUrl
-                    || `${util.getFrontendBaseUrl(req)}#/error#${encodeURIComponent(JSON.stringify({ message: "Your session has timed out. Please log out and log back in again.", widget: 1 }))}`
-                  )
-                  break
-                }
-                case 'SHIBBOLETH': {
-                  if(req.user.ssoData) {
-                    log('Redirect to SLO')
-                    samlStrategy.logout({ user: req.user.ssoData }, function(err2, req2){
-                      if (err2) return next(err2)
-        
-                      log('Back from SLO')
-                      //redirect to the IdP Logout URL
-                      res.redirect(req2)
-                    })
-                  } else {
-                    // not sure why it gets here sometimes, but it does
-                    log('No ssoData. Skipping SLO and redirecting to /logout/callback.', 2)
-                    res.redirect("/logout/callback")
-                  }
-                  break
-                }
-                default: {
-                  log('No call to SLO', 2)
-                  res.redirect("/logout/callback")
-                }
+            case 'SHIBBOLETH': {
+              if(req.user.ssoData) {
+                log('Redirect to SLO')
+                samlStrategy.logout({ user: req.user.ssoData }, function(err2, req2){
+                  if (err2) return next(err2)
+    
+                  log('Back from SLO')
+                  //redirect to the IdP Logout URL
+                  res.redirect(req2)
+                })
+              } else {
+                // not sure why it gets here sometimes, but it does
+                log('No ssoData. Skipping SLO and redirecting to /logout/callback.', 2)
+                res.redirect("/logout/callback")
               }
+              break
+            }
+            default: {
+              log('No call to SLO', 2)
+              res.redirect("/logout/callback")
             }
           }
-
-        })
-
-        shibbolethSetupPromiseResolve()
+        }
       }
-    )
-  })
+
+    })
+
+    log(["Successfully setup IDPs."], 1)
+  })()
 )
 
 const ensureAuthenticated = async (req, res, next) => {
