@@ -1,18 +1,34 @@
 const moment = require('moment')
-const redis = require('redis')
 const jwt = require('jsonwebtoken')
 const fetch = require('node-fetch')
 const { i18n } = require("inline-i18n")
 const AWS = require('aws-sdk')
-const s3 = new AWS.S3()
 const cookie = require('cookie-signature')
 const md5 = require('md5')
 const useragent = require('useragent')
+const session = require('express-session')
+const MySQLStore = require('express-mysql-session')(session)
+const mysql = require('mysql')
+const SqlString = require('mysql/lib/protocol/SqlString')
 
 const getShopifyUserInfo = require('./getShopifyUserInfo')
 
-const fakeRedisClient = {}
 const API_VERSION = '1.0'
+
+const s3Config = {}
+if(process.env.AWS_KEY && process.env.AWS_SECRET) {
+  s3Config.accessKeyId = process.env.AWS_KEY
+  s3Config.secretAccessKey = process.env.AWS_SECRET
+}
+const s3 = new AWS.S3(s3Config)
+
+const mySqlSessionOptions = {
+  host: process.env.OVERRIDE_RDS_HOSTNAME || process.env.RDS_HOSTNAME,
+  port: process.env.OVERRIDE_RDS_PORT || process.env.RDS_PORT,
+  user: process.env.OVERRIDE_RDS_USERNAME || process.env.RDS_USERNAME,
+  password: process.env.OVERRIDE_RDS_PASSWORD || process.env.RDS_PASSWORD,
+  database: process.env.OVERRIDE_RDS_DB_NAME || process.env.RDS_DB_NAME,
+}
 
 var getXapiActor = function(params) {
   return {
@@ -203,7 +219,55 @@ const jsonCols = {
   highlight: [ 'sketch' ],
 }
 
+const openConnection = () => {
+
+  console.log(`Establish connection pool`)
+
+  global.connection = mysql.createPool({
+    host: process.env.OVERRIDE_RDS_HOSTNAME || process.env.RDS_HOSTNAME,
+    port: process.env.OVERRIDE_RDS_PORT || process.env.RDS_PORT,
+    user: process.env.OVERRIDE_RDS_USERNAME || process.env.RDS_USERNAME,
+    password: process.env.OVERRIDE_RDS_PASSWORD || process.env.RDS_PASSWORD,
+    database: process.env.OVERRIDE_RDS_DB_NAME || process.env.RDS_DB_NAME,
+    multipleStatements: true,
+    dateStrings: true,
+    charset : 'utf8mb4',
+    queryFormat: function (query, values) {
+      if(!values) return query
+
+      if(/\:(\w+)/.test(query)) {
+        return query.replace(/\:(\w+)/g, (txt, key) => {
+          if(values.hasOwnProperty(key)) {
+            return this.escape(values[key])
+          }
+          return txt
+        })
+
+      } else {
+        return SqlString.format(query, values, this.config.stringifyObjects, this.config.timezone)
+      }
+    },
+    // debug: true,
+  })
+
+  // It seems that when a lambda instance is connected too long, and so its db connection
+  // exceeds 8 hours, that the connection times out and all queries fail. To prevent this,
+  // we are using connection pooling and closing all the connections every hour. (This timeout
+  // should only actually fire if the lambda instance persists over an hour.)
+  // See https://stackoverflow.com/questions/70645884/error-packets-out-of-order-got-0-expected-3
+  setTimeout(() => {
+    console.log(`Close connection pool`)
+    global.connection.end()
+    delete global.connection
+  }, 1000 * 60 * 60)
+
+  return global.connection
+
+}
+
 const util = {
+
+  s3,
 
   NOT_DELETED_AT_TIME: '0000-01-01 00:00:00',
 
@@ -220,20 +284,9 @@ const util = {
     })
   },
 
-  redisStore: (
-    process.env.IS_DEV
-      ? {
-        get: (key, callback) => {
-          callback && callback(null, fakeRedisClient[key])
-        },
-        set: (key, val, ...otherParams) => {
-          fakeRedisClient[key] = val
-          const callback = otherParams.pop()
-          callback && callback()
-        },
-      }
-      : redis.createClient(process.env.REDIS_PORT, process.env.REDIS_HOSTNAME)
-  ),
+  session,
+
+  sessionStore: new MySQLStore(mySqlSessionOptions),
 
   getUTCTimeStamp: function(){
     return new Date().getTime();
@@ -411,7 +464,7 @@ const util = {
       return `${process.env.DEV_NETWORK_IP || `localhost`}:8080`
     }
   
-    if(env ? env === 'staging' : process.env.IS_STAGING) {
+    if(env ? env === 'staging' : (process.env.IS_STAGING === `1`)) {
       // staging environment
       return `${encodeDomain(domain, old)}.data.staging.toadreader.com`
     }
@@ -444,7 +497,7 @@ const util = {
       domain = `${process.env.DEV_NETWORK_IP || `localhost`}:19006`
     }
 
-    if(env ? env === 'staging' : process.env.IS_STAGING) {
+    if(env ? env === 'staging' : (process.env.IS_STAGING === `1`)) {
       domain = `${dashifyDomain(domain)}.staging.toadreader.com`
     }
 
@@ -470,7 +523,6 @@ const util = {
     next,
     req,
     res,
-    connection,
     log,
     userInfo={},
   }) => {
@@ -520,7 +572,7 @@ const util = {
         // next('Bad login.')
       }
 
-      return await util.updateUserInfo({ connection, log, userInfo, idpId: idp.id, updateLastLoginAt: true, next, req })
+      return await util.updateUserInfo({ log, userInfo, idpId: idp.id, updateLastLoginAt: true, next, req })
     }
 
     if(/^shopify:/.test(idp.userInfoEndpoint)) {
@@ -542,7 +594,7 @@ const util = {
         // next('Bad login.')
       }
 
-      return await util.updateUserInfo({ connection, log, userInfo, idpId: idp.id, updateLastLoginAt: true, next, req })
+      return await util.updateUserInfo({ log, userInfo, idpId: idp.id, updateLastLoginAt: true, next, req })
     }
 
     const payload = jwt.sign({ idpUserId }, idp.userInfoJWT)
@@ -562,7 +614,6 @@ const util = {
             idpUserId,
             idpId: idp.id,
           },
-          connection,
           next,
         })
         if(adminLevel === `NONE`) {
@@ -582,7 +633,7 @@ const util = {
           books: [],
           ...userInfo,
         }
-        return await util.updateUserInfo({ connection, log, userInfo, idpId: idp.id, updateLastLoginAt: true, next, req })
+        return await util.updateUserInfo({ log, userInfo, idpId: idp.id, updateLastLoginAt: true, next, req })
       } else if(response.status !== 200) {
         log([`Invalid response from userInfoEndpoint`, url], 3)
         // next('Bad login.')
@@ -604,7 +655,7 @@ const util = {
       // next('Bad login.')
     }
 
-    return await util.updateUserInfo({ connection, log, userInfo, idpId: idp.id, updateLastLoginAt: true, next, req })
+    return await util.updateUserInfo({ log, userInfo, idpId: idp.id, updateLastLoginAt: true, next, req })
 
   },
 
@@ -614,7 +665,6 @@ const util = {
     idpUserId,
     next,
     req,
-    connection,
     log,
   }) => {
 
@@ -662,11 +712,11 @@ const util = {
       throw err
     }
 
-    await util.updateUserInfo({ connection, log, userInfo, idpId: idp.id, next, req })
+    await util.updateUserInfo({ log, userInfo, idpId: idp.id, next, req })
 
   },
 
-  updateUserInfo: async ({ connection, log, userInfo, idpId, updateLastLoginAt=false, req, next }) => {
+  updateUserInfo: async ({ log, userInfo, idpId, updateLastLoginAt=false, req, next }) => {
 
     // Payload:
     // {
@@ -772,7 +822,6 @@ const util = {
         idpId,
         idpUserId,
       },
-      connection,
       next,
     })
 
@@ -812,7 +861,6 @@ const util = {
     const results = await util.runQuery({
       query,
       vars,
-      connection,
       next,
     })
 
@@ -830,7 +878,6 @@ const util = {
           idpId,
           bookIds: books.map(({ id }) => parseInt(id, 10)).concat([0]),
         },
-        connection,
         next,
       })
 
@@ -870,7 +917,6 @@ const util = {
             insertCols,
             updateCols,
           },
-          connection,
           next,
         })
       }
@@ -891,7 +937,6 @@ const util = {
             bookIds: filteredBooks.map(({ id }) => parseInt(id, 10)).concat([0]),
             now,
           },
-          connection,
           next,
         })
       }
@@ -909,7 +954,6 @@ const util = {
           idpId,
           subscriptionIds: subscriptions.map(({ id }) => parseInt(id, 10)).concat([0]),
         },
-        connection,
         next,
       })
 
@@ -946,7 +990,6 @@ const util = {
             insertCols,
             updateCols,
           },
-          connection,
           next,
         })
       }
@@ -966,7 +1009,6 @@ const util = {
             subscriptionIds: filteredSubscriptions.map(({ id }) => parseInt(id, 10)).concat([0]),
             now,
           },
-          connection,
           next,
         })
       }
@@ -974,7 +1016,7 @@ const util = {
     }
 
     // update computed books
-    await util.updateComputedBookAccess({ idpId, userId, connection, log })
+    await util.updateComputedBookAccess({ idpId, userId, log })
 
     return {
       userId,
@@ -982,7 +1024,7 @@ const util = {
     }
   },
 
-  hasAccess: ({ bookId, requireEnhancedToolsAccess=false, req, connection, log, next }) => new Promise(resolveAll => {
+  hasAccess: ({ bookId, requireEnhancedToolsAccess=false, req, log, next }) => new Promise(resolveAll => {
 
     if(!req.isAuthenticated()) {
       resolveAll(false);
@@ -991,7 +1033,7 @@ const util = {
 
     const now = util.timestampToMySQLDatetime();
 
-    connection.query(
+    global.connection.query(
       `
         SELECT cba.version, cba.enhanced_tools_expire_at
         FROM book as b
@@ -1036,7 +1078,7 @@ const util = {
 
   }),
 
-  hasClassroomAssetAccess: async ({ classroomUid, req, connection, next }) => {
+  hasClassroomAssetAccess: async ({ classroomUid, req, next }) => {
 
     if(!req.isAuthenticated()) return false
 
@@ -1073,7 +1115,6 @@ const util = {
         userId: req.user.id,
         now,
       },
-      connection,
       next,
     })
 
@@ -1081,10 +1122,10 @@ const util = {
 
   },
 
-  updateComputedBookAccess: ({ idpId, userId, bookId, connection, log }) => new Promise(resolve => {
+  updateComputedBookAccess: ({ idpId, userId, bookId, log }) => new Promise(resolve => {
 
-    // idpId and connection are required
-    if(!idpId || !connection) {
+    // idpId is required
+    if(!idpId) {
       throw new Error(`updateComputedBookAccess missing param`)
     }
 
@@ -1092,7 +1133,7 @@ const util = {
     // look up all relevant default books info
     // look up all relevant subscription info
     // look up all relevant computed book access rows
-    connection.query(
+    global.connection.query(
       `
         SELECT bi.*
         FROM book_instance as bi
@@ -1197,8 +1238,8 @@ const util = {
           computedBookAccessRowsByBookIdAndUserId[getKey(row)] = row
         })
 
-        const getSet = row => Object.keys(row).map(key => `${key}=${connection.escape(row[key])}`).join(', ')
-        const getWhere = row => [ 'idp_id', 'user_id', 'book_id' ].map(key => `${key}=${connection.escape(row[key])}`).join(' AND ')
+        const getSet = row => Object.keys(row).map(key => `${key}=${global.connection.escape(row[key])}`).join(', ')
+        const getWhere = row => [ 'idp_id', 'user_id', 'book_id' ].map(key => `${key}=${global.connection.escape(row[key])}`).join(' AND ')
 
         const inserts = Object.values(updatedComputedBookAccessRowsByBookIdAndUserId).filter(row => !computedBookAccessRowsByBookIdAndUserId[getKey(row)])
         const userIdsToDelete = Object.values(computedBookAccessRowsByBookIdAndUserId).filter(row => !updatedComputedBookAccessRowsByBookIdAndUserId[getKey(row)]).map(({ user_id }) => user_id)
@@ -1216,7 +1257,7 @@ const util = {
                     .map(row => `
                       (${
                         Object.keys(row).map(key => (
-                          connection.escape(row[key])
+                          global.connection.escape(row[key])
                         ))
                       })
                     `)
@@ -1249,8 +1290,8 @@ const util = {
               )
               : ([`
                 DELETE FROM computed_book_access
-                WHERE idp_id=${connection.escape(idpId)}
-                  AND book_id=${connection.escape(bookId)}
+                WHERE idp_id=${global.connection.escape(idpId)}
+                  AND book_id=${global.connection.escape(bookId)}
                   AND user_id ${
                     userIdsToDelete.length > userIdsToNotDelete.length ? `NOT` : ``
                   } IN(${
@@ -1269,7 +1310,7 @@ const util = {
 
         log([`Re-computed computed_book_access. Running ${modificationQueries.length} queries to update.`, { idpId, userId, bookId }, modificationQueries], 1)
 
-        connection.query(
+        global.connection.query(
           modificationQueries.join('; '),
           {
             idpId,
@@ -1343,7 +1384,7 @@ const util = {
   ),
 
   getLoginInfoByAccessCode: ({ accessCode, destroyAfterGet, next }) => new Promise(resolve => {
-    util.redisStore.get(`login access code: ${accessCode}`, (err, value) => {
+    util.sessionStore.get(`login access code: ${accessCode}`, (err, value) => {
       if(err) return next(err)
 
       try {
@@ -1353,13 +1394,13 @@ const util = {
       }
 
       if(destroyAfterGet) {
-        util.redisStore.set(`login access code: ${accessCode}`, '', 'EX', 1)
+        util.sessionStore.set(`login access code: ${accessCode}`, '', 'EX', 1)
       }
     })
   }),
 
   setLoginInfoByAccessCode: ({ accessCode, loginInfo, next }) => new Promise(resolve => {
-    util.redisStore.set(
+    util.sessionStore.set(
       `login access code: ${accessCode}`,
       JSON.stringify(loginInfo),
       'EX',
@@ -1376,9 +1417,9 @@ const util = {
     return re.test(email)
   },
 
-  runQuery: ({ query, queries, vars, connection, next }) => (
+  runQuery: ({ query, queries, vars, next }) => (
     new Promise(resolve => {
-      const { sql } = connection.query(
+      const { sql } = global.connection.query(
         query || queries.join(';'),
         // The following did not seem to work
         // {
@@ -1387,7 +1428,10 @@ const util = {
         // },
         vars,
         (err, result) => {
-          if(err) return next(err)
+          if(err) {
+            next(err)
+            resolve()
+          }
           resolve(result)
         }
       )
@@ -1396,14 +1440,13 @@ const util = {
     })
   ),
 
-  decodeJWT: ({ jwtColInIdp='internalJWT', connection, log, ignoreError }) => async (req, res, next) => {
+  decodeJWT: ({ jwtColInIdp='internalJWT', log, ignoreError }) => async (req, res, next) => {
 
     const [ idpRow ] = await util.runQuery({
       query: `SELECT id, ${jwtColInIdp} FROM idp WHERE domain=:domain`,
       vars: {
         domain: util.getIDPDomain(req.headers),
       },
-      connection,
       next,
     })
 
@@ -1426,14 +1469,14 @@ const util = {
 
   },
 
-  setIdpLang: ({ connection }) => (req, res, next) => {
+  setIdpLang: () => (req, res, next) => {
 
     if(req.isAuthenticated()) {
       req.idpLang = req.user.idpLang
       return next()
     }
 
-    connection.query(
+    global.connection.query(
       'SELECT language FROM `idp` WHERE domain=?',
       [util.getIDPDomain(req.headers)],
       (err, rows) => {
@@ -1537,7 +1580,7 @@ const util = {
     return true
   },
 
-  dieOnNoClassroomEditPermission: async ({ connection, next, req, log, classroomUid }) => {
+  dieOnNoClassroomEditPermission: async ({ next, req, log, classroomUid }) => {
     const isDefaultClassroomUid = /^[0-9]+-[0-9]+$/.test(classroomUid)
     const now = util.timestampToMySQLDatetime()
 
@@ -1571,7 +1614,6 @@ const util = {
         userId: req.user.id,
         now,
       },
-      connection,
       next,
     })
 
@@ -1584,7 +1626,7 @@ const util = {
     return true
   },
 
-  getClassroomIfHasPermission: async ({ connection, req: { user, params }, next, roles }) => {
+  getClassroomIfHasPermission: async ({ req: { user, params }, next, roles }) => {
 
     const now = util.timestampToMySQLDatetime()
     const defaultClassroomUidRegex = new RegExp(`^${user.idpId}-[0-9]+$`)
@@ -1632,7 +1674,6 @@ const util = {
         ),
         now,
       },
-      connection,
       next,
     })
 
@@ -1659,7 +1700,7 @@ const util = {
     })
   }),
 
-  getLibrary: async ({ req, res, next, log, connection, newBookId }) => {
+  getLibrary: async ({ req, res, next, log, newBookId }) => {
 
     const now = util.timestampToMySQLDatetime();
 
@@ -1668,7 +1709,6 @@ const util = {
       vars: {
         idpId: req.user.idpId,
       },
-      connection,
       next,
     })
 
@@ -1686,7 +1726,7 @@ const util = {
 
     // look those books up in the database and form the library
     log('Lookup library');
-    connection.query(`
+    global.connection.query(`
       SELECT
         b.id,
         b.title,
@@ -1810,6 +1850,27 @@ const util = {
   },
 
   API_VERSION,
+
+  openConnection,
+
+  getValidConnection: async () => {  // Connect to DB if not already connected
+
+    if(global.connection) {
+      try {
+        await global.connection.query(`SELECT 1`)  // test the connection
+      } catch(err) {
+        console.error(`Connection was present, but not working. Attempting to delete and re-establish it.`, err)
+        delete global.connection
+      }
+    }
+
+    if(!global.connection) {
+      openConnection()
+    }
+
+    return global.connection
+
+  },
 
 }
 

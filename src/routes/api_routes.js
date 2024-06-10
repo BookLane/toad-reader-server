@@ -1,15 +1,14 @@
 const getShopifyUserInfo = require('../utils/getShopifyUserInfo')
 var util = require('../utils/util')
 
-module.exports = function (app, connection, log) {
+module.exports = function (app, log) {
 
   app.post('/updateuserinfo',
-    util.decodeJWT({ jwtColInIdp: 'userInfoJWT', connection, log }),
+    util.decodeJWT({ jwtColInIdp: 'userInfoJWT', log }),
     (req, res, next) => {
-      log(["/updateuserinfo post", req.body, JSON.stringify(req.payload_decoded, null, 2)], 2)
+      log(["/updateuserinfo post", req.idpId, req.body, JSON.stringify(req.payload_decoded, null, 2)], 2)
 
       util.updateUserInfo({
-        connection,
         log,
         userInfo: req.payload_decoded,
         idpId: req.idpId,
@@ -29,7 +28,6 @@ module.exports = function (app, connection, log) {
         vars: {
           domain: util.getIDPDomain(req.headers),
         },
-        connection,
         next,
       })
 
@@ -56,7 +54,6 @@ module.exports = function (app, connection, log) {
               idpId: idp.id,
               email,
             },
-            connection,
             next,
           })
 
@@ -68,7 +65,7 @@ module.exports = function (app, connection, log) {
               log,
             })
 
-            await util.updateUserInfo({ connection, log, userInfo, idpId: idp.id, next, req })
+            await util.updateUserInfo({ log, userInfo, idpId: idp.id, next, req })
 
           } else {
             // If they have never actually logged in, there is no need to update the book list

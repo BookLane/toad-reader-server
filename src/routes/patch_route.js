@@ -3,7 +3,7 @@ const patchLatestLocation = require('./patch_keys/patch_latest_location')
 const patchHighlights = require('./patch_keys/patch_highlights')
 const patchClassrooms = require('./patch_keys/patch_classrooms')
 
-module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log) {
+module.exports = function (app, ensureAuthenticatedAndCheckIDP, log) {
 
   // books.toadreader.com/users/{user_id}/books/{book_id}.json
   app.all('/users/:userId/books/:bookId.json', ensureAuthenticatedAndCheckIDP, function (req, res, next) {
@@ -43,7 +43,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
       patchHighlights.addPreQueries({ ...req, preQueries })
       patchClassrooms.addPreQueries({ ...req, preQueries })
 
-      connection.query(
+      global.connection.query(
         preQueries.queries.join('; '),
         preQueries.vars,
         function (err, results) {
@@ -85,7 +85,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
               const query = queriesToRun.shift()
               log(['Patch query', query])
 
-              connection.query(
+              global.connection.query(
                 query.query,
                 query.vars,
                 async (err, result) => {
@@ -109,7 +109,6 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
 
                     // if(!basedOffIsDefaultClassroomUid) {
                     //   await util.dieOnNoClassroomEditPermission({
-                    //     connection,
                     //     next,
                     //     req,
                     //     log,

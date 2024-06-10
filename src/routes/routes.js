@@ -1,4 +1,4 @@
-module.exports = function (app, s3, connection, passport, authFuncs, ensureAuthenticated, logIn, log) {
+module.exports = function (app, s3, passport, authFuncs, ensureAuthenticated, logIn, log) {
 
   var path = require('path');
   var fs = require('fs');
@@ -10,7 +10,7 @@ module.exports = function (app, s3, connection, passport, authFuncs, ensureAuthe
   //     var currentMySQLDatetime = util.timestampToMySQLDatetime();
 
   //     log('Checking that temp demo IDP still exists');
-  //     connection.query('SELECT * FROM `idp` WHERE id=? AND (demo_expires_at IS NULL OR demo_expires_at>?)',
+  //     global.connection.query('SELECT * FROM `idp` WHERE id=? AND (demo_expires_at IS NULL OR demo_expires_at>?)',
   //       [req.user.idpId, currentMySQLDatetime],
   //       function (err, rows) {
   //         if (err) return next(err);
@@ -42,16 +42,17 @@ module.exports = function (app, s3, connection, passport, authFuncs, ensureAuthe
     return ensureAuthenticated(req, res, next);
   }
 
-  require('./auth_routes')(app, passport, authFuncs, connection, ensureAuthenticated, logIn, log);
-  require('./api_routes')(app, connection, log);
-  require('./admin_routes')(app, s3, connection, ensureAuthenticatedAndCheckIDP, log);
-  require('./user_routes')(app, connection, ensureAuthenticatedAndCheckIDP, ensureAuthenticatedAndCheckIDPWithRedirect, log);
-  require('./search_routes')(app, connection, ensureAuthenticatedAndCheckIDP, log);
-  require('./lti_routes')(app, connection, ensureAuthenticatedAndCheckIDP, log);
-  require('./dashboard_routes')(app, connection, ensureAuthenticatedAndCheckIDP, log);
-  require('./patch_route')(app, connection, ensureAuthenticatedAndCheckIDP, log);
-  require('./connect_to_classroom_routes')(app, connection, ensureAuthenticatedAndCheckIDP, log);
-  require('./xapi_routes')(app, connection, ensureAuthenticatedAndCheckIDP, log);
+  require('./auth_routes')(app, passport, authFuncs, ensureAuthenticated, logIn, log);
+  require('./api_routes')(app, log);
+  require('./admin_routes')(app, s3, ensureAuthenticatedAndCheckIDP, log);
+  require('./user_routes')(app, ensureAuthenticatedAndCheckIDP, ensureAuthenticatedAndCheckIDPWithRedirect, log);
+  require('./search_routes')(app, ensureAuthenticatedAndCheckIDP, log);
+  require('./lti_routes')(app, ensureAuthenticatedAndCheckIDP, log);
+  require('./dashboard_routes')(app, ensureAuthenticatedAndCheckIDP, log);
+  require('./patch_route')(app, ensureAuthenticatedAndCheckIDP, log);
+  require('./connect_to_classroom_routes')(app, ensureAuthenticatedAndCheckIDP, log);
+  require('./xapi_routes')(app, ensureAuthenticatedAndCheckIDP, log);
+  require('./discussion_routes')(app, ensureAuthenticatedAndCheckIDP, log);
 
   var getAssetFromS3 = function(req, res, next, notFoundCallback, tryWithoutDecode) {
     var urlWithoutQuery = req.originalUrl.replace(/(\?.*)?$/, '').replace(/^\/book/,'').replace(/%20/g, ' ');
@@ -177,7 +178,7 @@ module.exports = function (app, s3, connection, passport, authFuncs, ensureAuthe
       if(req.isAuthenticated()) {
         getIco(req.user.idpId);
       } else {
-        connection.query('SELECT id FROM `idp` WHERE domain=?',
+        global.connection.query('SELECT id FROM `idp` WHERE domain=?',
           [util.getIDPDomain(req.headers)],
           function (err, rows) {
             if (err) return next(err);
@@ -219,7 +220,7 @@ module.exports = function (app, s3, connection, passport, authFuncs, ensureAuthe
     // check that they have access if this is a book
     if(urlPieces[1] == 'epub_content') {
 
-      const accessInfo = await util.hasAccess({ bookId, req, connection, log, next })
+      const accessInfo = await util.hasAccess({ bookId, req, log, next })
 
       if(!accessInfo) {
         log(['They do not have access to this book', bookId], 2)
@@ -258,7 +259,7 @@ module.exports = function (app, s3, connection, passport, authFuncs, ensureAuthe
 
         }
 
-        connection.query(queries.join(';'), vars, (err, results) => {
+        global.connection.query(queries.join(';'), vars, (err, results) => {
           if (err) return next(err)
           getAssetFromS3(req, res, next)
         })
@@ -271,7 +272,7 @@ module.exports = function (app, s3, connection, passport, authFuncs, ensureAuthe
 
       const classroomUid = urlPieces[2]
 
-      const hasAccess = await util.hasClassroomAssetAccess({ classroomUid, req, connection, next })
+      const hasAccess = await util.hasClassroomAssetAccess({ classroomUid, req, next })
 
       if(!hasAccess) {
         log('No permission to view file', 3)

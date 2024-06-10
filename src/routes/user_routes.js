@@ -28,7 +28,7 @@ const getSignedUrlAsync = params => new Promise((resolve, reject) => {
   })
 })
 
-module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensureAuthenticatedAndCheckIDPWithRedirect, log) {
+module.exports = function (app, ensureAuthenticatedAndCheckIDP, ensureAuthenticatedAndCheckIDPWithRedirect, log) {
 
   const encodeURIComp = function(comp) {
     return encodeURIComponent(comp).replace(/%20/g, "+")
@@ -136,7 +136,6 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
         shareCode: req.params.shareCode,
         notDeletedAtTime: util.NOT_DELETED_AT_TIME,
       },
-      connection,
       next,
     }))[0]
 
@@ -156,14 +155,14 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
 
   // get shared quotation (legacy version)
   app.get('/book/:bookId',
-    util.setIdpLang({ connection }),
+    util.setIdpLang(),
     (req, res, next) => {
 
       if(req.query.highlight) {
         // If "creating" query parameter is present, then they can get rid of their name and/or note (and change their note?) 
 
         log(['Find book for share page', req.params.bookId]);
-        connection.query('SELECT * FROM `book` WHERE id=?',
+        global.connection.query('SELECT * FROM `book` WHERE id=?',
           [req.params.bookId],
           async (err, rows) => {
             if(err) return next(err)
@@ -196,7 +195,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
     }
 
     log('Check for embed website redirect')
-    connection.query(`
+    global.connection.query(`
       SELECT embed_website.domain, idp.domain AS idp_domain
       FROM embed_website
         LEFT JOIN idp ON (embed_website.idp_id = idp.id)
@@ -238,7 +237,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
 
     // TODO: Eventually, this listener should include an updates_since date so as to not fetch everything.
 
-    util.hasAccess({ bookId: req.params.bookId, req, connection, log, next }).then(accessInfo => {
+    util.hasAccess({ bookId: req.params.bookId, req, log, next }).then(accessInfo => {
 
       if(!accessInfo) {
         log(['Forbidden: user does not have access to this book'], 3);
@@ -362,7 +361,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
 
         // build the userData object
         log(['Look up latest location, highlights and classrooms', req.params.userId, req.params.bookId])
-        connection.query(
+        global.connection.query(
           queries.join('; '),
           vars,
           (err, results) => {
@@ -540,7 +539,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
       if(hasAccessToEnhancedTools || isPublisher) {
 
         // first get the classrooms so as to reference them in the other queries
-        connection.query(`
+        global.connection.query(`
           SELECT c.*, cm_me.role
           FROM classroom AS c
             LEFT JOIN classroom_member AS cm_me ON (cm_me.classroom_uid=c.uid)
@@ -576,7 +575,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
                 updated_at: now,
               };
 
-              connection.query(
+              global.connection.query(
                 `INSERT INTO classroom SET ?`,
                 defaultClassroom,
                 (err, result) => {
@@ -614,7 +613,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
       const { bookId } = req.params
 
       // See if they have access to this book
-      const accessInfo = await util.hasAccess({ bookId, req, connection, log, next })
+      const accessInfo = await util.hasAccess({ bookId, req, log, next })
 
       if(!accessInfo) {
         log(['Forbidden: user does not have access to this book and so a cookie was not created'], 3)
@@ -668,7 +667,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
       const { classroomUid } = req.params
 
       // See if they have access to this book
-      const hasAccess = await util.hasClassroomAssetAccess({ classroomUid, req, connection, next })
+      const hasAccess = await util.hasClassroomAssetAccess({ classroomUid, req, next })
 
       if(!hasAccess) {
         log(['Forbidden: user does not have access to this classroom and so a cookie was not created'], 3)
@@ -714,7 +713,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
   app.get(
     '/epub_content/epub_library.json',
     ensureAuthenticatedAndCheckIDP,
-    (req, res, next) => util.getLibrary({ req, res, next, log, connection }),
+    (req, res, next) => util.getLibrary({ req, res, next, log }),
   )
 
   app.post(
@@ -727,7 +726,6 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
         vars: {
           domain: util.getIDPDomain(req.headers),
         },
-        connection,
         next,
       })
 
@@ -750,7 +748,6 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
           idpUserId: req.user.userIdFromIdp,
           next,
           req,
-          connection,
           log,
         })
       } catch(err) {
@@ -765,7 +762,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
         return
       }
 
-      return util.getLibrary({ req, res, next, log, connection })
+      return util.getLibrary({ req, res, next, log })
     },
   )
  
@@ -788,7 +785,6 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
       vars: {
         token: req.body.token,
       },
-      connection,
       next,
     })
 
@@ -811,7 +807,6 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
           created_at: now,
         },
       },
-      connection,
       next,
     })
 
@@ -834,7 +829,6 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
       vars: {
         domain: util.getIDPDomain(req.headers),
       },
-      connection,
       next,
     })
 
@@ -872,7 +866,6 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
           <p>${i18n("Account deletion confirmation code: {{code}}", { code: `<span style="font-weight: bold;">${code}</span>` }, { locale })}</p>
           <p style="font-size: 12px; color: #777;">${i18n("Note: This code expires in 15 minutes.", {}, { locale })}</p>
         `,
-        connection,
         req,
       })
 
@@ -909,7 +902,6 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
       vars: {
         userId: req.user.isAdmin ? req.body.userIdToDelete : req.user.id,
       },
-      connection,
       next,
     })
 
@@ -971,7 +963,6 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
             <p>Email: ${userToDelete.email}</p>
             ${userToDelete.user_id_from_idp !== userToDelete.email ? `<p>User ID in your system (idpUserId): ${userToDelete.user_id_from_idp}</p>` : ``}
           `,
-          connection,
           req,
         })
       } catch (err) {
@@ -1024,7 +1015,6 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, ensu
       vars: {
         userId: userToDelete.id,
       },
-      connection,
       next,
     })
 

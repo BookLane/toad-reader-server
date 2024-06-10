@@ -5,6 +5,7 @@ node_modules
 .git
 
 .npmrc
+.serverless
 
 # Elastic Beanstalk Files
 .elasticbeanstalk/*

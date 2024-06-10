@@ -2,7 +2,7 @@ const executeSendEmail = require('./executeSendEmail')
 const util = require('./util')
 const { i18n } = require("inline-i18n")
 
-const superAdminEmail = 'admin@resourcingeducation.com'
+const superAdminEmail = 'no-reply@toadreader.com'
 
 const sendEmail = input => {
 
@@ -22,14 +22,14 @@ const sendEmail = input => {
 
   return new Promise((resolve, reject) => {
 
-    let { toAddrs, ccAddrs=[], bccAddrs=[], replyToAddrs, subject, body, connection, req, language, skipGreeting, skipInnerBG, bodyMaxWidth } = input
+    let { toAddrs, ccAddrs=[], bccAddrs=[], replyToAddrs, subject, body, req, language, skipGreeting, skipInnerBG, bodyMaxWidth } = input
 
-    const locale = language || req.idpLang || 'en'
+    const locale = language || (req || {}).idpLang || 'en'
 
-    connection.query(
+    global.connection.query(
       `SELECT * FROM idp WHERE domain=:domain`,
       {
-        domain: util.getIDPDomain(req.headers),
+        domain: req ? util.getIDPDomain(req.headers) : `books.toadreader.com`,
       },
       (err, rows) => {
         if(err) {

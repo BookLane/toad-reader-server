@@ -1,14 +1,15 @@
 const { Expo } = require('expo-server-sdk')
 const uuidv4 = require('uuid/v4')
 const { i18n } = require("inline-i18n")
-var util = require('../utils/util')
 
-module.exports = async ({ connection, next, log }) => {
+var util = require('../src/utils/util')
+
+module.exports = async ({ next }) => {
 
   const expo = new Expo()
   const cronRunUid = uuidv4()
 
-  log(['Minute cron: Get upcoming due date reminders...', cronRunUid])
+  console.log('Cron: Get upcoming due date reminders...', cronRunUid)
 
   const now = util.timestampToMySQLDatetime()
   const oneDayInTheFuture = util.timestampToMySQLDatetime(Date.now() + (1000*60*60*24))
@@ -43,7 +44,6 @@ module.exports = async ({ connection, next, log }) => {
     vars: {
       oneDayInTheFuture,
     },
-    connection,
     next,
   })
 
@@ -73,7 +73,7 @@ module.exports = async ({ connection, next, log }) => {
 
     const messages = []
 
-    log(['Minute cron: Get push tokens (due date reminders)...', cronRunUid, scheduleDateKey])
+    console.log('Cron: Get push tokens (due date reminders)...', cronRunUid, scheduleDateKey)
 
     const pushTokens = await util.runQuery({
       query: `
@@ -92,7 +92,6 @@ module.exports = async ({ connection, next, log }) => {
       vars: {
         classroom_uid,
       },
-      connection,
       next,
     })
 
@@ -114,12 +113,11 @@ module.exports = async ({ connection, next, log }) => {
         classroom_uid,
         due_at,
       },
-      connection,
       next,
     })
 
     if(updateResult.affectedRows === 0) {
-      log([`Minute cron: Not sending any due date reminders for this schedule date key as they appear to already be run`, cronRunUid, scheduleDateKey])
+      console.log(`Cron: Not sending any due date reminders for this schedule date key as they appear to already be run`, cronRunUid, scheduleDateKey)
       continue
     }
 
@@ -127,7 +125,7 @@ module.exports = async ({ connection, next, log }) => {
 
       // Check that all your push tokens appear to be valid Expo push tokens
       if(!Expo.isExpoPushToken(token)) {
-        log([`Minute cron: Push token ${token} is not a valid Expo push token (due date reminders)`, cronRunUid, scheduleDateKey], 3)
+        console.log(`Cron: Push token ${token} is not a valid Expo push token (due date reminders)`, cronRunUid, scheduleDateKey)
         return
       }
 
@@ -148,30 +146,30 @@ module.exports = async ({ connection, next, log }) => {
     })
 
     if(messages.length === 0) {
-      log([`Minute cron: Not sending any due date reminders for this schedule date key (from ${pushTokens.length} push tokens)`, cronRunUid, scheduleDateKey])
+      console.log(`Cron: Not sending any due date reminders for this schedule date key (from ${pushTokens.length} push tokens)`, cronRunUid, scheduleDateKey)
       continue
     }
 
-    log([`Minute cron: Send out due date reminders (${messages.length} messages from ${pushTokens.length} push tokens)...`, cronRunUid, scheduleDateKey])
+    console.log(`Cron: Send out due date reminders (${messages.length} messages from ${pushTokens.length} push tokens)...`, cronRunUid, scheduleDateKey)
 
     const chunks = expo.chunkPushNotifications(messages)
   
     // Spread the load out over time
     for(let chunk of chunks) {
       try {
-        log(["Minute cron: Attempting to send push notifications chunk (due date reminders)..."], cronRunUid, scheduleDateKey)
+        console.log("Cron: Attempting to send push notifications chunk (due date reminders)...", cronRunUid, scheduleDateKey)
         await expo.sendPushNotificationsAsync(chunk)
-        log(["Minute cron: Push notifications chunk (due date reminders) sent successfully"], cronRunUid, scheduleDateKey)
+        console.log("Cron: Push notifications chunk (due date reminders) sent successfully", cronRunUid, scheduleDateKey)
       } catch (error) {
-        log(["Minute cron: Could not send push notifications (due date reminders)", cronRunUid, scheduleDateKey, error, chunk], 3)
+        console.log("Cron: Could not send push notifications (due date reminders)", cronRunUid, scheduleDateKey, error, chunk)
         // https://docs.expo.io/versions/latest/guides/push-notifications#response-format
       }
     }
   
-    log(["Minute cron: Done sending out due date reminders for this schedule date key", cronRunUid, scheduleDateKey])
+    console.log("Cron: Done sending out due date reminders for this schedule date key", cronRunUid, scheduleDateKey)
 
   }
 
-  log(["Minute cron: Done sending out due date reminders", cronRunUid])
+  console.log("Cron: Done sending out due date reminders", cronRunUid)
 
 }

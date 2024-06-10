@@ -1,6 +1,6 @@
 const util = require('../utils/util');
 
-module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log) {
+module.exports = function (app, ensureAuthenticatedAndCheckIDP, log) {
 
   app.post('/connect_to_classroom', ensureAuthenticatedAndCheckIDP, function (req, res, next) {
 
@@ -13,7 +13,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
     const { code } = req.body
     const now = util.timestampToMySQLDatetime();
 
-    connection.query(
+    global.connection.query(
       `
         SELECT c.uid, c.book_id, c.access_code, c.instructor_access_code, cba.version
         FROM classroom as c
@@ -48,7 +48,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
 
         const classroom = rows[0];
 
-        connection.query(`
+        global.connection.query(`
           SELECT cm.role, cm.deleted_at
           FROM classroom_member as cm
           WHERE cm.user_id=?
@@ -95,7 +95,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
               insertOrUpdateValues.created_at = now;
             }
 
-            connection.query(
+            global.connection.query(
               insertOrUpdate,
               [
                 insertOrUpdateValues,
@@ -126,7 +126,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
       return;
     }
 
-    connection.query(
+    global.connection.query(
       'UPDATE `classroom_member` SET ? WHERE classroom_uid=? AND user_id=?',
       [
         { deleted_at: null },

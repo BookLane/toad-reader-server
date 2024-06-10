@@ -3,14 +3,11 @@
 const express = require('express')
 const cors = require('cors')
 const app = express()
-const http = require('http')
+// const http = require('http')
+const serverless = require("serverless-http")
 const bodyParser = require('body-parser')
 const cookieParser = require('cookie-parser')
-const mysql = require('mysql')
-const SqlString = require('mysql/lib/protocol/SqlString')
 const AWS = require('aws-sdk')
-const session = require('express-session')
-const RedisStore = require('connect-redis')(session)
 const passport = require('passport')
 const saml = require('passport-saml')
 require('dotenv').load()  //loads the local environment
@@ -18,18 +15,14 @@ const util = require('./src/utils/util')
 const jwt = require('jsonwebtoken')
 const { i18nSetup } = require("inline-i18n")
 const fs = require('fs')
+const sendEmail = require('./src/utils/sendEmail')
 require("array-flat-polyfill")  // Array.flat function
 
 ////////////// SETUP SERVER //////////////
 
-const redisOptions = {
-  host: process.env.REDIS_HOSTNAME,
-  port: process.env.REDIS_PORT
-}
-
 const port = parseInt(process.env.PORT, 10) || process.env.PORT || 8080
 app.set('port', port)
-const server = http.createServer(app)
+// const server = http.createServer(app)
 const log = function(msgs, importanceLevel) {
   const logLevel = parseInt(process.env.LOGLEVEL) || 3   // 1=verbose, 2=important, 3=errors only
   importanceLevel = importanceLevel || 1
@@ -39,8 +32,8 @@ const log = function(msgs, importanceLevel) {
     console.log.apply(this, msgs)
   }
 }
-const sessionParser = session({
-  store: process.env.IS_DEV ? null : new RedisStore(redisOptions),
+const sessionParser = util.session({
+  store: util.sessionStore,
   secret: process.env.SESSION_SECRET || 'secret',
   saveUninitialized: false,
   resave: false,
@@ -54,6 +47,14 @@ const sessionParser = session({
 })
 // console.log('ENV >>> ', process.env)
 
+
+////////////// WAIT FOR INITIAL SETUP //////////////
+
+const readyPromises = []
+app.use(async (req, res, next) => {
+  await Promise.all(readyPromises)
+  next()
+})
 
 ////////////// SETUP CORS //////////////
 const corsOptionsDelegate = (req, callback) => {
@@ -70,35 +71,17 @@ const corsOptionsDelegate = (req, callback) => {
 
 app.use(cors(corsOptionsDelegate))
 
-////////////// SETUP STORAGE //////////////
+////////////// SETUP STORAGE AND DB //////////////
 
-const s3 = new AWS.S3()
+const s3 = util.s3
 
-const connection = mysql.createConnection({
-  host: process.env.OVERRIDE_RDS_HOSTNAME || process.env.RDS_HOSTNAME,
-  port: process.env.OVERRIDE_RDS_PORT || process.env.RDS_PORT,
-  user: process.env.OVERRIDE_RDS_USERNAME || process.env.RDS_USERNAME,
-  password: process.env.OVERRIDE_RDS_PASSWORD || process.env.RDS_PASSWORD,
-  database: process.env.OVERRIDE_RDS_DB_NAME || process.env.RDS_DB_NAME,
-  multipleStatements: true,
-  dateStrings: true,
-  charset : 'utf8mb4',
-  queryFormat: function (query, values) {
-    if(!values) return query
+// ensure db connection for initial tasks
+readyPromises.push(util.getValidConnection())
 
-    if(/\:(\w+)/.test(query)) {
-      return query.replace(/\:(\w+)/g, (txt, key) => {
-        if(values.hasOwnProperty(key)) {
-          return this.escape(values[key])
-        }
-        return txt
-      })
-
-    } else {
-      return SqlString.format(query, values, this.config.stringifyObjects, this.config.timezone)
-    }
-  },
-  // debug: true,
+app.use(async (req, res, next) => {
+  // on each request, ensure db connection is working
+  await util.getValidConnection()
+  next()
 })
 
 ////////////// SETUP I18N //////////////
@@ -106,31 +89,37 @@ const connection = mysql.createConnection({
 const translationsDir = `./translations`
 const locales = [ 'en' ]
 
-fs.readdir(translationsDir, (err, files) => {
-  if(err) {
-    log('Could not set up i18n because the translations dir was not found.', 3)
-    return
-  }
-
-  files.forEach(file => {
-    const regex = /\.json$/
-    if(!regex.test(file)) return
-    locales.push(file.replace(regex, ''))
-  })
-
-  log(['locales:', locales], 1)
-
-  i18nSetup({
-    locales,
-    fetchLocale: locale => new Promise((resolve, reject) => fs.readFile(`${translationsDir}/${locale}.json`, (err, contents) => {
+readyPromises.push(
+  new Promise(i18nPromiseResolve => {
+    fs.readdir(translationsDir, (err, files) => {
       if(err) {
-        reject(err)
-      } else {
-        resolve(JSON.parse(contents))
+        log('Could not set up i18n because the translations dir was not found.', 3)
+        i18nPromiseResolve()
+        return
       }
-    })),
+
+      files.forEach(file => {
+        const regex = /\.json$/
+        if(!regex.test(file)) return
+        locales.push(file.replace(regex, ''))
+      })
+
+      log(['locales:', locales], 1)
+
+      i18nSetup({
+        locales,
+        fetchLocale: locale => new Promise((resolve, reject) => fs.readFile(`${translationsDir}/${locale}.json`, (err, contents) => {
+          if(err) {
+            reject(err)
+          } else {
+            resolve(JSON.parse(contents))
+          }
+        })),
+      })
+    })
+    i18nPromiseResolve()
   })
-})
+)
 
 ////////////// SETUP PASSPORT //////////////
 
@@ -185,7 +174,7 @@ const deserializeUser = ({ userId, ssoData, next }) => new Promise(resolve => {
     idp.deviceLoginLimit
   `
 
-  connection.query(''
+  global.connection.query(''
     + 'SELECT ' + fields + ' '
     + 'FROM `user` '
     + 'LEFT JOIN `idp` ON (user.idp_id=idp.id) '
@@ -239,7 +228,7 @@ const logIn = ({ userId, req, next, deviceLoginLimit }) => {
       if(deviceLoginLimit && user.id >= 0) {
 
         const id = `user sessions for id: ${user.id}`
-        util.redisStore.get(id, (err, value) => {
+        util.sessionStore.get(id, (err, value) => {
           if(err) return next(err)
 
           let sessions = []
@@ -253,7 +242,7 @@ const logIn = ({ userId, req, next, deviceLoginLimit }) => {
                 ? [ req.sessionID ]
                 : [ ...sessions, req.sessionID ]
             )
-            util.redisStore.set(
+            util.sessionStore.set(
               id,
               JSON.stringify(sessions),
               (err, value) => {
@@ -300,7 +289,7 @@ const strategyCallback = function(req, idp, profile, done) {
       idpUserId,
     }
 
-    util.getUserInfo({ idp, idpUserId, next: done, req, connection, log, userInfo }).then(returnUser)
+    util.getUserInfo({ idp, idpUserId, next: done, req, log, userInfo }).then(returnUser)
 
   } else {  // old method: get userInfo from meta data
 
@@ -326,30 +315,50 @@ const strategyCallback = function(req, idp, profile, done) {
       done('Bad login.')
     }
   
-    util.updateUserInfo({ connection, log, userInfo, idpId, updateLastLoginAt: true, next: done, req }).then(returnUser)
+    util.updateUserInfo({ log, userInfo, idpId, updateLastLoginAt: true, next: done, req }).then(returnUser)
   }
 }
 
 // re-compute all computed_book_access rows and update where necessary
-connection.query(
-  `SELECT id FROM idp`,
-  async (err, rows) => {
-    if(err) {
-      log(["Could not re-compute all computed_book_access rows.", err], 3)
-      return
-    }
+// global.connection.query(
+//   `SELECT id FROM idp`,
+//   async (err, rows) => {
+//     if(err) {
+//       log(["Could not re-compute all computed_book_access rows.", err], 3)
+//       return
+//     }
 
-    for(let row of rows) {
-      await util.updateComputedBookAccess({ idpId: row.id, connection, log })
-    }
-  }
-)
+//     for(let row of rows) {
+//       await util.updateComputedBookAccess({ idpId: row.id, log })
+//     }
+//   }
+// )
 
 // setup SAML strategies for IDPs
-connection.query('SELECT * FROM `idp` WHERE entryPoint IS NOT NULL',
-  function (err, rows) {
-    if (err) {
-      log(["Could not setup IDPs.", err], 3)
+readyPromises.push(
+  (async () => {
+
+    let rows
+
+    // try 5 times before giving up
+    for(let i=0; i<5; i++) {
+      rows = await util.runQuery({
+        query: 'SELECT * FROM `idp` WHERE entryPoint IS NOT NULL',
+        next: err => {
+          log(["Could not setup IDPs.", i<4 ? `(Will retry)` : `(No more retries)`, err], 3)
+        },
+      })
+      if(rows) break
+      await new Promise(resolve => setTimeout(resolve, 500))
+      await util.getValidConnection()
+    }
+
+    if(!rows) {
+      await sendEmail({
+        toAddrs: `support@toadreader.com`,
+        subject: `SERVER ERROR: Could not run start-up query to create IDP endpoints`,
+        body: `Fix this problem immediately as it means that tenants with Shibboleth cannot log in.`,
+      })
       return
     }
 
@@ -432,7 +441,9 @@ connection.query('SELECT * FROM `idp` WHERE entryPoint IS NOT NULL',
       }
 
     })
-  }
+
+    log(["Successfully setup IDPs."], 1)
+  })()
 )
 
 const ensureAuthenticated = async (req, res, next) => {
@@ -442,7 +453,7 @@ const ensureAuthenticated = async (req, res, next) => {
     if(!req.user.idpDeviceLoginLimit || req.user.id < 0) return resolve(true)
 
     const id = `user sessions for id: ${req.user.id}`
-    util.redisStore.get(id, (err, value) => {
+    util.sessionStore.get(id, (err, value) => {
 
       let sessions = []
       try {
@@ -467,7 +478,6 @@ const ensureAuthenticated = async (req, res, next) => {
       vars: {
         domain: util.getIDPDomain(req.headers),
       },
-      connection,
       next,
     })
 
@@ -527,7 +537,7 @@ const ensureAuthenticated = async (req, res, next) => {
     // }
     
     log('Checking if IDP requires authentication')
-    connection.query('SELECT * FROM `idp` WHERE domain=?',
+    global.connection.query('SELECT * FROM `idp` WHERE domain=?',
       [util.getIDPDomain(req.headers)],
       function (err, rows) {
         if (err) return next(err)
@@ -577,12 +587,11 @@ const ensureAuthenticated = async (req, res, next) => {
 
                   if(idp.userInfoEndpoint) {
 
-                    util.getUserInfo({ idp, idpUserId: token.id, req, res, next, connection, log }).then(logInSessionSharingUser)
+                    util.getUserInfo({ idp, idpUserId: token.id, req, res, next, log }).then(logInSessionSharingUser)
 
                   } else {  // old method: get userInfo from meta data
 
                     util.updateUserInfo({
-                      connection,
                       log,
                       userInfo: Object.assign(
                         {},
@@ -671,7 +680,7 @@ app.use(passport.session())
 
 ////////////// ROUTES //////////////
 
-require('./src/sockets/sockets')({ server, sessionParser, connection, log })
+// require('./src/sockets/sockets')({ server, sessionParser, log })
 
 // force HTTPS
 app.use('*', function(req, res, next) {  
@@ -686,7 +695,7 @@ app.use('*', function(req, res, next) {
   }
 })
 
-require('./src/routes/routes')(app, s3, connection, passport, authFuncs, ensureAuthenticated, logIn, log)
+require('./src/routes/routes')(app, s3, passport, authFuncs, ensureAuthenticated, logIn, log)
 
 process.on('unhandledRejection', reason => {
   log(['Unhandled node error', reason.stack || reason], 3)
@@ -694,4 +703,14 @@ process.on('unhandledRejection', reason => {
 
 ////////////// LISTEN //////////////
 
-server.listen(port)
+// server.listen(port)
+
+// Local listener
+if(!!process.env.IS_DEV) {
+  app.listen(port, (err) => {
+    if (err) throw err
+    console.log('> Ready on http://localhost:8081')
+  })
+}
+
+module.exports.handler = serverless(app)

@@ -5,7 +5,7 @@ const entities = new Entities()
 const jwt = require('jsonwebtoken')
 const oauthSignature = require('oauth-signature')
 
-module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log) {
+module.exports = function (app, ensureAuthenticatedAndCheckIDP, log) {
 
   // get an LTI launch link
   app.get('/getltilaunchlink/:toolUid',
@@ -55,7 +55,6 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
           idpId: req.user.idpId,
           now,
         },
-        connection,
         next,
       })
 
@@ -146,7 +145,6 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
             bookId: book_id,
             now,
           },
-          connection,
           next,
         })
 
@@ -225,8 +223,8 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
 
   // an LTI launch link
   app.get('/lti/:payload',
-    util.decodeJWT({ connection, log, ignoreError: true }),
-    util.setIdpLang({ connection }),
+    util.decodeJWT({ log, ignoreError: true }),
+    util.setIdpLang(),
     (req, res, next) => {
 
       const locale = req.idpLang || 'en'

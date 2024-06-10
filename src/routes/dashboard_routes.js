@@ -1,13 +1,13 @@
 const util = require('../utils/util')
 
-module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log) {
+module.exports = function (app, ensureAuthenticatedAndCheckIDP, log) {
 
   // get scores
   app.get('/getscores/:classroomUid',
     ensureAuthenticatedAndCheckIDP,
     async (req, res, next) => {
 
-      if(!(await util.getClassroomIfHasPermission({ connection, req, next, roles: ["INSTRUCTOR"] }))) {
+      if(!(await util.getClassroomIfHasPermission({ req, next, roles: ["INSTRUCTOR"] }))) {
         return res.status(400).send({ success: false, error: "Invalid permissions" })
       }
 
@@ -46,7 +46,6 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
         vars: {
           classroomUid: req.params.classroomUid,
         },
-        connection,
         next,
       })
 
@@ -97,7 +96,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
     ensureAuthenticatedAndCheckIDP,
     async (req, res, next) => {
 
-      if(!(await util.getClassroomIfHasPermission({ connection, req, next, roles: ["STUDENT"] }))) {
+      if(!(await util.getClassroomIfHasPermission({ req, next, roles: ["STUDENT"] }))) {
         return res.send({ success: false, error: "Invalid permissions" })
       }
 
@@ -131,7 +130,6 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
           classroomUid: req.params.classroomUid,
           userId: req.user.id,
         },
-        connection,
         next,
       })
 
@@ -184,7 +182,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
     ensureAuthenticatedAndCheckIDP,
     async (req, res, next) => {
 
-      if(!(await util.getClassroomIfHasPermission({ connection, req, next, roles: ["INSTRUCTOR"] }))) {
+      if(!(await util.getClassroomIfHasPermission({ req, next, roles: ["INSTRUCTOR"] }))) {
         return res.status(400).send({ success: false, error: "Invalid permissions" })
       }
 
@@ -211,7 +209,6 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
         vars: {
           classroomUid: req.params.classroomUid,
         },
-        connection,
         next,
       })
 
@@ -265,7 +262,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
     ensureAuthenticatedAndCheckIDP,
     async (req, res, next) => {
 
-      if(!(await util.getClassroomIfHasPermission({ connection, req, next, roles: ["STUDENT"] }))) {
+      if(!(await util.getClassroomIfHasPermission({ req, next, roles: ["STUDENT"] }))) {
         return res.send({ success: false, error: "Invalid permissions" })
       }
 
@@ -299,7 +296,6 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
           classroomUid: req.params.classroomUid,
           userId: req.user.id,
         },
-        connection,
         next,
       })
 
@@ -344,7 +340,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
     ensureAuthenticatedAndCheckIDP,
     async (req, res, next) => {
 
-      if(!(await util.getClassroomIfHasPermission({ connection, req, next, roles: ["INSTRUCTOR"] }))) {
+      if(!(await util.getClassroomIfHasPermission({ req, next, roles: ["INSTRUCTOR"] }))) {
         return res.status(400).send({ success: false, error: "Invalid permissions" })
       }
 
@@ -370,7 +366,6 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
         vars: {
           classroomUid: req.params.classroomUid,
         },
-        connection,
         next,
       })
 
@@ -425,7 +420,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
     ensureAuthenticatedAndCheckIDP,
     async (req, res, next) => {
 
-      if(!(await util.getClassroomIfHasPermission({ connection, req, next, roles: ["STUDENT"] }))) {
+      if(!(await util.getClassroomIfHasPermission({ req, next, roles: ["STUDENT"] }))) {
         return res.send({ success: false, error: "Invalid permissions" })
       }
 
@@ -458,7 +453,6 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
           classroomUid: req.params.classroomUid,
           userId: req.user.id,
         },
-        connection,
         next,
       })
 
@@ -504,7 +498,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
     ensureAuthenticatedAndCheckIDP,
     async (req, res, next) => {
 
-      if(!(await util.getClassroomIfHasPermission({ connection, req, next, roles: ["INSTRUCTOR"] }))) {
+      if(!(await util.getClassroomIfHasPermission({ req, next, roles: ["INSTRUCTOR"] }))) {
         return res.status(400).send({ success: false, error: "Invalid permissions" })
       }
 
@@ -536,7 +530,6 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
         vars: {
           classroomUid: req.params.classroomUid,
         },
-        connection,
         next,
       })
 
@@ -591,7 +584,7 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
     ensureAuthenticatedAndCheckIDP,
     async (req, res, next) => {
 
-      const classroomRow = await util.getClassroomIfHasPermission({ connection, req, next, roles: ["INSTRUCTOR"] })
+      const classroomRow = await util.getClassroomIfHasPermission({ req, next, roles: ["INSTRUCTOR"] })
 
       if(!classroomRow) {
         return res.status(400).send({ success: false, error: "Invalid permissions" })
@@ -766,7 +759,6 @@ module.exports = function (app, connection, ensureAuthenticatedAndCheckIDP, log)
           bookId: classroomRow.book_id,
           userId: req.params.userId,
         },
-        connection,
         next,
       })
 

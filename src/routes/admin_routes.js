@@ -1,7 +1,7 @@
 const fs = require('fs')
 const multiparty = require('multiparty')
 const admzip = require('adm-zip')
-const sharp = require('sharp')
+const Jimp = require("jimp")
 const fetch = require('node-fetch')
 const mime = require('mime')
 const uuidv4 = require('uuid/v4')
@@ -10,12 +10,24 @@ const mm = require('music-metadata')
 const util = require('../utils/util')
 const parseEpub = require('../utils/parseEpub')
 const { getIndexedBook } = require('../utils/indexEpub')
-const dueDateReminders = require('../crons/due_date_reminders')
 
 const MAX_AUDIOBOOK_FILE_MB = 50  // over an hour, on average
 const MAX_AUDIOBOOK_MB = 750
 
-module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, log) {
+// to avoid a memory error, taken from here: https://github.com/jimp-dev/jimp/issues/915
+const cachedJpegDecoder = Jimp.decoders['image/jpeg']
+Jimp.decoders['image/jpeg'] = data => {
+  const userOpts = { maxMemoryUsageInMB: 1024 }
+  return cachedJpegDecoder(data, userOpts)
+}
+
+let baseTmpDir = process.env.IS_DEV ? `` : '/tmp'
+if(baseTmpDir) {
+  if(!fs.existsSync(baseTmpDir)) fs.mkdirSync(baseTmpDir)
+  baseTmpDir = `${baseTmpDir}/`
+}
+
+module.exports = function (app, s3, ensureAuthenticatedAndCheckIDP, log) {
 
   const deleteFolderRecursive = path => {
     log(['Delete folder', path], 2)
@@ -68,7 +80,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
       vars: {
         bookId,
       },
-      connection,
       next,
     })
 
@@ -86,7 +97,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
       vars: {
         bookId,
       },
-      connection,
       next,
     })
 
@@ -101,7 +111,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
       vars: {
         bookId,
       },
-      connection,
       next,
     })
 
@@ -120,7 +129,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
       vars: {
         bookId,
       },
-      connection,
       next,
     })
   }
@@ -131,12 +139,16 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
     return fileType
   }
 
-  const getAdjustedImageBody = (path, fileType, width, height) => (
-    sharp(path)
-      .resize(width, height)
-      [fileType]()
-      .toBuffer()
-  )
+  const getAdjustedImageBody = async (path, fileType, width, height) => {
+    const img = await Jimp.read(path)
+    img.resize(width || Jimp.AUTO, height || Jimp.AUTO)
+    const result = await img.getBufferAsync(
+      fileType === `jpeg`
+        ? Jimp.MIME_JPEG
+        : Jimp.MIME_PNG
+    )
+    return result
+  }
 
   // delete a book
   app.delete(['/', '/book/:bookId'], ensureAuthenticatedAndCheckIDP, async (req, res, next) => {
@@ -153,13 +165,12 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         bookId: req.params.bookId,
         idpId: req.user.idpId,
       },
-      connection,
       next,
     })
 
     log('Delete (idp disassociation) successful', 2)
 
-    await util.updateComputedBookAccess({ idpId: req.user.idpId, bookId: req.params.bookId, connection, log })
+    await util.updateComputedBookAccess({ idpId: req.user.idpId, bookId: req.params.bookId, log })
 
     res.send({ success: true });
           
@@ -168,7 +179,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
   // import book
   app.post('/importbook.json', ensureAuthenticatedAndCheckIDP, async (req, res, next) => {
 
-    const tmpDir = `tmp_epub_${util.getUTCTimeStamp()}`
+    const tmpDir = `${baseTmpDir}tmp_epub_${util.getUTCTimeStamp()}`
     const toUploadDir = `${tmpDir}/toupload`
     const epubFilePaths = []
     let bookRow, cleanUpBookIdpToDelete, beganResponse
@@ -261,7 +272,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         bookRow.id = (await util.runQuery({
           query: 'INSERT INTO `book` SET ?',
           vars: bookRow,
-          connection,
           next,
         })).insertId
 
@@ -348,7 +358,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
             ...bookRow,
             idpId: req.user.idpId,
           },
-          connection,
           next,
         })
 
@@ -391,11 +400,10 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
             await util.runQuery({
               query: 'INSERT INTO `book-idp` SET ?',
               vars,
-              connection,
               next,
             })
 
-            await util.updateComputedBookAccess({ idpId: req.user.idpId, bookId: rows[0].id, connection, log })
+            await util.updateComputedBookAccess({ idpId: req.user.idpId, bookId: rows[0].id, log })
 
             log('Import unnecessary (book exists in idp with same group; added association)', 2)
             res.send({
@@ -445,7 +453,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
           await util.runQuery({
             query: 'INSERT INTO `book-idp` SET ?',
             vars,
-            connection,
             next,
           })
         }
@@ -483,7 +490,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
               textnodeInfo.hitIndex,
               textnodeInfo.context,
             ])).flat(),
-            connection,
             next,
           })
 
@@ -504,7 +510,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
               searchTermCounts[searchTerm],
               bookRow.id,
             ])).flat(),
-            connection,
             next,
           })
 
@@ -531,11 +536,10 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
             bookId: bookRow.id,
             bookRow,
           },
-          connection,
           next,
         })
 
-        await util.updateComputedBookAccess({ idpId: req.user.idpId, bookId: bookRow.id, connection, log })
+        await util.updateComputedBookAccess({ idpId: req.user.idpId, bookId: bookRow.id, log })
 
         log('Import successful', 2)
         try {  // If everything was successful, but the connection timed out, don't delete it.
@@ -564,7 +568,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
             await util.runQuery({
               query: 'DELETE FROM `book-idp` WHERE idp_id=:idp_id AND book_id=:book_id',
               vars: cleanUpBookIdpToDelete,
-              connection,
               next,
             })
           }
@@ -574,7 +577,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
 
           if(bookRow) {
             await deleteBookIfUnassociated(bookRow.id, next)
-            await util.updateComputedBookAccess({ idpId: req.user.idpId, bookId: bookRow.id, connection, log })
+            await util.updateComputedBookAccess({ idpId: req.user.idpId, bookId: bookRow.id, log })
           }
 
           deleteFolderRecursive(tmpDir)
@@ -616,14 +619,13 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
       const { classroomUid } = req.params
 
       await util.dieOnNoClassroomEditPermission({
-        connection,
         next,
         req,
         log,
         classroomUid,
       })
 
-      const tmpDir = 'tmp_file_' + util.getUTCTimeStamp()
+      const tmpDir = baseTmpDir + '/tmp_file_' + util.getUTCTimeStamp()
 
       deleteFolderRecursive(tmpDir)
 
@@ -767,7 +769,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
       await util.runQuery({
         queries,
         vars,
-        connection,
         next,
       })
 
@@ -787,7 +788,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
       vars: {
         domain: util.getIDPDomain(req.headers),  // they may not be logged in, and so we find this by domain and not idpId
       },
-      connection,
       next,
     })
 
@@ -848,7 +848,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
       bookRow.id = (await util.runQuery({
         query: 'INSERT INTO `book` SET ?',
         vars: bookRow,
-        connection,
         next,
       })).insertId
 
@@ -863,11 +862,10 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
       await util.runQuery({
         query: 'INSERT INTO `book-idp` SET ?',
         vars: bookIdpRow,
-        connection,
         next,
       })
 
-      await util.updateComputedBookAccess({ idpId: req.user.idpId, bookId: bookRow.id, connection, log })
+      await util.updateComputedBookAccess({ idpId: req.user.idpId, bookId: bookRow.id, log })
 
     }
 
@@ -878,11 +876,10 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         bookId: bookRow.id,
         bookRow,
       },
-      connection,
       next,
     })
 
-    return util.getLibrary({ req, res, next, log, connection, newBookId: bookRow.id })
+    return util.getLibrary({ req, res, next, log, newBookId: bookRow.id })
 
   })
 
@@ -908,7 +905,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         idpId: req.user.idpId,
         bookId,
       },
-      connection,
       next,
     })
 
@@ -920,7 +916,7 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
 
     const isAudiobook = !bookRows[0] || !!bookRows[0].audiobookInfo
 
-    const tmpDir = 'tmp_file_' + util.getUTCTimeStamp()
+    const tmpDir = baseTmpDir + 'tmp_file_' + util.getUTCTimeStamp()
 
     deleteFolderRecursive(tmpDir)
 
@@ -1054,7 +1050,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         idpId: req.user.idpId,
         negativeIdpId: req.user.idpId * -1,
       },
-      connection,
       next,
     })
 
@@ -1116,11 +1111,10 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
     await util.runQuery({
       queries,
       vars,
-      connection,
       next,
     })
 
-    await util.updateComputedBookAccess({ idpId: req.user.idpId, bookId: req.params.bookId, connection, log })
+    await util.updateComputedBookAccess({ idpId: req.user.idpId, bookId: req.params.bookId, log })
 
     res.send({ success: true })
 
@@ -1200,7 +1194,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
       await util.runQuery({
         queries,
         vars,
-        connection,
         next,
       })
 
@@ -1220,7 +1213,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
       vars: {
         domain: util.getIDPDomain(req.headers),  // they may not be logged in, and so we find this by domain and not idpId
       },
-      connection,
       next,
     })
 
@@ -1269,7 +1261,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
     const bookIdpRows = await util.runQuery({
       query: 'SELECT * FROM `book-idp` WHERE book_id=:bookId AND idp_id=:idpId LIMIT 1',
       vars,
-      connection,
       next,
     })
 
@@ -1321,11 +1312,10 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
     await util.runQuery({
       queries,
       vars,
-      connection,
       next,
     })
 
-    return util.getLibrary({ req, res, next, log, connection })
+    return util.getLibrary({ req, res, next, log })
 
   })
 
@@ -1352,7 +1342,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
       vars: {
         idpId: req.user.idpId,
       },
-      connection,
       next,
     })
 
@@ -1394,7 +1383,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
             fromDate,
             toDate,
           },
-          connection,
           next,
         })
 
@@ -1526,7 +1514,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
           vars: {
             idpId: idpRows[idpIndex].id,
           },
-          connection,
           next,
         })
 
@@ -1588,7 +1575,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         searchStr: req.query.searchStr,
         likeSearchStr: `${req.query.searchStr.replace(/([_%])/g, '\\$1')}%`,
       },
-      connection,
       next,
     })
 
@@ -1628,7 +1614,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
       vars: {
         idpId: req.user.idpId,
       },
-      connection,
       next,
     })
 
@@ -1693,7 +1678,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
       vars: {
         classroomUid: sourceClassroomUid,
       },
-      connection,
       next,
     })
 
@@ -1740,7 +1724,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
     await util.runQuery({
       queries,
       vars,
-      connection,
       next,
     })
 
@@ -1769,7 +1752,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
         id: req.query.userId,
         idpId: req.user.idpId,
       },
-      connection,
       next,
     })
 
@@ -1816,7 +1798,6 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
           idpId: req.user.idpId,
           limit: parseInt(req.query.limit || 3),
         },
-        connection,
         next,
       })
 
@@ -1838,205 +1819,4 @@ module.exports = function (app, s3, connection, ensureAuthenticatedAndCheckIDP, 
 
   })
 
-  ////////////// CRONS //////////////
-
-  var next = function(err) {
-    if(err) {
-      log(err, 3);
-    }
-  }
-
-  // hourly: clear out all expired demo tenants
-  var runHourlyCron = function() {
-    log('Hourly cron: started', 2);
-
-    var currentMySQLDatetime = util.timestampToMySQLDatetime();
-
-    log('Hourly cron: Get expired idps');
-    connection.query('SELECT id FROM `idp` WHERE demo_expires_at IS NOT NULL AND demo_expires_at<?',
-      [currentMySQLDatetime],
-      function (err, rows, fields) {
-        if (err) return log(err, 3);
-
-        var expiredIdpIds = rows.map(function(row) { return parseInt(row.id); });
-
-        log('Hourly cron: Get books which are owned by the expired idps');
-        connection.query('SELECT book_id FROM `book-idp` WHERE idp_id IN(?)',
-          [expiredIdpIds.concat([0])],
-          function (err2, rows2, fields2) {
-            if (err2) return log(err2, 3);
-
-            var deleteQueries = ['SELECT 1'];  // dummy query, in case there are no idps to delete
-
-            expiredIdpIds.forEach(function(idpId) {
-              log(['Hourly cron: Clear out idp tenant', idpId], 2);
-
-              deleteQueries.push('DELETE FROM `book-idp` WHERE idp_id="' + idpId + '"');
-              deleteQueries.push('DELETE FROM `idp` WHERE id="' + idpId + '"');
-              deleteQueries.push('DELETE FROM `highlight` WHERE user_id="' + (idpId * -1) + '"');
-              deleteQueries.push('DELETE FROM `latest_location` WHERE user_id="' + (idpId * -1) + '"');
-            });
-
-            connection.query(deleteQueries.join('; '),
-              async (err3, result3) => {
-                if (err3) return log(err3, 3);
-
-                await Promise.all(expiredIdpIds.map(idpId => util.updateComputedBookAccess({ idpId, connection, log })))
-
-                var booksOwnedByDeletedIdps = [];
-                rows2.forEach(function(row2) {
-                  var bookId = parseInt(row2.book_id);
-                  if(booksOwnedByDeletedIdps.indexOf(bookId) == -1) {
-                    booksOwnedByDeletedIdps.push(bookId);
-                  }
-                });
-
-                log(['Hourly cron: Books to potentially delete', booksOwnedByDeletedIdps]);
-
-                for(let nextBookId of booksOwnedByDeletedIdps) {
-                  await deleteBookIfUnassociated(nextBookId, next)
-                }
-                log('Hourly cron: complete', 2)
-              }
-            );
-          }
-        );
-      }
-    );
-
-    // dueDateReminders({ connection, next, log })
-
-  }
-
-  setInterval(runHourlyCron, 1000 * 60 * 60);
-  runHourlyCron();
-
-  // every minute: send xapi statements
-  var minuteCronRunning = false;
-  var runMinuteCron = async () => {
-
-    if(minuteCronRunning) {
-      log('Minute cron: skipped since previous run unfinished.');
-      return;
-    }
-
-    log('Minute cron: started', 2);
-    minuteCronRunning = true;
-
-    await dueDateReminders({ connection, next, log })
-
-    // get the tenants (idps)
-    var currentMySQLDatetime = util.timestampToMySQLDatetime();
-
-    log('Minute cron: Get idps with xapiOn=true');
-    connection.query('SELECT * FROM `idp` WHERE xapiOn=? AND (demo_expires_at IS NULL OR demo_expires_at>?)',
-      [1, currentMySQLDatetime],
-      function (err, rows) {
-        if (err) {
-          log(err, 3);
-          minuteCronRunning = false;
-          return;
-        }
-
-        var leftToDo = rows.length;
-
-        var markDone = function() {
-          if(--leftToDo <= 0) {
-            log('Minute cron: complete', 2);
-            minuteCronRunning = false;
-          }
-        }
-
-        if(rows.length === 0) {
-          markDone();
-          return;
-        }
-
-        rows.forEach(function(row) {
-
-          // check configuration
-          if(!row.xapiEndpoint || !row.xapiUsername || !row.xapiPassword || row.xapiMaxBatchSize < 1) {
-            log('Minute cron: The IDP with id #' + row.id + ' has xapi turned on, but it is misconfigured. Skipping.', 3);
-            markDone();
-            return;
-          }
-
-          // get the xapi queue
-          log('Minute cron: Get xapiQueue for idp id #' + row.id);
-          connection.query('SELECT * FROM `xapiQueue` WHERE idp_id=? ORDER BY created_at DESC LIMIT ?',
-            [row.id, row.xapiMaxBatchSize],
-            function (err, statementRows) {
-              if (err) {
-                log(err, 3);
-                markDone();
-                return;
-              }
-
-              var statements = [];
-  
-              statementRows.forEach(function(statementRow) {
-                statements.push(JSON.parse(statementRow.statement));
-              });
-
-              if(statements.length > 0) {
-
-                var endpoint = row.xapiEndpoint.replace(/(\/statements|\/)$/, '') + '/statements';
-
-                var options = {
-                  method: 'post',
-                  body: JSON.stringify(statements),
-                  headers: {
-                    'Authorization': 'Basic ' + Buffer.from(row.xapiUsername + ":" + row.xapiPassword).toString('base64'),
-                    'X-Experience-API-Version': '1.0.0',
-                    'Content-Type': 'application/json',
-                  },
-                }
-    
-                // post the xapi statements
-                fetch(endpoint, options)
-                  .then(async res => {
-                    if(res.status !== 200) {
-                      let json = 'No response JSON'
-                      try {
-                        json = await res.json()
-                      } catch(err) {}
-                      log(['Minute cron: Bad xapi post for idp id #' + row.id, json.warnings || json, JSON.stringify(statements)], 3);
-                      markDone();
-                      return;
-                    }
-
-                    log(statements.length + ' xapi statement(s) posted successfully for idp id #' + row.id);
-
-                    var statementIds = [];
-                    statementRows.forEach(function(statementRow) {
-                      statementIds.push(statementRow.id);
-                    });
-          
-                    log('Minute cron: Delete successfully sent statements from xapiQueue queue. Ids: ' + statementIds.join(', '));
-                    connection.query('DELETE FROM `xapiQueue` WHERE id IN(?)', [statementIds], function (err, result) {
-                      if (err) log(err, 3);
-                      markDone();
-                    });
-          
-                  })
-                  .catch(function(err) {
-                    log('Minute cron: Xapi post failed for idp id #' + row.id, 3);
-                    markDone();
-                  })
-
-              } else {
-                markDone();
-              }
-            }
-          );
-        });
-      }
-    );
-
-  }
-
-  setInterval(runMinuteCron, 1000 * 60);
-  runMinuteCron();
-
-  
 }
