@@ -17,7 +17,7 @@ const MAX_AUDIOBOOK_MB = 750
 // to avoid a memory error, taken from here: https://github.com/jimp-dev/jimp/issues/915
 const cachedJpegDecoder = Jimp.decoders['image/jpeg']
 Jimp.decoders['image/jpeg'] = data => {
-  const userOpts = { maxMemoryUsageInMB: 1024 }
+  const userOpts = { maxMemoryUsageInMB: 2048 }
   return cachedJpegDecoder(data, userOpts)
 }
 
