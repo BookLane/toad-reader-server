@@ -97,13 +97,16 @@ const getShopifyUserInfo = async ({ email, idp, log, waitToExecuteIfNecessary })
               shopify.rest.Customer.orders({
                 session: session,
                 id,
-                fields: "line_items,processed_at",
+                fields: "line_items,processed_at,cancelled_at",  // <-- important d'ajouter cancelled_at ici
                 status: "any",
               })
             )) || { orders: [] }
           )
             .orders
-            .map(({ line_items, processed_at }) => line_items.map(lineItem => ({ ...lineItem, processed_at })))
+            .filter(order => order.cancelled_at == null) // <-- ici on filtre les annulées
+            .map(({ line_items, processed_at }) => 
+              line_items.map(lineItem => ({ ...lineItem, processed_at }))
+            )
             .flat()
         )
 
