@@ -3,11 +3,10 @@
 const express = require('express')
 const cors = require('cors')
 const app = express()
-// const http = require('http')
-const serverless = require("serverless-http")
+const http = require('http')
+// const serverless = require("serverless-http")
 const bodyParser = require('body-parser')
 const cookieParser = require('cookie-parser')
-const AWS = require('aws-sdk')
 const passport = require('passport')
 const saml = require('passport-saml')
 require('dotenv').load()  //loads the local environment
@@ -22,7 +21,7 @@ require("array-flat-polyfill")  // Array.flat function
 
 const port = parseInt(process.env.PORT, 10) || process.env.PORT || 8080
 app.set('port', port)
-// const server = http.createServer(app)
+const server = http.createServer(app)
 const log = function(msgs, importanceLevel) {
   const logLevel = parseInt(process.env.LOGLEVEL) || 3   // 1=verbose, 2=important, 3=errors only
   importanceLevel = importanceLevel || 1
@@ -703,8 +702,13 @@ process.on('unhandledRejection', reason => {
 
 ////////////// LISTEN //////////////
 
-// server.listen(port)
+// Classic server
 
+server.listen(port)
+
+// Serverless
+
+/*
 // Local listener
 if(!!process.env.IS_DEV) {
   app.listen(port, (err) => {
@@ -714,3 +718,4 @@ if(!!process.env.IS_DEV) {
 }
 
 module.exports.handler = serverless(app)
+*/

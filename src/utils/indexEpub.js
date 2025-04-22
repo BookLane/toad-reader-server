@@ -66,10 +66,10 @@ const getIndexedBook = async ({ baseUri, spines, log }) => {
 
     const memoryUsageInMB = parseInt(process.memoryUsage().rss/1000000)
 
-    if(memoryUsageInMB > 2000) {
+    if(memoryUsageInMB > 3072) {
       throw new Error(`EPUB search index overloading memory (~${memoryUsageInMB} mb)`)
 
-    } else if(global.gc && spineIndex % 10 === 0 && memoryUsageInMB > 1000) {
+    } else if(global.gc && spineIndex % 10 === 0 && memoryUsageInMB > 2048) {
       try {
         process.stdout.clearLine()
         process.stdout.cursorTo(0)
