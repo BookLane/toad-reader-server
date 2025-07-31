@@ -29,7 +29,7 @@ const sendEmail = input => {
     global.connection.query(
       `SELECT * FROM idp WHERE domain=:domain`,
       {
-        domain: req ? util.getIDPDomain(req.headers) : `books.toadreader.com`,
+        domain: req ? util.getIDPDomain({ host: req.headers.host }) : `books.toadreader.com`,
       },
       (err, rows) => {
         if(err) {

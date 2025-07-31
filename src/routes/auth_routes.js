@@ -445,7 +445,7 @@ module.exports = function (app, passport, authFuncs, ensureAuthenticated, logIn,
         `,
         vars: {
           email: req.query.email,
-          domain: util.getIDPDomain(req.headers),
+          domain: util.getIDPDomain({ host: req.headers.host }),
         },
         next,
       })
@@ -522,7 +522,7 @@ module.exports = function (app, passport, authFuncs, ensureAuthenticated, logIn,
         global.connection.query(
           `SELECT * FROM idp WHERE domain=:domain`,
           {
-            domain: util.getIDPDomain(req.headers),
+            domain: util.getIDPDomain({ host: req.headers.host }),
           },
           async (err2, row2) => {
             if(err2) return next(err2)
