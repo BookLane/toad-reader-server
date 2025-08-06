@@ -179,7 +179,7 @@ module.exports = function (app, s3, passport, authFuncs, ensureAuthenticated, lo
         getIco(req.user.idpId);
       } else {
         global.connection.query('SELECT id FROM `idp` WHERE domain=?',
-          [util.getIDPDomain({ host: req.headers.host })],
+          [util.getIDPDomain({ host: req.hostname || req.headers.host })],
           function (err, rows) {
             if (err) return next(err);
             
