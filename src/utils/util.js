@@ -402,7 +402,7 @@ const util = {
     if(req.headers.host.split('.')[2] === 'staging') {
       return util.getFrontEndOrigin({ req, env: 'staging' })
     } else {
-      return `${util.getProtocol({ req })}://${util.getIDPDomain(req)}`
+      return `${util.getProtocol({ req })}://${util.getIDPDomain({ host: req.headers.host })}`
     }
   },
 
@@ -1445,7 +1445,7 @@ const util = {
     const [ idpRow ] = await util.runQuery({
       query: `SELECT id, ${jwtColInIdp} FROM idp WHERE domain=:domain`,
       vars: {
-        domain: util.getIDPDomain(req.headers),
+        domain: util.getIDPDomain({ host: req.headers.host }),
       },
       next,
     })
@@ -1478,7 +1478,7 @@ const util = {
 
     global.connection.query(
       'SELECT language FROM `idp` WHERE domain=?',
-      [util.getIDPDomain(req.headers)],
+      [util.getIDPDomain({ host: req.headers.host })],
       (err, rows) => {
         if (err) return next(err)
   
