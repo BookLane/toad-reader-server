@@ -82,7 +82,7 @@ const sendEmail = input => {
       const fixAddr = addr => {
         const [ x, name, email ] = addr.match(/^(.*) <([^>]+)>$/) || []
         if(!name) return addr
-        return `${name.replace(/[^-a-z. ]/gi, ``)} <${email}>`
+        return `${name.replace(/[^-a-z0-9. ]/gi, ``)} <${email}>`
       }
       toAddrs = toAddrs.map(fixAddr)
       fromAddr = fixAddr(fromAddr)

@@ -14,3 +14,9 @@ node_modules
 
 # Temporary files
 tmp_epub_*
+
+# SQL dump files
+*.sql
+
+# AWS credentials
+aws-credentials.md
