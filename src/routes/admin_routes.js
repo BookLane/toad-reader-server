@@ -1335,8 +1335,9 @@ module.exports = function (app, s3, ensureAuthenticatedAndCheckIDP, log) {
       query:       `
         SELECT i.*
         FROM idp as i
+        WHERE i.domain NOT LIKE 'NO LONGER ACTIVE%'
         ${isTRSite ? `` : `
-          WHERE i.id=:idpId
+          AND i.id=:idpId
         `}
       `,
       vars: {
